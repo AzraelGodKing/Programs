@@ -7,5 +7,16 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>AutoClicker</RootNamespace>
     <AssemblyName>AutoClicker</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Assets\App.ico</ApplicationIcon>
+    <Version>1.1.0</Version>
+    <Company>AutoClicker Project</Company>
+    <Product>AutoClicker</Product>
+    <Description>Lightweight WinForms autoclicker with configurable hotkeys and click modes.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Assets\App.ico" />
+  </ItemGroup>
 </Project>
