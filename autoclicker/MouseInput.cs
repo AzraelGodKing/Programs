@@ -4,64 +4,82 @@ namespace AutoClicker;
 
 internal static class MouseInput
 {
-    private const uint InputMouse = 0;
-    private const uint MouseEventfLeftDown = 0x0002;
-    private const uint MouseEventfLeftUp = 0x0004;
-
     /// <summary>
-    /// Sends a left-button click at the current cursor position (non-absolute mode).
+    /// Sends click input with selected button and positioning mode.
     /// </summary>
-    internal static void SendLeftClick()
+    internal static unsafe bool SendClick(
+        MouseButtonType button,
+        bool useAbsolutePosition,
+        int absoluteX,
+        int absoluteY,
+        out int lastError)
     {
-        var inputs = new INPUT[2];
-        inputs[0].type = InputMouse;
-        inputs[0].Union.mi = new MOUSEINPUT
+        var (downFlag, upFlag) = button switch
         {
-            dx = 0,
-            dy = 0,
-            mouseData = 0,
-            dwFlags = MouseEventfLeftDown,
-            time = 0,
-            dwExtraInfo = UIntPtr.Zero,
-        };
-        inputs[1].type = InputMouse;
-        inputs[1].Union.mi = new MOUSEINPUT
-        {
-            dx = 0,
-            dy = 0,
-            mouseData = 0,
-            dwFlags = MouseEventfLeftUp,
-            time = 0,
-            dwExtraInfo = UIntPtr.Zero,
+            MouseButtonType.Left => (NativeMethods.MouseeventfLeftDown, NativeMethods.MouseeventfLeftUp),
+            MouseButtonType.Right => (NativeMethods.MouseeventfRightDown, NativeMethods.MouseeventfRightUp),
+            MouseButtonType.Middle => (NativeMethods.MouseeventfMiddleDown, NativeMethods.MouseeventfMiddleUp),
+            _ => (NativeMethods.MouseeventfLeftDown, NativeMethods.MouseeventfLeftUp),
         };
 
-        SendInput(2, inputs, Marshal.SizeOf<INPUT>());
+        var count = useAbsolutePosition ? 3 : 2;
+        Span<NativeMethods.INPUT> inputs = stackalloc NativeMethods.INPUT[count];
+
+        var index = 0;
+        if (useAbsolutePosition)
+        {
+            inputs[index++] = BuildMouseInput(
+                NativeMethods.MouseeventfMove | NativeMethods.MouseeventfAbsolute,
+                NormalizeAbsoluteX(absoluteX),
+                NormalizeAbsoluteY(absoluteY));
+        }
+
+        inputs[index++] = BuildMouseInput(downFlag, 0, 0);
+        inputs[index] = BuildMouseInput(upFlag, 0, 0);
+
+        fixed (NativeMethods.INPUT* ptr = inputs)
+        {
+            var sent = NativeMethods.SendInput((uint)count, ptr, sizeof(NativeMethods.INPUT));
+            if (sent == count)
+            {
+                lastError = 0;
+                return true;
+            }
+        }
+
+        lastError = Marshal.GetLastWin32Error();
+        return false;
     }
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MOUSEINPUT
+    private static NativeMethods.INPUT BuildMouseInput(uint flags, int dx, int dy)
     {
-        internal int dx;
-        internal int dy;
-        internal uint mouseData;
-        internal uint dwFlags;
-        internal uint time;
-        internal UIntPtr dwExtraInfo;
+        return new NativeMethods.INPUT
+        {
+            type = NativeMethods.InputMouse,
+            Union = new NativeMethods.InputUnion
+            {
+                mi = new NativeMethods.MOUSEINPUT
+                {
+                    dx = dx,
+                    dy = dy,
+                    mouseData = 0,
+                    dwFlags = flags,
+                    time = 0,
+                    dwExtraInfo = UIntPtr.Zero
+                }
+            }
+        };
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct INPUT
+    private static int NormalizeAbsoluteX(int x)
     {
-        internal uint type;
-        internal InputUnion Union;
+        var width = Math.Max(1, Screen.PrimaryScreen?.Bounds.Width ?? 1);
+        return (int)Math.Round(x * 65535d / (width - 1));
     }
 
-    [StructLayout(LayoutKind.Explicit)]
-    private struct InputUnion
+    private static int NormalizeAbsoluteY(int y)
     {
-        [FieldOffset(0)] internal MOUSEINPUT mi;
+        var height = Math.Max(1, Screen.PrimaryScreen?.Bounds.Height ?? 1);
+        return (int)Math.Round(y * 65535d / (height - 1));
     }
 }
