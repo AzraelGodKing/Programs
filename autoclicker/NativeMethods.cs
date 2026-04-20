@@ -29,6 +29,7 @@ internal static partial class NativeMethods
     internal const uint MouseeventfMiddleDown = 0x0020;
     internal const uint MouseeventfMiddleUp = 0x0040;
     internal const uint MouseeventfAbsolute = 0x8000;
+    internal const uint MouseeventfVirtualDesk = 0x4000;
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

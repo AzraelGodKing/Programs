@@ -99,4 +99,30 @@ public sealed class AppSettings
 
     /// <summary>False until user acknowledges ToS/policy notice.</summary>
     public bool ShowFirstRunNotice { get; set; } = true;
+
+    internal AppSettings Clone() => new AppSettings
+    {
+        IntervalValue = IntervalValue,
+        IntervalUnit = IntervalUnit,
+        Hotkey = Hotkey,
+        HotkeyCtrl = HotkeyCtrl,
+        HotkeyAlt = HotkeyAlt,
+        HotkeyShift = HotkeyShift,
+        HotkeyWin = HotkeyWin,
+        MouseButton = MouseButton,
+        ClickType = ClickType,
+        ClicksPerTrigger = ClicksPerTrigger,
+        UseFixedPosition = UseFixedPosition,
+        FixedX = FixedX,
+        FixedY = FixedY,
+        EnableJitter = EnableJitter,
+        JitterPercent = JitterPercent,
+        EnableClickLimit = EnableClickLimit,
+        MaxClicks = MaxClicks,
+        EnableDurationLimit = EnableDurationLimit,
+        MaxSeconds = MaxSeconds,
+        MinimizeToTray = MinimizeToTray,
+        AlwaysOnTop = AlwaysOnTop,
+        ShowFirstRunNotice = ShowFirstRunNotice,
+    };
 }
