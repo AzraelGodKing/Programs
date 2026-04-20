@@ -12,7 +12,7 @@ public partial class MainForm : Form
         Keys.F1, Keys.F2, Keys.F3, Keys.F4, Keys.F5, Keys.F6, Keys.F7, Keys.F8, Keys.F9, Keys.F10, Keys.F11, Keys.F12
     };
 
-    private readonly AppSettings _settings;
+    private AppSettings _settings;
     private readonly GlobalHotkey _globalHotkey;
     private readonly PositionPicker _positionPicker = new();
     private readonly NotifyIcon _trayIcon;
@@ -23,6 +23,7 @@ public partial class MainForm : Form
     private bool _warnedSendInputFailure;
     private long _clickCount;
     private DateTime _startedAtUtc;
+    private Dictionary<string, AppSettings> _profiles = new(StringComparer.OrdinalIgnoreCase);
 
     public MainForm()
     {
@@ -50,6 +51,7 @@ public partial class MainForm : Form
         InitializeTooltips();
         ApplySettingsToUi();
         ApplyHotkeyRegistration();
+        InitializeProfiles();
         AcceptButton = startButton;
     }
 
@@ -226,6 +228,7 @@ public partial class MainForm : Form
         _startedAtUtc = DateTime.UtcNow;
         _runCancellationTokenSource = new CancellationTokenSource();
         StartTimer(_runCancellationTokenSource.Token);
+        uiUpdateTimer.Start();
         UpdateClickCounter();
         UpdateUiState();
     }
@@ -241,6 +244,8 @@ public partial class MainForm : Form
         _runCancellationTokenSource = null;
         _clickTimer?.Dispose();
         _clickTimer = null;
+        uiUpdateTimer.Stop();
+        UpdateStatsLabels();
         UpdateUiState();
     }
 
@@ -433,6 +438,12 @@ public partial class MainForm : Form
         formToolTip.SetToolTip(minimizeToTrayCheckBox, "Hide to tray when minimized.");
         formToolTip.SetToolTip(startButton, "Start auto-clicking.");
         formToolTip.SetToolTip(stopButton, "Stop auto-clicking.");
+        formToolTip.SetToolTip(resetCounterButton, "Reset click counter and stats.");
+        formToolTip.SetToolTip(cpsLabel, "Clicks per second during the current run.");
+        formToolTip.SetToolTip(elapsedLabel, "Elapsed time for the current run.");
+        formToolTip.SetToolTip(profileComboBox, "Type a name or select an existing profile.");
+        formToolTip.SetToolTip(saveProfileButton, "Save current settings as the named profile.");
+        formToolTip.SetToolTip(deleteProfileButton, "Delete the selected profile.");
     }
 
     private void ApplySettingsToUi()
@@ -511,5 +522,95 @@ public partial class MainForm : Form
         WindowState = FormWindowState.Normal;
         Activate();
         _trayIcon.Visible = false;
+    }
+
+    // --- Profiles ---
+
+    private void InitializeProfiles()
+    {
+        _profiles = ProfilesStore.Load();
+        RefreshProfileComboBox(null);
+    }
+
+    private void RefreshProfileComboBox(string? selectName)
+    {
+        profileComboBox.SelectedIndexChanged -= profileComboBox_SelectedIndexChanged;
+        profileComboBox.Items.Clear();
+        foreach (var name in _profiles.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+            profileComboBox.Items.Add(name);
+        profileComboBox.Text = selectName ?? string.Empty;
+        profileComboBox.SelectedIndexChanged += profileComboBox_SelectedIndexChanged;
+    }
+
+    private void profileComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        var name = profileComboBox.Text.Trim();
+        if (!string.IsNullOrEmpty(name) && _profiles.TryGetValue(name, out var profile))
+            ApplyProfile(profile);
+    }
+
+    private void saveProfileButton_Click(object? sender, EventArgs e)
+    {
+        var name = profileComboBox.Text.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            MessageBox.Show(this, "Enter a profile name first.", "Save Profile",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            profileComboBox.Focus();
+            return;
+        }
+        _profiles[name] = CollectSettingsFromUi().Clone();
+        ProfilesStore.Save(_profiles);
+        RefreshProfileComboBox(name);
+    }
+
+    private void deleteProfileButton_Click(object? sender, EventArgs e)
+    {
+        var name = profileComboBox.Text.Trim();
+        if (string.IsNullOrEmpty(name) || !_profiles.ContainsKey(name))
+            return;
+        if (MessageBox.Show(this, $"Delete profile \"{name}\"?", "Delete Profile",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+        _profiles.Remove(name);
+        ProfilesStore.Save(_profiles);
+        RefreshProfileComboBox(null);
+    }
+
+    private void ApplyProfile(AppSettings profile)
+    {
+        var showFirstRun = _settings.ShowFirstRunNotice;
+        _settings = profile.Clone();
+        _settings.ShowFirstRunNotice = showFirstRun;
+        ApplySettingsToUi();
+        ApplyHotkeyRegistration();
+        SaveFromUi();
+    }
+
+    // --- Stats (CPS / elapsed / reset) ---
+
+    private void resetCounterButton_Click(object? sender, EventArgs e)
+    {
+        Interlocked.Exchange(ref _clickCount, 0);
+        if (_running)
+            _startedAtUtc = DateTime.UtcNow;
+        else
+        {
+            cpsLabel.Text = "CPS: \u2014";
+            elapsedLabel.Text = "Elapsed: \u2014";
+        }
+        UpdateClickCounter();
+    }
+
+    private void uiUpdateTimer_Tick(object? sender, EventArgs e) => UpdateStatsLabels();
+
+    private void UpdateStatsLabels()
+    {
+        var count = Interlocked.Read(ref _clickCount);
+        var elapsed = DateTime.UtcNow - _startedAtUtc;
+        var cps = elapsed.TotalSeconds > 0.01 ? count / elapsed.TotalSeconds : 0d;
+        var fmt = elapsed.TotalHours >= 1 ? @"h\:mm\:ss" : @"m\:ss";
+        cpsLabel.Text = $"CPS: {cps:F1}";
+        elapsedLabel.Text = $"Elapsed: {elapsed.ToString(fmt)}";
     }
 }

@@ -35,6 +35,14 @@ partial class MainForm
     private CheckBox alwaysOnTopCheckBox;
     private CheckBox minimizeToTrayCheckBox;
     private Label clickCounterLabel;
+    private Button resetCounterButton;
+    private Label cpsLabel;
+    private Label elapsedLabel;
+    private Label profileLabel;
+    private ComboBox profileComboBox;
+    private Button saveProfileButton;
+    private Button deleteProfileButton;
+    private System.Windows.Forms.Timer uiUpdateTimer;
     private ToolTip formToolTip;
 
     protected override void Dispose(bool disposing)
@@ -79,6 +87,14 @@ partial class MainForm
         alwaysOnTopCheckBox = new CheckBox();
         minimizeToTrayCheckBox = new CheckBox();
         clickCounterLabel = new Label();
+        resetCounterButton = new Button();
+        cpsLabel = new Label();
+        elapsedLabel = new Label();
+        profileLabel = new Label();
+        profileComboBox = new ComboBox();
+        saveProfileButton = new Button();
+        deleteProfileButton = new Button();
+        uiUpdateTimer = new System.Windows.Forms.Timer(components);
         formToolTip = new ToolTip(components);
         ((System.ComponentModel.ISupportInitialize)intervalNumericUpDown).BeginInit();
         ((System.ComponentModel.ISupportInitialize)clicksPerTriggerNumericUpDown).BeginInit();
@@ -407,17 +423,92 @@ partial class MainForm
         // clickCounterLabel
         //
         clickCounterLabel.AutoSize = true;
-        clickCounterLabel.Location = new Point(16, 484);
+        clickCounterLabel.Location = new Point(16, 487);
         clickCounterLabel.Name = "clickCounterLabel";
         clickCounterLabel.Size = new Size(53, 15);
         clickCounterLabel.TabIndex = 33;
         clickCounterLabel.Text = "Clicks: 0";
         //
+        // resetCounterButton
+        //
+        resetCounterButton.Location = new Point(130, 483);
+        resetCounterButton.Name = "resetCounterButton";
+        resetCounterButton.Size = new Size(75, 22);
+        resetCounterButton.TabIndex = 34;
+        resetCounterButton.Text = "Reset";
+        resetCounterButton.UseVisualStyleBackColor = true;
+        resetCounterButton.Click += resetCounterButton_Click;
+        //
+        // cpsLabel
+        //
+        cpsLabel.AutoSize = true;
+        cpsLabel.Location = new Point(16, 511);
+        cpsLabel.Name = "cpsLabel";
+        cpsLabel.TabIndex = 35;
+        cpsLabel.Text = "CPS: \u2014";
+        //
+        // elapsedLabel
+        //
+        elapsedLabel.AutoSize = true;
+        elapsedLabel.Location = new Point(150, 511);
+        elapsedLabel.Name = "elapsedLabel";
+        elapsedLabel.TabIndex = 36;
+        elapsedLabel.Text = "Elapsed: \u2014";
+        //
+        // profileLabel
+        //
+        profileLabel.AutoSize = true;
+        profileLabel.Location = new Point(16, 540);
+        profileLabel.Name = "profileLabel";
+        profileLabel.TabIndex = 37;
+        profileLabel.Text = "Profile:";
+        //
+        // profileComboBox
+        //
+        profileComboBox.FormattingEnabled = true;
+        profileComboBox.Location = new Point(75, 536);
+        profileComboBox.Name = "profileComboBox";
+        profileComboBox.Size = new Size(186, 23);
+        profileComboBox.TabIndex = 38;
+        profileComboBox.SelectedIndexChanged += profileComboBox_SelectedIndexChanged;
+        //
+        // saveProfileButton
+        //
+        saveProfileButton.Location = new Point(268, 536);
+        saveProfileButton.Name = "saveProfileButton";
+        saveProfileButton.Size = new Size(55, 23);
+        saveProfileButton.TabIndex = 39;
+        saveProfileButton.Text = "Save";
+        saveProfileButton.UseVisualStyleBackColor = true;
+        saveProfileButton.Click += saveProfileButton_Click;
+        //
+        // deleteProfileButton
+        //
+        deleteProfileButton.Location = new Point(330, 536);
+        deleteProfileButton.Name = "deleteProfileButton";
+        deleteProfileButton.Size = new Size(68, 23);
+        deleteProfileButton.TabIndex = 40;
+        deleteProfileButton.Text = "Delete";
+        deleteProfileButton.UseVisualStyleBackColor = true;
+        deleteProfileButton.Click += deleteProfileButton_Click;
+        //
+        // uiUpdateTimer
+        //
+        uiUpdateTimer.Interval = 500;
+        uiUpdateTimer.Tick += uiUpdateTimer_Tick;
+        //
         // MainForm
         //
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(440, 510);
+        ClientSize = new Size(440, 572);
+        Controls.Add(deleteProfileButton);
+        Controls.Add(saveProfileButton);
+        Controls.Add(profileComboBox);
+        Controls.Add(profileLabel);
+        Controls.Add(elapsedLabel);
+        Controls.Add(cpsLabel);
+        Controls.Add(resetCounterButton);
         Controls.Add(clickCounterLabel);
         Controls.Add(minimizeToTrayCheckBox);
         Controls.Add(alwaysOnTopCheckBox);

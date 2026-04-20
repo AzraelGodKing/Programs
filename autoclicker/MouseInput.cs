@@ -29,9 +29,9 @@ internal static class MouseInput
         if (useAbsolutePosition)
         {
             inputs[index++] = BuildMouseInput(
-                NativeMethods.MouseeventfMove | NativeMethods.MouseeventfAbsolute,
-                NormalizeAbsoluteX(absoluteX),
-                NormalizeAbsoluteY(absoluteY));
+                NativeMethods.MouseeventfMove | NativeMethods.MouseeventfAbsolute | NativeMethods.MouseeventfVirtualDesk,
+                NormalizeVirtualX(absoluteX),
+                NormalizeVirtualY(absoluteY));
         }
 
         inputs[index++] = BuildMouseInput(downFlag, 0, 0);
@@ -71,15 +71,15 @@ internal static class MouseInput
         };
     }
 
-    private static int NormalizeAbsoluteX(int x)
+    private static int NormalizeVirtualX(int x)
     {
-        var width = Math.Max(1, Screen.PrimaryScreen?.Bounds.Width ?? 1);
-        return (int)Math.Round(x * 65535d / (width - 1));
+        var vscreen = SystemInformation.VirtualScreen;
+        return (int)Math.Round((x - vscreen.Left) * 65535d / Math.Max(1, vscreen.Width - 1));
     }
 
-    private static int NormalizeAbsoluteY(int y)
+    private static int NormalizeVirtualY(int y)
     {
-        var height = Math.Max(1, Screen.PrimaryScreen?.Bounds.Height ?? 1);
-        return (int)Math.Round(y * 65535d / (height - 1));
+        var vscreen = SystemInformation.VirtualScreen;
+        return (int)Math.Round((y - vscreen.Top) * 65535d / Math.Max(1, vscreen.Height - 1));
     }
 }
