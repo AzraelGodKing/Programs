@@ -1,128 +1,130 @@
+using System.Text.Json;
+
 namespace AutoClicker;
 
-/// <summary>
-/// Supported mouse buttons.
-/// </summary>
-public enum MouseButtonType
+internal static class HotkeyMods
 {
-    Left,
-    Right,
-    Middle
+    public const int Alt = 1;
+    public const int Control = 2;
+    public const int Shift = 4;
 }
 
-/// <summary>
-/// Click mode per trigger.
-/// </summary>
-public enum ClickType
+internal sealed class ClickPoint
 {
-    Single,
-    Double
+    public int X { get; set; }
+    public int Y { get; set; }
 }
 
-/// <summary>
-/// Interval unit selected in the UI.
-/// </summary>
-public enum IntervalUnit
+internal sealed class ClickPreset
 {
-    Milliseconds,
-    Seconds,
-    Minutes
+    public string Name { get; set; } = "";
+    public decimal IntervalMs { get; set; } = 500;
+    public int JitterMaxMs { get; set; }
+    public int PressMs { get; set; }
+    public int ClicksPerTick { get; set; } = 1;
+    public int ClickLimit { get; set; }
+    public int TimeLimitSeconds { get; set; }
+    public int MouseButton { get; set; }
+    public bool HoldMode { get; set; }
+    public int StartDelaySeconds { get; set; }
+    public bool LeavePointer { get; set; }
+    public int PositionJitterPx { get; set; }
+    public bool StopOnMouseMove { get; set; }
+    public bool UsePoints { get; set; }
+    public List<ClickPoint> Points { get; set; } = new();
 }
 
-/// <summary>
-/// Persisted user settings.
-/// </summary>
-public sealed class AppSettings
+internal sealed class AppSettings
 {
-    /// <summary>Interval numeric value in selected unit.</summary>
-    public decimal IntervalValue { get; set; } = 500m;
+    public decimal IntervalMs { get; set; } = 500;
+    public int JitterMaxMs { get; set; }
+    public int PressMs { get; set; }
+    public int ClicksPerTick { get; set; } = 1;
+    public int ClickLimit { get; set; }
+    public int TimeLimitSeconds { get; set; }
+    public int MouseButton { get; set; }
+    public bool HoldMode { get; set; }
+    public bool LeavePointer { get; set; }
+    public bool FixedPosition { get; set; }
+    public int? FixedX { get; set; }
+    public int? FixedY { get; set; }
+    public List<ClickPoint> Points { get; set; } = new();
+    public int StartDelaySeconds { get; set; }
+    public int PositionJitterPx { get; set; }
+    public bool StopOnMouseMove { get; set; }
 
-    /// <summary>Interval unit displayed in UI.</summary>
-    public IntervalUnit IntervalUnit { get; set; } = IntervalUnit.Milliseconds;
-
-    /// <summary>Main key for global toggle hotkey.</summary>
-    public Keys Hotkey { get; set; } = Keys.F6;
-
-    /// <summary>True when Ctrl is part of hotkey.</summary>
-    public bool HotkeyCtrl { get; set; }
-
-    /// <summary>True when Alt is part of hotkey.</summary>
-    public bool HotkeyAlt { get; set; }
-
-    /// <summary>True when Shift is part of hotkey.</summary>
-    public bool HotkeyShift { get; set; }
-
-    /// <summary>True when Win is part of hotkey.</summary>
-    public bool HotkeyWin { get; set; }
-
-    /// <summary>Configured click button.</summary>
-    public MouseButtonType MouseButton { get; set; } = MouseButtonType.Left;
-
-    /// <summary>Configured click type.</summary>
-    public ClickType ClickType { get; set; } = ClickType.Single;
-
-    /// <summary>How many click actions to send each trigger (1-10).</summary>
-    public int ClicksPerTrigger { get; set; } = 1;
-
-    /// <summary>Enables fixed-position click mode.</summary>
-    public bool UseFixedPosition { get; set; }
-
-    /// <summary>Fixed X position for click mode.</summary>
-    public int FixedX { get; set; }
-
-    /// <summary>Fixed Y position for click mode.</summary>
-    public int FixedY { get; set; }
-
-    /// <summary>Enable random jitter around interval.</summary>
-    public bool EnableJitter { get; set; }
-
-    /// <summary>Jitter percentage (0-100).</summary>
-    public int JitterPercent { get; set; }
-
-    /// <summary>Enable stop after N click actions.</summary>
-    public bool EnableClickLimit { get; set; }
-
-    /// <summary>Maximum click actions before auto-stop.</summary>
-    public int MaxClicks { get; set; } = 100;
-
-    /// <summary>Enable stop after duration.</summary>
-    public bool EnableDurationLimit { get; set; }
-
-    /// <summary>Duration in seconds before auto-stop.</summary>
-    public int MaxSeconds { get; set; } = 60;
-
-    /// <summary>Enables tray behavior on minimize.</summary>
+    // Start hotkey: 0 = F1 … 11 = F12. Name kept so existing settings.json files still load.
+    public int HotkeyFKeyIndex { get; set; } = 5;
+    public int StopHotkeyFKeyIndex { get; set; } = 6;
+    public int StartHotkeyModifiers { get; set; }
+    public int StopHotkeyModifiers { get; set; }
     public bool MinimizeToTray { get; set; }
-
-    /// <summary>Window top-most preference.</summary>
     public bool AlwaysOnTop { get; set; }
-
-    /// <summary>False until user acknowledges ToS/policy notice.</summary>
     public bool ShowFirstRunNotice { get; set; } = true;
+    public List<ClickPreset> Presets { get; set; } = new();
+}
 
-    internal AppSettings Clone() => new AppSettings
+internal static class AppSettingsStore
+{
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
+    internal static string SettingsFilePath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "AutoClicker",
+        "settings.json");
+
+    internal static AppSettings Load()
     {
-        IntervalValue = IntervalValue,
-        IntervalUnit = IntervalUnit,
-        Hotkey = Hotkey,
-        HotkeyCtrl = HotkeyCtrl,
-        HotkeyAlt = HotkeyAlt,
-        HotkeyShift = HotkeyShift,
-        HotkeyWin = HotkeyWin,
-        MouseButton = MouseButton,
-        ClickType = ClickType,
-        ClicksPerTrigger = ClicksPerTrigger,
-        UseFixedPosition = UseFixedPosition,
-        FixedX = FixedX,
-        FixedY = FixedY,
-        EnableJitter = EnableJitter,
-        JitterPercent = JitterPercent,
-        EnableClickLimit = EnableClickLimit,
-        MaxClicks = MaxClicks,
-        EnableDurationLimit = EnableDurationLimit,
-        MaxSeconds = MaxSeconds,
-        MinimizeToTray = MinimizeToTray,
-        AlwaysOnTop = AlwaysOnTop,
-        ShowFirstRunNotice = ShowFirstRunNotice,
-    };
+        try
+        {
+            if (!File.Exists(SettingsFilePath))
+                return new AppSettings();
+            var json = File.ReadAllText(SettingsFilePath);
+            return Normalize(JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings());
+        }
+        catch
+        {
+            return new AppSettings();
+        }
+    }
+
+    internal static void Save(AppSettings settings)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(SettingsFilePath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(SettingsFilePath, JsonSerializer.Serialize(settings, JsonOptions));
+        }
+        catch
+        {
+            // ignore persistence failures
+        }
+    }
+
+    private static AppSettings Normalize(AppSettings settings)
+    {
+        settings.Points ??= new List<ClickPoint>();
+        settings.Presets ??= new List<ClickPreset>();
+        if (settings.Points.Count == 0 && settings.FixedX is int x && settings.FixedY is int y)
+            settings.Points.Add(new ClickPoint { X = x, Y = y });
+        if (settings.ClicksPerTick < 1)
+            settings.ClicksPerTick = 1;
+        if (settings.TimeLimitSeconds < 0)
+            settings.TimeLimitSeconds = 0;
+        if (settings.StopHotkeyFKeyIndex is < 0 or > 11)
+            settings.StopHotkeyFKeyIndex = 6;
+
+        foreach (var preset in settings.Presets)
+        {
+            preset.Points ??= new List<ClickPoint>();
+            if (preset.ClicksPerTick < 1)
+                preset.ClicksPerTick = 1;
+            if (string.IsNullOrWhiteSpace(preset.Name))
+                preset.Name = "Preset";
+        }
+
+        return settings;
+    }
 }
