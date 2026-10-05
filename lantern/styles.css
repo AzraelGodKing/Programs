@@ -19,6 +19,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html { scroll-behavior: auto; }
 
 body {
@@ -131,8 +133,8 @@ button { cursor: pointer; }
 }
 
 .tabs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  overflow-x: auto;
 }
 
 .tabs button {
@@ -141,7 +143,9 @@ button { cursor: pointer; }
   border: 0;
   border-bottom: 2px solid transparent;
   color: var(--muted);
-  padding: 0.75rem 0.2rem;
+  padding: 0.75rem 0.55rem;
+  flex: 1 0 auto;
+  white-space: nowrap;
 }
 
 .tabs button[aria-selected="true"] {
@@ -533,6 +537,79 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
   text-transform: capitalize;
   font-size: 0.85rem;
   color: var(--cream);
+}
+
+.ability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.2rem, 1fr));
+  gap: 0.5rem;
+}
+
+.ability {
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.sheet-title {
+  font-family: var(--serif);
+  font-size: 1.7rem;
+  line-height: 1.15;
+}
+
+.ability-name {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ability-total {
+  font-family: var(--serif);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.ability-note { color: var(--faint); font-size: 0.82rem; }
+
+.point-step { display: flex; align-items: center; gap: 0.35rem; }
+
+.point-value {
+  min-width: 1.4rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.28rem 0.7rem;
+}
+
+.skill-grid label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--faint);
+}
+
+.skill-grid label.is-offered { color: var(--cream); }
+
+.trait-label { margin-top: 0.8rem; }
+
+#character-traits { width: 100%; margin-top: 0.3rem; }
+
+#panel-character { display: grid; gap: 0.8rem; }
+#panel-character[hidden] { display: none; }
+#panel-character label,
+#panel-character .ability,
+#panel-character .modes,
+#panel-character h3,
+#panel-character .summary {
+  scroll-margin-top: 8.5rem;
 }
 
 .summary {
