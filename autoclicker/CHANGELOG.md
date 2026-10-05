@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Moved into the [Programs](https://github.com/AzraelGodKing/Programs) monorepo as `autoclicker/`. The GitHub Actions build now lives at `.github/workflows/autoclicker-build.yml` and runs from that folder.
 - **Start** and **Stop** are separate global hotkeys (default **F6** / **F7**) with optional **Ctrl**, **Alt**, and **Shift**. The old single toggle hotkey is gone.
 - **Use saved points** cycles through a list of captured positions. A single captured point still behaves like the old fixed position.
 - Click timing runs on a background clock so short intervals stay closer to the requested delay.
