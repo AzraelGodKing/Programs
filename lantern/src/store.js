@@ -4,6 +4,8 @@ import { LIGHTS } from "./lights.js";
 import { KINDS } from "./oracle.js";
 
 export const KEY = "lantern.v1";
+export const SAVE_VERSION = 1;
+export const SAVE_BYTES = 300_000;
 
 const TABS = ["dice", "order", "threat", "spark", "character"];
 const MODES = ["normal", "advantage", "disadvantage"];
@@ -190,4 +192,38 @@ export function clearState() {
   } catch {
     // Ignore a storage failure and let the screen reset anyway.
   }
+}
+
+export class SaveError extends Error {}
+
+export function exportNight(state, now = new Date()) {
+  return {
+    lantern: SAVE_VERSION,
+    savedAt: now.toISOString(),
+    night: normalize(state),
+  };
+}
+
+export function importNight(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new SaveError("That file is not a Lantern save.");
+  }
+  if (payload.lantern !== SAVE_VERSION) {
+    throw new SaveError(
+      typeof payload.lantern === "number" && payload.lantern > SAVE_VERSION
+        ? "That save is from a newer Lantern."
+        : "That file is not a Lantern save.",
+    );
+  }
+  if (!payload.night || typeof payload.night !== "object" || Array.isArray(payload.night)) {
+    throw new SaveError("That file is not a Lantern save.");
+  }
+  return normalize(payload.night);
+}
+
+export function nightFilename(state, now = new Date()) {
+  const name = normalize(state).character.name;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  const day = now.toISOString().slice(0, 10);
+  return slug ? `lantern-${slug}-${day}.json` : `lantern-night-${day}.json`;
 }

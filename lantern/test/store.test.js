@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalize } from "../src/store.js";
+import { SaveError, exportNight, importNight, nightFilename, normalize } from "../src/store.js";
 
 test("a fresh night starts on the dice", () => {
   const state = normalize(null);
@@ -53,4 +53,32 @@ test("bad saves are dropped instead of trusted", () => {
   assert.equal(state.lights[0].kind, "torch");
   assert.equal(state.sparks[0].kind, "place");
   assert.equal(state.notes.length, 4000);
+});
+
+test("a save file round-trips the night and refuses anything else", () => {
+  const when = new Date("2026-10-05T18:00:00.000Z");
+  const file = exportNight({
+    notes: "The ferry",
+    character: { name: "Mara Vale" },
+    combat: { combatants: [{ name: "Mara Vale", init: 18, hp: 12 }] },
+    tab: "secrets",
+  }, when);
+  assert.equal(file.lantern, 1);
+  assert.equal(file.savedAt, "2026-10-05T18:00:00.000Z");
+  assert.equal(file.night.tab, "dice");
+  assert.equal(file.night.notes, "The ferry");
+  assert.equal(file.night.character.name, "Mara Vale");
+  assert.equal(file.night.combat.combatants[0].name, "Mara Vale");
+
+  const restored = importNight(file);
+  assert.equal(restored.notes, "The ferry");
+  assert.equal(restored.character.name, "Mara Vale");
+  assert.equal(nightFilename({ character: { name: "Mara Vale" } }, when), "lantern-mara-vale-2026-10-05.json");
+  assert.equal(nightFilename({}, when), "lantern-night-2026-10-05.json");
+
+  assert.throws(() => importNight(null), SaveError);
+  assert.throws(() => importNight([]), SaveError);
+  assert.throws(() => importNight({ lantern: 1 }), SaveError);
+  assert.throws(() => importNight({ lantern: 1, night: [] }), SaveError);
+  assert.throws(() => importNight({ lantern: 2, night: {} }), /newer Lantern/);
 });

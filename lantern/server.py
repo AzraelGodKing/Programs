@@ -86,7 +86,8 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"Lantern table at http://127.0.0.1:{PORT}/")
+    print(f"Lantern at http://127.0.0.1:{PORT}/")
+    print(f"Player seat at http://127.0.0.1:{PORT}/player.html")
     print(f"DM screen at http://127.0.0.1:{PORT}/dm.html")
     server.serve_forever()
 

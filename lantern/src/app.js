@@ -11,8 +11,10 @@ import {
   abilityTotals,
   addBackgroundSkills,
   assignStandard,
+  blankCharacter,
   choiceSummary,
   classInfo,
+  cleanCharacter,
   defaultScores,
   findAbility,
   findBackground,
@@ -33,7 +35,24 @@ import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, LIGHTS, lightCaption, lightOptionLabel } from "./lights.js";
 import { MARKS } from "./marks.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
-import { clearState, loadState, normalize, saveState } from "./store.js";
+import {
+  activeCharacter,
+  addCharacter,
+  characterFilename,
+  characterLabel,
+  charactersAt,
+  chooseCharacter,
+  clearRoster,
+  exportCharacter,
+  findEntry,
+  loadRoster,
+  markDead,
+  normalizeRoster,
+  rosterHasCharacters,
+  saveRoster,
+  writeSheet,
+} from "./roster.js";
+import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
 import { loadSeat, normalizeCode, pushTable, rollSummary, saveSeat } from "./table.js";
 
 const WORDS = {
@@ -110,12 +129,24 @@ let lineageKey = "";
 let subclassKey = "";
 let flushing = false;
 let seatError = "";
+let roster = loadRoster();
+let activeId = "";
+let gateMode = "play";
+let viewingId = "";
+let sheetBeforeCreate = null;
 
 function currentIntent() {
   return document.getElementById("roll-for")?.value || "";
 }
 
 function persist(summary) {
+  if (gateMode === "play" && activeId) {
+    const code = seatedCode();
+    if (code) {
+      roster = writeSheet(roster, code, activeId, state.character);
+      saveRoster(roster);
+    }
+  }
   saveState(state);
   if (typeof summary === "string" && summary.trim()) {
     shareQueue.push(summary.trim().slice(0, 300));
@@ -205,6 +236,267 @@ function joinSeat(form) {
   seatError = "";
   paintSeatStatus();
   persist(`${name} joined the table.`);
+  openTableGate();
+}
+
+function seatedCode() {
+  const seat = loadSeat();
+  return seat.name && seat.room.length === 4 ? seat.room : "";
+}
+
+function setGateStatus(message) {
+  const status = document.getElementById("character-gate-status");
+  if (status) status.textContent = message;
+}
+
+function downloadJson(file, filename) {
+  const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function setSheetLocked(locked) {
+  const panel = document.getElementById("panel-character");
+  if (!panel) return;
+  for (const el of panel.querySelectorAll("input, select, textarea, button")) {
+    el.disabled = locked;
+  }
+}
+
+function rosterRow(entry, verb, action) {
+  return h("article", { class: entry.dead ? "roster-row is-dead" : "roster-row is-living" }, [
+    h("h3", {}, characterLabel(entry)),
+    h("p", { class: "hint" }, `${entry.dead ? "Died" : "Living"} · level ${entry.sheet.level}`),
+    h("div", { class: "roster-actions" }, [
+      h("button", { type: "button", class: "btn", "data-action": action, "data-id": entry.id }, verb),
+      h("button", { type: "button", class: "btn", "data-action": "export-character", "data-id": entry.id }, "Export"),
+    ]),
+  ]);
+}
+
+function paintGate() {
+  const gate = document.getElementById("character-gate");
+  const code = seatedCode();
+  const list = code ? charactersAt(roster, code) : [];
+  document.body.classList.toggle("roster-open", gateMode === "choose");
+  document.body.classList.toggle("sheet-focus", gateMode === "create" || gateMode === "view");
+  if (gate) gate.hidden = gateMode === "play";
+  const opener = document.getElementById("open-roster");
+  if (opener) opener.hidden = !code || gateMode !== "play";
+  const died = document.getElementById("mark-dead");
+  if (died) died.hidden = gateMode !== "play" || !activeId;
+  const saveBottom = document.getElementById("save-character-bottom");
+  if (saveBottom) saveBottom.hidden = gateMode !== "create";
+  setSheetLocked(gateMode === "view");
+  if (gateMode === "play") {
+    setGateStatus("");
+    showTab(state.tab, { save: false });
+    return;
+  }
+  if (gateMode === "create" || gateMode === "view") {
+    document.getElementById("panel-character").hidden = false;
+    for (const name of ["dice", "order", "threat", "spark"]) {
+      document.getElementById(`panel-${name}`).hidden = true;
+    }
+  }
+  const title = document.getElementById("character-gate-title");
+  const lede = document.getElementById("character-gate-lede");
+  const actions = document.getElementById("character-gate-actions");
+  const mount = document.getElementById("character-gate-list");
+  if (gateMode === "create") {
+    title.textContent = "Create a character";
+    lede.textContent = list.length
+      ? "A new hero for this table. Give them a name, then sit down."
+      : "This table has no character yet. Give them a name, then sit down.";
+    actions.replaceChildren(
+      h("button", { type: "button", class: "btn primary", "data-action": "save-character" }, "Save this character"),
+      list.length ? h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back") : null,
+    );
+    mount.replaceChildren();
+    return;
+  }
+  if (gateMode === "view") {
+    const entry = findEntry(roster, code, viewingId);
+    title.textContent = entry ? characterLabel(entry) : "Character";
+    lede.textContent = entry?.dead
+      ? "This character died. The sheet stays here to read and export."
+      : "A look at this sheet. Export keeps a file of it.";
+    actions.replaceChildren(
+      h("button", { type: "button", class: "btn", "data-action": "export-character", "data-id": viewingId }, "Export"),
+      h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back"),
+    );
+    mount.replaceChildren();
+    return;
+  }
+  title.textContent = "Who sits down?";
+  lede.textContent = "Load a living character, start a new one, or look back at a character who died.";
+  actions.replaceChildren(
+    h("button", { type: "button", class: "btn primary", "data-action": "create-character" }, "Create a new character"),
+  );
+  mount.replaceChildren(
+    ...list.filter((entry) => !entry.dead).map((entry) => rosterRow(entry, "Load", "load-character")),
+    ...list.filter((entry) => entry.dead).map((entry) => rosterRow(entry, "View", "view-character")),
+  );
+}
+
+function showPlay() {
+  gateMode = "play";
+  viewingId = "";
+  sheetBeforeCreate = null;
+  paintGate();
+}
+
+function showChoose() {
+  gateMode = "choose";
+  viewingId = "";
+  setSheetLocked(false);
+  paintGate();
+}
+
+function beginCreate() {
+  const code = seatedCode();
+  sheetBeforeCreate = cleanCharacter(state.character);
+  const adopt = !charactersAt(roster, code).length && state.character.touched && !rosterHasCharacters(roster);
+  if (!adopt) state.character = blankCharacter();
+  lineageKey = "";
+  subclassKey = "";
+  gateMode = "create";
+  viewingId = "";
+  setGateStatus("");
+  renderCharacter();
+  paintGate();
+}
+
+function openTableGate() {
+  const code = seatedCode();
+  if (!code) {
+    showPlay();
+    return;
+  }
+  if (!charactersAt(roster, code).length) beginCreate();
+  else showChoose();
+}
+
+function openRoster() {
+  const code = seatedCode();
+  if (!code) return;
+  if (gateMode === "create" || gateMode === "view") {
+    const active = activeCharacter(roster, code);
+    state.character = active ? cleanCharacter(active.sheet) : (sheetBeforeCreate || blankCharacter());
+    sheetBeforeCreate = null;
+    viewingId = "";
+    lineageKey = "";
+    subclassKey = "";
+    renderCharacter();
+    if (charactersAt(roster, code).length) showChoose();
+    else showPlay();
+    return;
+  }
+  if (!charactersAt(roster, code).length) beginCreate();
+  else showChoose();
+}
+
+function saveNewCharacter() {
+  const code = seatedCode();
+  const name = state.character.name.trim();
+  if (!name) {
+    setGateStatus("Give this character a name.");
+    return;
+  }
+  state.character.touched = true;
+  const made = addCharacter(roster, code, state.character);
+  if (!made) return;
+  roster = made.roster;
+  activeId = made.entry.id;
+  saveRoster(roster);
+  sheetBeforeCreate = null;
+  setGateStatus("");
+  showPlay();
+  renderCharacter();
+  persist(`${name} sits down.`);
+}
+
+function loadCharacter(id) {
+  const code = seatedCode();
+  const entry = findEntry(roster, code, id);
+  if (!entry || entry.dead) return;
+  state.character = cleanCharacter(entry.sheet);
+  activeId = entry.id;
+  roster = chooseCharacter(roster, code, entry.id);
+  saveRoster(roster);
+  lineageKey = "";
+  subclassKey = "";
+  showPlay();
+  renderCharacter();
+  persist(`${entry.sheet.name || "A character"} sits down.`);
+}
+
+function viewCharacter(id) {
+  const code = seatedCode();
+  const entry = findEntry(roster, code, id);
+  if (!entry) return;
+  if (gateMode !== "view") sheetBeforeCreate = cleanCharacter(state.character);
+  state.character = cleanCharacter(entry.sheet);
+  viewingId = entry.id;
+  gateMode = "view";
+  lineageKey = "";
+  subclassKey = "";
+  setGateStatus("");
+  renderCharacter();
+  paintGate();
+}
+
+function markCharacterDead() {
+  const code = seatedCode();
+  const entry = findEntry(roster, code, activeId);
+  if (!entry || entry.dead) return;
+  const name = entry.sheet.name || "This character";
+  if (!window.confirm(`Mark ${name} as dead? The sheet stays in this browser to view and export.`)) return;
+  roster = markDead(roster, code, entry.id);
+  saveRoster(roster);
+  activeId = "";
+  state.character = blankCharacter();
+  lineageKey = "";
+  subclassKey = "";
+  persist(`${name} died.`);
+  renderCharacter();
+  showChoose();
+}
+
+function exportOne(id) {
+  const entry = findEntry(roster, seatedCode(), id);
+  if (!entry) return;
+  downloadJson(exportCharacter(entry), characterFilename(entry));
+  setGateStatus(`Exported ${characterLabel(entry)}.`);
+}
+
+function resumeRoster() {
+  roster = loadRoster();
+  const code = seatedCode();
+  const active = code ? activeCharacter(roster, code) : null;
+  if (active) {
+    state.character = cleanCharacter(active.sheet);
+    activeId = active.id;
+    gateMode = "play";
+    return;
+  }
+  activeId = "";
+  if (!code) {
+    gateMode = "play";
+    return;
+  }
+  if (charactersAt(roster, code).length) {
+    gateMode = "choose";
+    return;
+  }
+  gateMode = "create";
+  if (!(state.character.touched && !rosterHasCharacters(roster))) state.character = blankCharacter();
 }
 
 function spoken(label) {
@@ -1291,6 +1583,7 @@ function renderCharacter() {
 }
 
 function updateSheet(target, { log }) {
+  if (gateMode === "view") return false;
   const sheet = target.dataset.sheet;
   if (!sheet) return false;
   const character = state.character;
@@ -1513,10 +1806,73 @@ function applyLoaded() {
   renderCharacter();
 }
 
+function setSaveStatus(message) {
+  const status = document.getElementById("save-status");
+  if (status) status.textContent = message;
+}
+
+function downloadNight() {
+  const file = exportNight(state);
+  file.roster = roster;
+  downloadJson(file, nightFilename(state));
+  setSaveStatus("Saved a copy of this night. Keep that file. Clearing this browser leaves the file where you put it.");
+}
+
+async function restoreNight(file) {
+  const input = document.getElementById("import-file");
+  try {
+    if (!file || file.size > SAVE_BYTES) {
+      setSaveStatus("That file is too large to be a Lantern save.");
+      return;
+    }
+    let payload;
+    try {
+      payload = JSON.parse(await file.text());
+    } catch {
+      setSaveStatus("That file is not a Lantern save.");
+      return;
+    }
+    let night;
+    try {
+      night = importNight(payload);
+    } catch (error) {
+      setSaveStatus(error instanceof SaveError ? error.message : "That file is not a Lantern save.");
+      return;
+    }
+    const ok = window.confirm("Replace the night stored in this browser with this file? The character, the fight, the lights, and the notes here will be overwritten.");
+    if (!ok) {
+      setSaveStatus("Restore cancelled. This browser still has the night it had.");
+      return;
+    }
+    state = night;
+    if (payload.roster) saveRoster(normalizeRoster(payload.roster));
+    resumeRoster();
+    openMarksId = null;
+    announcedOut.clear();
+    lineageKey = "";
+    subclassKey = "";
+    for (const light of state.lights) {
+      if (light.endsAt <= Date.now()) announcedOut.add(light.id);
+    }
+    applyLoaded();
+    paintGate();
+    persist("Restored a saved night.");
+    setSaveStatus("Restored the night from that file. It is stored in this browser again.");
+  } finally {
+    if (input) input.value = "";
+  }
+}
+
 function resetAll() {
-  const ok = window.confirm("Clear the fight, the party, the flames, the prompts, the character, and the scratch notes stored in this browser?");
+  const ok = window.confirm("Delete the game stored in this browser? The characters at each table, the fight, the party, the flames, the prompts, and the scratch notes go with it. A saved copy file is the way back.");
   if (!ok) return;
   clearState();
+  clearRoster();
+  roster = normalizeRoster(null);
+  activeId = "";
+  gateMode = "play";
+  viewingId = "";
+  sheetBeforeCreate = null;
   openMarksId = null;
   announcedOut.clear();
   state = normalize(null);
@@ -1525,6 +1881,7 @@ function resetAll() {
   document.getElementById("monster-form").reset();
   fillSelects();
   applyLoaded();
+  paintGate();
   lineageKey = "";
   subclassKey = "";
   persist("Cleared the fight, the party, the flames, the prompts, the character, and the notes.");
@@ -1592,6 +1949,15 @@ function onClick(event) {
     persist("Using the suggested hit points.");
     renderCharacter();
   } else if (action === "reset") resetAll();
+  else if (action === "export-night") downloadNight();
+  else if (action === "import-night") document.getElementById("import-file")?.click();
+  else if (action === "open-roster") openRoster();
+  else if (action === "create-character") beginCreate();
+  else if (action === "save-character") saveNewCharacter();
+  else if (action === "load-character") loadCharacter(button.dataset.id);
+  else if (action === "view-character") viewCharacter(button.dataset.id);
+  else if (action === "export-character") exportOne(button.dataset.id);
+  else if (action === "mark-dead") markCharacterDead();
 }
 
 function onSubmit(event) {
@@ -1776,6 +2142,7 @@ function onToggle(event) {
 }
 
 function onKey(event) {
+  if (gateMode !== "play") return;
   if (event.target.closest("input, textarea, select, button")) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const tabs = { 1: "dice", 2: "order", 3: "threat", 4: "spark", 5: "character" };
@@ -1793,6 +2160,7 @@ function onKey(event) {
 
 function boot() {
   bootSeat();
+  resumeRoster();
   fillSelects();
   for (const light of state.lights) {
     if (light.endsAt <= Date.now()) announcedOut.add(light.id);
@@ -1801,7 +2169,12 @@ function boot() {
   if (!state.combat.started) state.combat.activeId = null;
   ensureActive();
   applyLoaded();
+  paintGate();
   if (state.combat.activeId !== before || (loadSeat().name && loadSeat().room)) persist();
+  document.getElementById("import-file")?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (file) void restoreNight(file);
+  });
   document.body.addEventListener("click", onClick);
   document.body.addEventListener("submit", onSubmit);
   document.body.addEventListener("input", onInput);

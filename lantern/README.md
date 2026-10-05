@@ -1,8 +1,8 @@
 # Lantern
 
-A table companion for the part of a 5e night that is not a character sheet.
+A table companion for the part of a 5e night that is not a character sheet. Open it and choose the player seat or the Dungeon Master screen.
 
-Character sheets already have apps. What goes missing at the table is the rest of the hour: the die in the middle, whose turn it is, whether the torch is still burning, whether this fight is a speed bump or a grave, and something to say when the room goes quiet. Lantern is that page. Closing the tab leaves the night in this browser. Join a table code and the DM screen watches the same night as it happens.
+Character sheets already have apps. What goes missing at the table is the rest of the hour: the die in the middle, whose turn it is, whether the torch is still burning, whether this fight is a speed bump or a grave, and something to say when the room goes quiet. Lantern is that page. Closing the tab leaves the night in this browser. Save a copy downloads that whole night, character included, and Restore puts the file back. Clearing this browser, or the browser's stored data for Lantern, deletes the copy that lives here. The downloaded file stays where you put it. Join a table code and the DM screen watches the same night as it happens.
 
 ## Run it
 
@@ -13,9 +13,9 @@ npm test
 npm start
 ```
 
-Open http://localhost:5173
+Open http://localhost:5173 and choose a side.
 
-The DM screen is http://localhost:5173/dm.html. Open a table, share the four-character code, and each player joins with their name. The code is the only key. Anyone who has it can post, and the DM sees every seat: the character, rolls and what they were for, the order, hit points, lights, the encounter budget, prompts, and scratch notes. Solo play still works with the name and code left blank. The shared table lives in the memory of that server, so restarting it starts a new night.
+The player seat is http://localhost:5173/player.html. The DM screen is http://localhost:5173/dm.html. Open a table, share the four-character code, and each player joins with their name. The code is the only key. Anyone who has it can post, and the DM sees every seat: the character, rolls and what they were for, the order, hit points, lights, the encounter budget, prompts, and scratch notes. Solo play still works with the name and code left blank. The shared table lives in the memory of that server, so restarting it starts a new night.
 
 ## What is on the table
 
@@ -24,9 +24,9 @@ The DM screen is http://localhost:5173/dm.html. Open a table, share the four-cha
 - **Light.** Candle, torch, oil lamp, hooded lantern, and bullseye lantern, timed from the moment you strike them. Lowering the hood does not save the oil.
 - **Threat.** The 2014 encounter budget: party thresholds, creature experience, and the multiplier for how many creatures are in the fight. A party smaller than three steps the multiplier up. A party of six or more steps it down. It is a pacing guide, not a promise.
 - **Spark.** Original people, places, twists, rumors, and trinkets. They are not from a published adventure or table.
-- **Character.** One hero from the common 2014 races, classes, subclasses, and backgrounds. Custom is there for a people, a class, or a subclass the list does not have. Scores can be the standard array, point buy, four d6s dropping the lowest, or typed in.
+- **Character.** One hero from the common 2014 races, classes, subclasses, and backgrounds. Custom is there for a people, a class, or a subclass the list does not have. Scores can be the standard array, point buy, four d6s dropping the lowest, or typed in. Joining a table with no character starts a sheet. Later joins load a living character, create another, or view and export one who died.
 - **Scratch.** A note that stays with the rest of the night.
 
 Keys 1–5 switch tools while you are not typing. R rolls. N advances the round.
 
-Clearing the browser wipes the fight, the party, the flames, the prompts, the character, and the notes stored here.
+This browser holds the game. Save a copy keeps a file of the fight, the party, the flames, the prompts, the character, and the notes. Clearing this browser deletes the copy stored here.
