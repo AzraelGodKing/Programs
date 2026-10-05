@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lantern — a table companion</title>
-  <meta name="description" content="Dice, initiative, light, an encounter budget, and improvisation prompts for a 5e table. Everything stays in this browser.">
+  <meta name="description" content="Dice, initiative, light, an encounter budget, and improvisation prompts for a 5e table. Join a code and the DM sees the whole night.">
   <meta name="theme-color" content="#14110e">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -26,6 +26,20 @@
     </div>
     <button type="button" class="text-btn" data-action="reset">Clear this browser</button>
   </header>
+
+  <section class="seat">
+    <form id="seat-form" class="seat-form" autocomplete="off">
+      <label>Your name
+        <input id="seat-name" name="name" maxlength="40" placeholder="Mara" spellcheck="false">
+      </label>
+      <label>Table
+        <input id="seat-room" name="room" maxlength="4" placeholder="Code" autocapitalize="characters" spellcheck="false">
+      </label>
+      <button class="btn" type="submit">Join</button>
+      <a class="text-btn" href="dm.html">DM screen</a>
+    </form>
+    <p id="seat-status" class="hint" role="status"></p>
+  </section>
 
   <div class="sticky-tools">
     <nav class="tabs" role="tablist" aria-label="Tools">
@@ -50,7 +64,7 @@
   <main id="main">
     <section role="tabpanel" id="panel-dice" aria-labelledby="tab-dice">
       <h2>Dice</h2>
-      <p class="lede">Roll in front of the table. The last dozen stay on this browser.</p>
+      <p class="lede">Roll in front of the table. The last dozen stay here, and a joined table shares each one with the DM.</p>
       <div id="dice-result" class="readout" aria-live="polite"></div>
       <p id="dice-formula" class="formula"></p>
       <p id="dice-hint" class="hint" hidden>Advantage and disadvantage wait for a d20.</p>
@@ -61,6 +75,18 @@
         <label>Modifier
           <input id="dice-mod" type="number" min="-100" max="100" value="0" inputmode="numeric">
         </label>
+        <label>For
+          <input id="roll-for" type="text" maxlength="60" placeholder="Perception, longsword, sneak" spellcheck="false">
+        </label>
+        <div class="purposes" role="group" aria-label="What this roll is for">
+          <button type="button" data-action="purpose" data-purpose="Attack" aria-pressed="false">Attack</button>
+          <button type="button" data-action="purpose" data-purpose="Damage" aria-pressed="false">Damage</button>
+          <button type="button" data-action="purpose" data-purpose="Check" aria-pressed="false">Check</button>
+          <button type="button" data-action="purpose" data-purpose="Save" aria-pressed="false">Save</button>
+          <button type="button" data-action="purpose" data-purpose="Initiative" aria-pressed="false">Initiative</button>
+          <button type="button" data-action="purpose" data-purpose="Healing" aria-pressed="false">Healing</button>
+          <button type="button" data-action="purpose" data-purpose="Death save" aria-pressed="false">Death save</button>
+        </div>
         <div class="modes" role="group" aria-label="d20 mode">
           <button type="button" data-action="set-mode" data-mode="normal" aria-pressed="true">Normal</button>
           <button type="button" data-action="set-mode" data-mode="advantage" aria-pressed="false">Advantage</button>

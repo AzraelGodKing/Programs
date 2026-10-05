@@ -4,6 +4,7 @@ import { findLight, formatRemaining, LIGHTS, lightCaption, lightOptionLabel } fr
 import { MARKS } from "./marks.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
 import { clearState, loadState, normalize, saveState } from "./store.js";
+import { loadSeat, normalizeCode, pushTable, rollSummary, saveSeat } from "./table.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -71,8 +72,111 @@ function readInt(input, fallback, min, max) {
   return next;
 }
 
-function persist() {
+const shareQueue = [];
+let shareTimer = null;
+let noteTimer = null;
+let flushing = false;
+let seatError = "";
+
+function currentIntent() {
+  return document.getElementById("roll-for")?.value || "";
+}
+
+function persist(summary) {
   saveState(state);
+  if (typeof summary === "string" && summary.trim()) {
+    shareQueue.push(summary.trim().slice(0, 300));
+  }
+  clearTimeout(shareTimer);
+  shareTimer = setTimeout(() => { void flushShare(); }, shareQueue.length ? 30 : 280);
+}
+
+async function flushShare() {
+  if (flushing) return;
+  const seat = loadSeat();
+  if (!seat.name || !seat.room) {
+    shareQueue.length = 0;
+    return;
+  }
+  flushing = true;
+  const summaries = shareQueue.splice(0, 20);
+  let ok = false;
+  try {
+    const result = await pushTable(seat.room, {
+      name: seat.name,
+      summaries,
+      snapshot: state,
+      intent: currentIntent(),
+    });
+    const status = document.getElementById("seat-status");
+    if (!result.ok) {
+      shareQueue.unshift(...summaries);
+      if (shareQueue.length > 20) shareQueue.length = 20;
+      seatError = result.error;
+      if (status) status.textContent = result.error;
+      return;
+    }
+    ok = true;
+    if (seatError) {
+      seatError = "";
+      paintSeatStatus();
+    }
+  } finally {
+    flushing = false;
+    if (ok && shareQueue.length) {
+      clearTimeout(shareTimer);
+      shareTimer = setTimeout(() => { void flushShare(); }, 30);
+    }
+  }
+}
+
+function paintSeatStatus() {
+  const status = document.getElementById("seat-status");
+  if (!status) return;
+  const seat = loadSeat();
+  if (!seat.name || !seat.room) {
+    status.textContent = "Solo until you join a table. The DM sees the night from the moment you join.";
+    return;
+  }
+  status.textContent = `Sharing with the DM as ${seat.name} at ${seat.room}.`;
+}
+
+function paintPurposes() {
+  const value = currentIntent().trim();
+  for (const button of document.querySelectorAll("[data-action='purpose']")) {
+    button.setAttribute("aria-pressed", button.dataset.purpose === value ? "true" : "false");
+  }
+}
+
+function bootSeat() {
+  const seat = loadSeat();
+  const fromUrl = normalizeCode(new URLSearchParams(location.search).get("room"));
+  if (fromUrl) seat.room = fromUrl;
+  document.getElementById("seat-name").value = seat.name;
+  document.getElementById("seat-room").value = seat.room;
+  if (fromUrl) saveSeat(seat);
+  paintSeatStatus();
+  paintPurposes();
+}
+
+function joinSeat(form) {
+  const name = form.elements.name.value.trim().slice(0, 40);
+  const room = normalizeCode(form.elements.room.value);
+  const status = document.getElementById("seat-status");
+  if (!name || room.length < 4) {
+    if (status) status.textContent = "Add your name and the four-character table code.";
+    return;
+  }
+  form.elements.room.value = room;
+  saveSeat({ name, room });
+  seatError = "";
+  paintSeatStatus();
+  persist(`${name} joined the table.`);
+}
+
+function spoken(label) {
+  const text = String(label || "").toLowerCase();
+  return `${/^[aeiou]/.test(text) ? "an" : "a"} ${text}`;
 }
 
 function findCombatant(id) {
@@ -192,11 +296,12 @@ function renderFreshResult(result) {
 
 function renderHistory() {
   const mount = document.getElementById("dice-history");
-  mount.replaceChildren(...state.dice.history.map((item) => h("article", { class: item.tag ? `ticket ${item.tag}` : "ticket" }, [
+  mount.replaceChildren(...state.dice.history.map((item) => h("article", { class: item.tag ? `ticket ${item.tag}` : "ticket" }, present([
     h("p", { class: "ticket-total" }, String(item.total)),
+    item.purpose ? h("p", { class: "ticket-detail" }, item.purpose) : null,
     h("p", {}, item.formula),
     h("p", { class: "ticket-detail" }, item.detail),
-  ])));
+  ]))));
 }
 
 function doRoll() {
@@ -208,15 +313,19 @@ function doRoll() {
     modifier: state.dice.modifier,
     mode,
   });
+  const purpose = currentIntent().trim().slice(0, 60);
+  const line = formula(result);
+  const detail = facesLabel(result);
   state.dice.history.unshift({
     id: uid(),
-    formula: formula(result),
+    formula: line,
     total: result.total,
-    detail: facesLabel(result),
+    detail,
+    purpose,
     tag: result.tag,
   });
   state.dice.history = state.dice.history.slice(0, 12);
-  persist();
+  persist(rollSummary({ purpose, formula: line, total: result.total, detail, tag: result.tag }));
   paintDice();
   renderFreshResult(result);
   renderHistory();
@@ -411,7 +520,11 @@ function addCombatant(form) {
   form.elements.name.value = "";
   form.elements.initiative.value = "";
   form.elements.name.focus();
-  persist();
+  const how = die == null
+    ? `set initiative ${init}`
+    : `rolled initiative ${init} (${dieLine(person)})`;
+  const armor = ac == null ? "" : `, AC ${ac}`;
+  persist(`Added ${name} to the order, ${how}, ${hp} hit points${armor}.`);
   renderCombat();
 }
 
@@ -419,7 +532,7 @@ function bumpHp(id, delta) {
   const person = findCombatant(id);
   if (!person) return;
   person.hp = Math.min(9999, Math.max(0, person.hp + delta));
-  persist();
+  persist(`${person.name} is at ${person.hp} hit points.`);
   renderCombat();
 }
 
@@ -431,7 +544,7 @@ function rerollOne(id) {
   person.die = rolled.kept[0];
   if (!state.combat.started) state.combat.activeId = null;
   ensureActive();
-  persist();
+  persist(`Rerolled initiative for ${person.name}: ${person.init} (${dieLine(person)}).`);
   renderCombat();
 }
 
@@ -443,11 +556,13 @@ function rerollAll() {
   }
   if (!state.combat.started) state.combat.activeId = null;
   ensureActive();
-  persist();
+  const names = turnOrder().map((person) => `${person.name} ${person.init}`).join(", ");
+  persist(names ? `Rerolled initiative: ${names}.` : undefined);
   renderCombat();
 }
 
 function removeCombatant(id) {
+  const gone = findCombatant(id);
   const list = turnOrder();
   const index = list.findIndex((person) => person.id === id);
   state.combat.combatants = state.combat.combatants.filter((person) => person.id !== id);
@@ -464,7 +579,7 @@ function removeCombatant(id) {
   }
   if (openMarksId === id) openMarksId = null;
   ensureActive();
-  persist();
+  persist(gone ? `Removed ${gone.name} from the order.` : undefined);
   renderCombat();
 }
 
@@ -476,7 +591,7 @@ function stepTurn(direction) {
     state.combat.started = true;
     state.combat.activeId = list[0].id;
     pendingScroll = true;
-    persist();
+    persist(`Started the round on ${list[0].name}.`);
     renderCombat();
     return;
   }
@@ -492,7 +607,8 @@ function stepTurn(direction) {
     state.combat.activeId = list[nextIndex].id;
   }
   pendingScroll = true;
-  persist();
+  const active = turnOrder().find((person) => person.id === state.combat.activeId);
+  persist(active ? `Moved the turn to ${active.name}. Round ${state.combat.round}.` : undefined);
   renderCombat();
 }
 
@@ -645,7 +761,10 @@ function addHeroes(form, times) {
     form.elements.name.value = "";
     form.elements.name.focus();
   }
-  persist();
+  const label = times === 1
+    ? (name || "an unnamed adventurer")
+    : `${count} adventurer${count === 1 ? "" : "s"}`;
+  persist(`Seated ${label} at level ${level}.`);
   renderParty();
   renderThreat({ reveal: true });
 }
@@ -674,21 +793,24 @@ function addMonster(form) {
   showError("monster", "");
   form.elements.name.value = "";
   form.elements.name.focus();
-  persist();
+  const added = state.monsters[state.monsters.length - 1];
+  persist(`Added ${added.count} × ${added.name} (${formatXp(added.xp)} XP each).`);
   renderMonsters();
   renderThreat({ reveal: true });
 }
 
 function removeHero(id) {
-  state.party = state.party.filter((hero) => hero.id !== id);
-  persist();
+  const hero = state.party.find((item) => item.id === id);
+  state.party = state.party.filter((item) => item.id !== id);
+  persist(hero ? `Removed ${hero.name || "an unnamed adventurer"} (level ${hero.level}) from the party.` : undefined);
   renderParty();
   renderThreat({ reveal: true });
 }
 
 function removeMonster(id) {
-  state.monsters = state.monsters.filter((monster) => monster.id !== id);
-  persist();
+  const monster = state.monsters.find((item) => item.id === id);
+  state.monsters = state.monsters.filter((item) => item.id !== id);
+  persist(monster ? `Removed ${monster.count} × ${monster.name} from the encounter.` : undefined);
   renderMonsters();
   renderThreat({ reveal: true });
 }
@@ -733,7 +855,7 @@ function addSpark(card) {
   state.sparks.unshift({ id: uid(), ...card });
   state.sparks = state.sparks.slice(0, 8);
   setText(document.getElementById("spark-live"), sparkText(state.sparks[0]));
-  persist();
+  persist(card.kind === "scene" ? "Drew a whole scene." : `Drew a ${card.kind}: ${card.title}.`);
   renderSparks();
 }
 
@@ -826,7 +948,7 @@ function strike(form) {
     covered: false,
   });
   showError("light", "");
-  persist();
+  persist(`Lit ${spoken(spec.label)}.`);
   renderFlames();
 }
 
@@ -834,14 +956,18 @@ function toggleHood(id) {
   const light = state.lights.find((item) => item.id === id);
   if (!light || light.kind !== "hooded") return;
   light.covered = !light.covered;
-  persist();
+  persist(light.covered ? "Lowered a lantern hood." : "Raised a lantern hood.");
   renderFlames();
 }
 
 function snuff(id) {
-  state.lights = state.lights.filter((light) => light.id !== id);
+  const light = state.lights.find((item) => item.id === id);
+  const spec = light ? findLight(light.kind) : null;
+  const out = Boolean(light && light.endsAt <= Date.now());
+  state.lights = state.lights.filter((item) => item.id !== id);
   announcedOut.delete(id);
-  persist();
+  const label = spec ? spec.label.toLowerCase() : "light";
+  persist(out ? `Cleared ${spoken(label)}.` : `Put out ${spoken(label)}.`);
   renderFlames();
 }
 
@@ -898,7 +1024,7 @@ function resetAll() {
   document.getElementById("monster-form").reset();
   fillSelects();
   applyLoaded();
-  persist();
+  persist("Cleared the fight, the party, the flames, the prompts, and the notes.");
 }
 
 function onClick(event) {
@@ -910,13 +1036,18 @@ function onClick(event) {
   else if (action === "set-sides") {
     state.dice.sides = Number(button.dataset.sides);
     doRoll();
-  } else if (action === "set-mode") {
+  }   else if (action === "set-mode") {
     state.dice.mode = button.dataset.mode;
     paintDice();
+    persist(`Set dice to ${state.dice.mode}.`);
+  } else if (action === "purpose") {
+    const field = document.getElementById("roll-for");
+    field.value = button.dataset.purpose || "";
+    paintPurposes();
     persist();
   } else if (action === "clear-rolls") {
     state.dice.history = [];
-    persist();
+    persist("Cleared the dice history.");
     paintDice();
     renderIdleResult();
     renderHistory();
@@ -935,8 +1066,9 @@ function onClick(event) {
   else if (action === "draw-scene") addSpark(drawScene());
   else if (action === "copy-spark") copySpark(button.dataset.id, button);
   else if (action === "dismiss-spark") {
-    state.sparks = state.sparks.filter((spark) => spark.id !== button.dataset.id);
-    persist();
+    const spark = state.sparks.find((item) => item.id === button.dataset.id);
+    state.sparks = state.sparks.filter((item) => item.id !== button.dataset.id);
+    persist(spark ? `Dismissed ${spark.title}.` : "Dismissed a prompt.");
     renderSparks();
   } else if (action === "reset") resetAll();
 }
@@ -945,7 +1077,8 @@ function onSubmit(event) {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
   event.preventDefault();
-  if (form.dataset.form === "combatant") addCombatant(form);
+  if (form.id === "seat-form") joinSeat(form);
+  else if (form.dataset.form === "combatant") addCombatant(form);
   else if (form.dataset.form === "hero") addHeroes(form, 1);
   else if (form.dataset.form === "monster") addMonster(form);
   else if (form.dataset.form === "light") strike(form);
@@ -955,6 +1088,13 @@ function onInput(event) {
   const target = event.target;
   if (target.id === "notes") {
     state.notes = target.value.slice(0, 4000);
+    persist();
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => persist("Updated scratch notes."), 600);
+    return;
+  }
+  if (target.id === "roll-for") {
+    paintPurposes();
     persist();
     return;
   }
@@ -1040,14 +1180,14 @@ function onChange(event) {
     const hero = state.party.find((item) => item.id === id);
     if (!hero) return;
     hero.level = readInt(target, hero.level, 1, 20);
-    persist();
+    persist(`Set ${hero.name || "an adventurer"} to level ${hero.level}.`);
     renderThreat();
   } else if (field === "init") {
     const person = findCombatant(id);
     if (!person) return;
     person.init = readInt(target, person.init, -100, 200);
     person.die = null;
-    persist();
+    persist(`Set ${person.name}'s initiative to ${person.init}.`);
     renderCombat();
   } else if (field === "mark") {
     const person = findCombatant(id);
@@ -1056,7 +1196,7 @@ function onChange(event) {
     if (target.checked) person.marks.push(target.dataset.mark);
     person.marks.sort((a, b) => MARKS.indexOf(a) - MARKS.indexOf(b));
     openMarksId = id;
-    persist();
+    persist(`${person.name}: ${person.marks.join(", ") || "no conditions"}.`);
     renderCombat();
   } else if (field === "hp" || field === "maxhp" || field === "ac" || field === "combat-name") {
     const person = findCombatant(id);
@@ -1068,26 +1208,34 @@ function onChange(event) {
         person.name = name;
         target.value = name;
       }
-      persist();
+      persist(`Renamed a combatant to ${person.name}.`);
       renderBanner();
       return;
     }
     if (field === "ac" && target.value.trim() === "") {
       person.ac = null;
-      persist();
+      persist(`Cleared ${person.name}'s armor class.`);
       return;
     }
-    if (field === "hp") person.hp = readInt(target, person.hp, 0, 9999);
-    if (field === "maxhp") person.maxHp = readInt(target, person.maxHp, 0, 9999);
-    if (field === "ac") person.ac = readInt(target, person.ac ?? 10, 0, 40);
-    persist();
+    if (field === "hp") {
+      person.hp = readInt(target, person.hp, 0, 9999);
+      persist(`${person.name} is at ${person.hp} hit points.`);
+    }
+    if (field === "maxhp") {
+      person.maxHp = readInt(target, person.maxHp, 0, 9999);
+      persist(`Set ${person.name}'s hit point maximum to ${person.maxHp}.`);
+    }
+    if (field === "ac") {
+      person.ac = readInt(target, person.ac ?? 10, 0, 40);
+      persist(`Set ${person.name}'s armor class to ${person.ac}.`);
+    }
     renderCombat();
   } else if (field === "monster-count" || field === "monster-xp") {
     const monster = state.monsters.find((item) => item.id === id);
     if (!monster) return;
     if (field === "monster-count") monster.count = readInt(target, monster.count, 1, 40);
     if (field === "monster-xp") monster.xp = readInt(target, monster.xp, 0, 2000000);
-    persist();
+    persist(`Set ${monster.name} to ${monster.count} × ${formatXp(monster.xp)} XP.`);
     renderThreat();
   }
 }
@@ -1115,6 +1263,7 @@ function onKey(event) {
 }
 
 function boot() {
+  bootSeat();
   fillSelects();
   for (const light of state.lights) {
     if (light.endsAt <= Date.now()) announcedOut.add(light.id);
@@ -1123,7 +1272,7 @@ function boot() {
   if (!state.combat.started) state.combat.activeId = null;
   ensureActive();
   applyLoaded();
-  if (state.combat.activeId !== before) persist();
+  if (state.combat.activeId !== before || (loadSeat().name && loadSeat().room)) persist();
   document.body.addEventListener("click", onClick);
   document.body.addEventListener("submit", onSubmit);
   document.body.addEventListener("input", onInput);
@@ -1134,6 +1283,7 @@ function boot() {
     if (event.target.type === "number" && document.activeElement === event.target) event.target.blur();
   }, { passive: true });
   setInterval(renderFlames, 1000);
+  setInterval(() => { void flushShare(); }, 8000);
 }
 
 boot();

@@ -4,8 +4,8 @@
   "type": "module",
   "description": "A shelf for small, finished programs.",
   "scripts": {
-    "start": "python3 -m http.server 5173 --directory lantern",
-    "test": "node --test"
+    "start": "python3 lantern/server.py",
+    "test": "node --test && python3 -m unittest discover -s lantern/test -p 'test_*.py'"
   },
   "engines": {
     "node": ">=20"

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lantern — DM screen</title>
+  <meta name="description" content="Watch every roll, the order, the lights, the encounter, the prompts, and the notes at a Lantern table.">
+  <meta name="theme-color" content="#14110e">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dm-page">
+  <a class="skip" href="#dm-main">Skip to the table</a>
+  <div class="dm-shell">
+    <header class="dm-head">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 48 64" aria-hidden="true">
+          <path fill="currentColor" d="M22 2h4v8h-4z"/>
+          <rect x="14" y="8" width="20" height="6" rx="1" fill="currentColor"/>
+          <path class="glass" d="M16 16h16l6 10v14l-6 10H16l-6-10V26z"/>
+          <path class="bars" d="M24 24v16M18 32h12"/>
+        </svg>
+        <div>
+          <h1>Lantern</h1>
+          <p class="brand-tag">The DM sees the whole table</p>
+        </div>
+      </div>
+      <a class="text-btn" href="/">Player page</a>
+    </header>
+
+    <section id="gate" class="gate">
+      <h2>Open a table</h2>
+      <p class="lede">The code is the only key. Anyone with it can sit down, and this screen watches every seat.</p>
+      <div class="gate-forms">
+        <form id="open-form">
+          <button class="btn primary" type="submit">Open a table</button>
+        </form>
+        <form id="watch-form" class="seat-form">
+          <label>Already have a code
+            <input id="watch-code" maxlength="4" placeholder="Code" autocapitalize="characters" spellcheck="false">
+          </label>
+          <button class="btn" type="submit">Watch</button>
+        </form>
+      </div>
+      <p id="gate-status" class="hint" role="status"></p>
+    </section>
+
+    <main id="dm-main" hidden>
+      <p class="hint">Players open this link and join with their name.</p>
+      <p><a id="player-link" href="/"></a></p>
+      <p id="room-code" class="room-code"></p>
+      <p id="dm-status" class="hint" role="status"></p>
+      <div class="dm-layout">
+        <section class="dm-feed" id="dm-feed" aria-label="What the table just did"></section>
+        <div class="player-list" id="player-list"></div>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="src/dm.js"></script>
+</body>
+</html>

@@ -36,6 +36,7 @@ function cleanHistory(item) {
     formula: item.formula.slice(0, 80),
     total: Number(item.total),
     detail: text(item.detail, 240),
+    purpose: text(item.purpose, 60),
     tag,
   };
 }

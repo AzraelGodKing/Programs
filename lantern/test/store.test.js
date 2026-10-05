@@ -16,7 +16,7 @@ test("a fresh night starts on the dice", () => {
 test("bad saves are dropped instead of trusted", () => {
   const state = normalize({
     tab: "secrets",
-    dice: { count: 0, sides: 3, mode: "lucky", history: [{ formula: "1d20", total: 12, tag: "crit" }, null] },
+    dice: { count: 0, sides: 3, mode: "lucky", history: [{ formula: "1d20", total: 12, tag: "crit", purpose: "  Perception  " }, null] },
     combat: {
       round: 4,
       started: false,
@@ -38,6 +38,7 @@ test("bad saves are dropped instead of trusted", () => {
   assert.equal(state.dice.mode, "normal");
   assert.equal(state.dice.history.length, 1);
   assert.equal(state.dice.history[0].tag, null);
+  assert.equal(state.dice.history[0].purpose, "Perception");
   assert.equal(state.combat.round, 4);
   assert.equal(state.combat.started, true);
   assert.equal(state.combat.combatants.length, 1);
