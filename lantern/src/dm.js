@@ -250,7 +250,7 @@ function showTable(next) {
   document.getElementById("dm-main").hidden = false;
   document.getElementById("room-code").textContent = code;
   const link = document.getElementById("player-link");
-  const playerUrl = `${location.origin}/?room=${code}`;
+  const playerUrl = `${location.origin}/player.html?room=${code}`;
   link.href = playerUrl;
   link.textContent = playerUrl;
   void poll();

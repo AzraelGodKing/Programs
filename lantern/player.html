@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lantern — player</title>
+  <meta name="description" content="The player seat: dice, initiative, light, an encounter budget, and your character. Join a code and the DM sees the whole night.">
+  <meta name="theme-color" content="#14110e">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="player-page">
+  <a class="skip" href="#main">Skip to the table</a>
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 48 64" aria-hidden="true">
+        <path fill="currentColor" d="M22 2h4v8h-4z"/>
+        <rect x="14" y="8" width="20" height="6" rx="1" fill="currentColor"/>
+        <path class="glass" d="M16 16h16l6 10v14l-6 10H16l-6-10V26z"/>
+        <path class="bars" d="M24 24v16M18 32h12"/>
+      </svg>
+      <div>
+        <h1>Lantern</h1>
+        <p class="brand-tag">A light for the table</p>
+        <p class="role-chip">Player</p>
+      </div>
+    </div>
+    <div class="head-actions">
+      <button type="button" class="text-btn" id="open-roster" data-action="open-roster" hidden>Characters</button>
+      <a class="text-btn" href="/">Change seat</a>
+      <button type="button" class="text-btn" data-action="reset">Clear this browser</button>
+    </div>
+  </header>
+
+  <section class="seat">
+    <form id="seat-form" class="seat-form" autocomplete="off">
+      <label>Your name
+        <input id="seat-name" name="name" maxlength="40" placeholder="Mara" spellcheck="false">
+      </label>
+      <label>Table
+        <input id="seat-room" name="room" maxlength="4" placeholder="Code" autocapitalize="characters" spellcheck="false">
+      </label>
+      <button class="btn" type="submit">Join</button>
+    </form>
+    <p id="seat-status" class="hint" role="status"></p>
+  </section>
+
+  <section class="save-bar" aria-label="Saved night">
+    <p class="hint">This browser holds the game, including the characters at each table. Clearing Lantern's stored data here, or in the browser, deletes it. A saved copy is a file you keep.</p>
+    <div class="save-actions">
+      <button type="button" class="btn" data-action="export-night">Save a copy</button>
+      <button type="button" class="btn" data-action="import-night">Restore</button>
+      <input id="import-file" type="file" accept="application/json,.json" hidden aria-label="Lantern save file">
+    </div>
+    <p id="save-status" class="hint" role="status"></p>
+  </section>
+
+  <section id="character-gate" class="character-gate" hidden>
+    <h2 id="character-gate-title">Who sits down?</h2>
+    <p id="character-gate-lede" class="lede"></p>
+    <div id="character-gate-actions" class="save-actions"></div>
+    <div id="character-gate-list" class="stack"></div>
+    <p id="character-gate-status" class="hint" role="status"></p>
+  </section>
+
+  <div class="sticky-tools">
+    <nav class="tabs" role="tablist" aria-label="Tools">
+      <button type="button" role="tab" id="tab-dice" data-action="tab" data-tab="dice" aria-controls="panel-dice" aria-selected="true">Dice</button>
+      <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-controls="panel-order" aria-selected="false" tabindex="-1">Order</button>
+      <button type="button" role="tab" id="tab-threat" data-action="tab" data-tab="threat" aria-controls="panel-threat" aria-selected="false" tabindex="-1">Threat</button>
+      <button type="button" role="tab" id="tab-spark" data-action="tab" data-tab="spark" aria-controls="panel-spark" aria-selected="false" tabindex="-1">Spark</button>
+      <button type="button" role="tab" id="tab-character" data-action="tab" data-tab="character" aria-controls="panel-character" aria-selected="false" tabindex="-1">Character</button>
+    </nav>
+    <section class="wick" aria-label="Light sources">
+      <p id="flame-live" class="sr-only" aria-live="polite"></p>
+      <div id="flames" class="flames"></div>
+      <form id="light-form" data-form="light" class="wick-form" autocomplete="off">
+        <label>Light
+          <select name="kind" aria-label="Light source"></select>
+        </label>
+        <button type="submit" class="btn">Strike</button>
+      </form>
+      <p class="form-error" data-error-for="light"></p>
+    </section>
+  </div>
+
+  <main id="main">
+    <section role="tabpanel" id="panel-dice" aria-labelledby="tab-dice">
+      <h2>Dice</h2>
+      <p class="lede">Roll in front of the table. The last dozen stay here, and a joined table shares each one with the DM.</p>
+      <div id="dice-result" class="readout" aria-live="polite"></div>
+      <p id="dice-formula" class="formula"></p>
+      <p id="dice-hint" class="hint" hidden>Advantage and disadvantage wait for a d20.</p>
+      <div class="dice-setup">
+        <label>Count
+          <input id="dice-count" type="number" min="1" max="40" value="1" inputmode="numeric">
+        </label>
+        <label>Modifier
+          <input id="dice-mod" type="number" min="-100" max="100" value="0" inputmode="numeric">
+        </label>
+        <label>For
+          <input id="roll-for" type="text" maxlength="60" placeholder="Perception, longsword, sneak" spellcheck="false">
+        </label>
+        <div class="purposes" role="group" aria-label="What this roll is for">
+          <button type="button" data-action="purpose" data-purpose="Attack" aria-pressed="false">Attack</button>
+          <button type="button" data-action="purpose" data-purpose="Damage" aria-pressed="false">Damage</button>
+          <button type="button" data-action="purpose" data-purpose="Check" aria-pressed="false">Check</button>
+          <button type="button" data-action="purpose" data-purpose="Save" aria-pressed="false">Save</button>
+          <button type="button" data-action="purpose" data-purpose="Initiative" aria-pressed="false">Initiative</button>
+          <button type="button" data-action="purpose" data-purpose="Healing" aria-pressed="false">Healing</button>
+          <button type="button" data-action="purpose" data-purpose="Death save" aria-pressed="false">Death save</button>
+        </div>
+        <div class="modes" role="group" aria-label="d20 mode">
+          <button type="button" data-action="set-mode" data-mode="normal" aria-pressed="true">Normal</button>
+          <button type="button" data-action="set-mode" data-mode="advantage" aria-pressed="false">Advantage</button>
+          <button type="button" data-action="set-mode" data-mode="disadvantage" aria-pressed="false">Disadvantage</button>
+        </div>
+      </div>
+      <div class="tray-row">
+        <div id="dice-tray" class="dice-tray"></div>
+        <button type="button" class="btn primary" data-action="roll">Roll</button>
+      </div>
+      <div class="history-head">
+        <h3>Recent</h3>
+        <button type="button" class="text-btn" id="clear-rolls" data-action="clear-rolls">Clear rolls</button>
+      </div>
+      <div id="dice-history" class="history"></div>
+    </section>
+
+    <section role="tabpanel" id="panel-order" aria-labelledby="tab-order" hidden>
+      <h2>Order</h2>
+      <p class="lede">The highlighted name goes first. Start begins the round there. Ties keep whoever was added first.</p>
+      <div class="turn">
+        <div>
+          <p id="turn-banner" class="turn-banner">The round has not started</p>
+          <p id="turn-meta" class="hint">Add the people in the fight.</p>
+        </div>
+        <div class="turn-actions">
+          <button type="button" class="btn" id="turn-back" data-action="back">Back</button>
+          <button type="button" class="btn primary" id="turn-next" data-action="next">Next</button>
+        </div>
+      </div>
+      <form id="combatant-form" data-form="combatant" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="Mara, or the third guard">
+        </label>
+        <label>Bonus
+          <input name="bonus" type="number" value="0" inputmode="numeric">
+        </label>
+        <label>HP
+          <input name="hp" type="number" value="10" min="0" inputmode="numeric">
+        </label>
+        <label>AC
+          <input name="ac" type="number" min="0" inputmode="numeric" placeholder="—">
+        </label>
+        <label>Initiative
+          <input name="initiative" type="number" inputmode="numeric" placeholder="Blank rolls">
+        </label>
+        <button type="submit" class="btn primary">Add</button>
+      </form>
+      <p class="form-error" data-error-for="combatant"></p>
+      <div class="list-head">
+        <h3>The order</h3>
+        <button type="button" class="text-btn" id="reroll-all" data-action="reroll-all">Reroll initiative</button>
+      </div>
+      <div id="combat-list" class="stack" aria-label="Initiative order"></div>
+    </section>
+
+    <section role="tabpanel" id="panel-threat" aria-labelledby="tab-threat" hidden>
+      <h2>Threat</h2>
+      <p class="lede">A pacing guide from the 2014 encounter budget. It is not a promise.</p>
+      <div id="threat-summary" class="summary" data-rating="none"></div>
+      <h3>Party</h3>
+      <form id="hero-form" data-form="hero" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" type="text" maxlength="80" spellcheck="false" placeholder="Optional">
+        </label>
+        <label>Level
+          <select name="level" aria-label="Level for a new adventurer"></select>
+        </label>
+        <button type="submit" class="btn">Add</button>
+        <button type="button" class="btn" data-action="seat-four">Add four</button>
+      </form>
+      <p class="form-error" data-error-for="hero"></p>
+      <div id="party-list" class="stack"></div>
+      <h3>Creatures</h3>
+      <form id="monster-form" data-form="monster" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="The thing in the door">
+        </label>
+        <label>Count
+          <input name="count" type="number" min="1" max="40" value="1" inputmode="numeric">
+        </label>
+        <label>XP each
+          <input name="xp" type="number" min="0" inputmode="numeric" placeholder="200">
+        </label>
+        <label>Challenge
+          <select name="cr" aria-label="Challenge rating"></select>
+        </label>
+        <button type="submit" class="btn primary">Add creatures</button>
+      </form>
+      <p class="form-error" data-error-for="monster"></p>
+      <div id="monster-list" class="stack"></div>
+    </section>
+
+    <section role="tabpanel" id="panel-spark" aria-labelledby="tab-spark" hidden>
+      <h2>Spark</h2>
+      <p class="lede">Original prompts for the next ten minutes. Nothing here is from a published table.</p>
+      <p id="spark-live" class="sr-only" aria-live="polite"></p>
+      <div class="spark-actions" role="group" aria-label="Draw a prompt">
+        <button type="button" class="btn" data-action="draw" data-kind="person">Person</button>
+        <button type="button" class="btn" data-action="draw" data-kind="place">Place</button>
+        <button type="button" class="btn" data-action="draw" data-kind="twist">Twist</button>
+        <button type="button" class="btn" data-action="draw" data-kind="rumor">Rumor</button>
+        <button type="button" class="btn" data-action="draw" data-kind="trinket">Trinket</button>
+        <button type="button" class="btn primary" data-action="draw-scene">A whole scene</button>
+      </div>
+      <div id="spark-list" class="stack"></div>
+    </section>
+
+    <section role="tabpanel" id="panel-character" aria-labelledby="tab-character" hidden>
+      <h2>Character</h2>
+      <p class="lede">One hero from the common 2014 list. Choose Custom wherever the table uses something else.</p>
+      <div id="character-summary" class="summary" data-rating="none"></div>
+
+      <div class="form">
+        <label>Name
+          <input id="character-name" data-sheet="name" type="text" maxlength="80" spellcheck="false" placeholder="Mara">
+        </label>
+        <label>Level
+          <select id="character-level" data-sheet="level" aria-label="Character level"></select>
+        </label>
+        <label>Alignment
+          <select id="character-alignment" data-sheet="alignment" aria-label="Alignment"></select>
+        </label>
+        <label id="custom-alignment-field" hidden>Custom alignment
+          <input id="character-custom-alignment" data-sheet="custom-alignment" type="text" maxlength="40" spellcheck="false">
+        </label>
+      </div>
+
+      <div class="form">
+        <label>Race
+          <select id="character-race" data-sheet="race" aria-label="Race"></select>
+        </label>
+        <label id="lineage-field" hidden><span id="lineage-label">Subrace</span>
+          <select id="character-lineage" data-sheet="lineage" aria-label="Subrace or ancestry"></select>
+        </label>
+        <label id="custom-lineage-field" hidden>Custom subrace
+          <input id="character-custom-lineage" data-sheet="custom-lineage" type="text" maxlength="40" spellcheck="false">
+        </label>
+      </div>
+      <div id="custom-race-field" class="form" hidden>
+        <label>Custom race
+          <input id="character-custom-race" data-sheet="custom-race" type="text" maxlength="40" spellcheck="false" placeholder="River folk">
+        </label>
+        <label>Size
+          <select id="character-custom-size" data-sheet="custom-size" aria-label="Size">
+            <option value="Small">Small</option>
+            <option value="Medium">Medium</option>
+          </select>
+        </label>
+        <label>Speed
+          <input id="character-custom-speed" data-sheet="custom-speed" type="number" min="0" max="120" value="30" inputmode="numeric">
+        </label>
+        <label>Languages
+          <input id="character-custom-languages" data-sheet="custom-languages" type="text" maxlength="80" spellcheck="false" placeholder="Common, and one more">
+        </label>
+      </div>
+      <div id="racial-bonus-field" class="form" hidden></div>
+      <div id="heritage-field" hidden>
+        <p class="hint">Half-elves add +1 to two abilities other than Charisma.</p>
+        <div id="heritage-picks" class="skill-grid"></div>
+      </div>
+
+      <div class="form">
+        <label>Class
+          <select id="character-class" data-sheet="class" aria-label="Class"></select>
+        </label>
+        <label id="subclass-field" hidden>Subclass
+          <select id="character-subclass" data-sheet="subclass" aria-label="Subclass"></select>
+        </label>
+        <label id="custom-subclass-field" hidden>Custom subclass
+          <input id="character-custom-subclass" data-sheet="custom-subclass" type="text" maxlength="40" spellcheck="false">
+        </label>
+      </div>
+      <p id="class-hint" class="hint"></p>
+      <div id="custom-class-field" class="form" hidden>
+        <label>Custom class
+          <input id="character-custom-class" data-sheet="custom-class" type="text" maxlength="40" spellcheck="false" placeholder="Warden">
+        </label>
+        <label>Hit die
+          <select id="character-hit-die" data-sheet="hit-die" aria-label="Hit die">
+            <option value="4">d4</option>
+            <option value="6">d6</option>
+            <option value="8">d8</option>
+            <option value="10">d10</option>
+            <option value="12">d12</option>
+          </select>
+        </label>
+        <label>Skill picks
+          <input id="character-skill-count" data-sheet="skill-count" type="number" min="0" max="6" value="2" inputmode="numeric">
+        </label>
+      </div>
+      <div id="save-field" hidden>
+        <p class="hint">Choose up to two saving throws.</p>
+        <div id="save-picks" class="skill-grid"></div>
+      </div>
+
+      <div class="form">
+        <label>Background
+          <select id="character-background" data-sheet="background" aria-label="Background"></select>
+        </label>
+        <label id="custom-background-field" hidden>Custom background
+          <input id="character-custom-background" data-sheet="custom-background" type="text" maxlength="40" spellcheck="false">
+        </label>
+        <button type="button" class="btn" id="background-skills" data-action="background-skills">Add background skills</button>
+      </div>
+      <p id="background-hint" class="hint"></p>
+
+      <h3>Abilities</h3>
+      <div class="modes" id="score-methods" role="group" aria-label="Ability score method">
+        <button type="button" data-action="score-method" data-method="standard" aria-pressed="true">Standard array</button>
+        <button type="button" data-action="score-method" data-method="pointbuy" aria-pressed="false">Point buy</button>
+        <button type="button" data-action="score-method" data-method="rolled" aria-pressed="false">Roll 4d6</button>
+        <button type="button" data-action="score-method" data-method="manual" aria-pressed="false">Manual</button>
+      </div>
+      <p id="point-buy-line" class="hint" hidden></p>
+      <div id="ability-grid" class="ability-grid"></div>
+      <button type="button" class="text-btn" id="roll-again" data-action="roll-scores" hidden>Roll again</button>
+
+      <h3>Skills</h3>
+      <p id="skill-hint" class="hint"></p>
+      <div id="skill-grid" class="skill-grid"></div>
+
+      <div class="form">
+        <label>Hit points
+          <input id="character-hp" data-sheet="hp" type="number" min="0" max="999" inputmode="numeric" placeholder="Suggested">
+        </label>
+        <button type="button" class="btn" data-action="suggest-hp">Use suggested</button>
+      </div>
+      <p id="hp-hint" class="hint"></p>
+
+      <label class="trait-label" for="character-traits">Traits, tools, and anything custom</label>
+      <textarea id="character-traits" data-sheet="traits" maxlength="1000" rows="3" placeholder="A chipped signet, the oath, the language the list forgot."></textarea>
+      <div class="save-actions">
+        <button type="button" class="btn primary" id="save-character-bottom" data-action="save-character" hidden>Save this character</button>
+        <button type="button" class="text-btn" id="mark-dead" data-action="mark-dead" hidden>This character died</button>
+      </div>
+    </section>
+  </main>
+
+  <section class="scratch">
+    <label for="notes">Scratch</label>
+    <textarea id="notes" maxlength="4000" rows="3" placeholder="Names, promises, the thing the rogue palmed."></textarea>
+  </section>
+  <footer>
+    <p>Keys 1–5 switch tools while you are not typing. R rolls. N advances the round. Encounter thresholds, character options, and light durations are the common 2014 numbers. Prompts are written for Lantern.</p>
+  </footer>
+  <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
