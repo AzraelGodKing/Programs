@@ -4,4 +4,4 @@ A shelf for small, finished programs.
 
 | Program | What it is |
 | --- | --- |
-| [Lantern](lantern/) | A table companion for 5e nights. Choose the player seat or the DM screen: a character, dice, initiative, light, an encounter budget, and improvisation. The DM watches every joined player. |
+| [Lantern](lantern/) | A table companion for 5e nights. Players finish a sheet, then roll and use what they carry. The DM watches the table and keeps the prompts and the encounter budget. |

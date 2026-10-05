@@ -26,7 +26,7 @@ class Table:
     def create(self):
         with self._lock:
             code = self._fresh_code()
-            self._rooms[code] = {"events": [], "players": {}}
+            self._rooms[code] = {"events": [], "players": {}, "shop": True}
             return code
 
     def view(self, code):
@@ -45,7 +45,12 @@ class Table:
             ]
             players.sort(key=lambda player: player["seen"], reverse=True)
             events = list(reversed(room["events"]))
-            return {"code": code, "events": events, "players": players}
+            return {
+                "code": code,
+                "events": events,
+                "players": players,
+                "shop": room.get("shop", True) is not False,
+            }
 
     def update(self, code, payload):
         if not isinstance(payload, dict):
@@ -80,6 +85,16 @@ class Table:
                 })
             if len(room["events"]) > EVENT_CAP:
                 room["events"] = room["events"][-EVENT_CAP:]
+            return True
+
+    def set_shop(self, code, open_):
+        if not isinstance(open_, bool):
+            raise TableError("The shop switch has to be on or off.")
+        with self._lock:
+            room = self._rooms.get(code)
+            if room is None:
+                return None
+            room["shop"] = open_
             return True
 
     def _fresh_code(self):
