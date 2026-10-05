@@ -15,18 +15,19 @@ npm start
 
 Open http://localhost:5173 and choose a side.
 
-The player seat is http://localhost:5173/player.html. The DM screen is http://localhost:5173/dm.html. Open a table, share the four-character code, and each player joins with their name. The code is the only key. Anyone who has it can post, and the DM sees every seat: the character, rolls and what they were for, the order, hit points, lights, the encounter budget, prompts, and scratch notes. Solo play still works with the name and code left blank. The shared table lives in the memory of that server, so restarting it starts a new night.
+The player seat is http://localhost:5173/player.html. The DM screen is http://localhost:5173/dm.html. Open a table, share the four-character code, and each player joins with their name. The code is the only key. Anyone who has it can post, and the DM sees every seat: the character and what they carry, rolls and what they were for, the order, hit points, lights, and scratch notes. Prompts and the encounter budget are drawn on the DM screen. Solo play still works with the name and code left blank. The shared table lives in the memory of that server, so restarting it starts a new night.
 
 ## What is on the table
 
 - **Dice.** The usual set, with advantage and disadvantage on the d20. Say what the roll is for. A natural 20 or 1 is marked from the die that counts. The last dozen rolls stay visible.
 - **Order.** Initiative, hit points, armor class, and the conditions you actually track, plus concentration. Ties keep the earlier name. The highlighted name goes first, and Start begins the round there.
 - **Light.** Candle, torch, oil lamp, hooded lantern, and bullseye lantern, timed from the moment you strike them. Lowering the hood does not save the oil.
-- **Threat.** The 2014 encounter budget: party thresholds, creature experience, and the multiplier for how many creatures are in the fight. A party smaller than three steps the multiplier up. A party of six or more steps it down. It is a pacing guide, not a promise.
-- **Spark.** Original people, places, twists, rumors, and trinkets. They are not from a published adventure or table.
-- **Character.** One hero from the common 2014 races, classes, subclasses, and backgrounds. Custom is there for a people, a class, or a subclass the list does not have. Scores can be the standard array, point buy, four d6s dropping the lowest, or typed in. Joining a table with no character starts a sheet. Later joins load a living character, create another, or view and export one who died.
+- **Pack.** The sheet is finished before anyone sits down. At the table it is a row of skills and carried items. Tap a skill to roll it. Tap an item to use it. The class starting gear is packed on the way in, and the shop takes the price out of the purse. The DM can close that popup, and open it again.
+- **Threat, on the DM screen.** The 2014 encounter budget: party thresholds, creature experience, and the multiplier for how many creatures are in the fight. A party smaller than three steps the multiplier up. A party of six or more steps it down. It is a pacing guide, not a promise.
+- **Spark, on the DM screen.** Original people, places, twists, rumors, and trinkets. They are not from a published adventure or table.
+- **Character.** One hero from the common 2014 races, classes, subclasses, and backgrounds, made before the table. Custom is there for a people, a class, or a subclass the list does not have. Scores can be the standard array, point buy, four d6s dropping the lowest, or typed in. Joining a table with no character starts a sheet. Later joins load a living character, create another, or view and export one who died.
 - **Scratch.** A note that stays with the rest of the night.
 
-Keys 1–5 switch tools while you are not typing. R rolls. N advances the round.
+Keys 1–3 switch dice, order, and the pack while you are not typing. R rolls. N advances the round.
 
 This browser holds the game. Save a copy keeps a file of the fight, the party, the flames, the prompts, the character, and the notes. Clearing this browser deletes the copy stored here.

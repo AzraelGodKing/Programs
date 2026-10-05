@@ -4,6 +4,8 @@
 
 ### Added
 
+- The player seat no longer builds prompts or encounters. Spark and the encounter budget live on the Dungeon Master screen.
+- At the table the sheet is a pack. Skills and carried items are buttons. The class starting gear is packed when the character sits down, and the shop takes the price out of the purse. The DM screen has a switch that closes that popup, and opens it again.
 - A front door. Opening Lantern asks you to choose the player seat or the Dungeon Master screen, and the two sides no longer share one page. A link with a table code still opens the player seat.
 - A save file for the night. Save a copy downloads the character and the rest of the table, and Restore puts that file back into this browser. The browser still holds the live game, and clearing that stored data deletes it.
 - Characters belong to a table. The first join creates one. Later joins can load a living character, create another, or view and export a character who died.

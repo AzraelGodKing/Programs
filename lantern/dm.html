@@ -50,7 +50,39 @@
       <p class="hint">Players open this link and join with their name.</p>
       <p><a id="player-link" href="/"></a></p>
       <p id="room-code" class="room-code"></p>
+      <label class="shop-switch">
+        <input id="dm-shop" type="checkbox" checked>
+        Shop popup
+      </label>
+      <p class="hint">On, a player can open the shop. Off, that popup closes.</p>
       <p id="dm-status" class="hint" role="status"></p>
+      <section id="dm-tools" class="dm-tools">
+        <h2>You prepare</h2>
+        <p class="lede">Prompts and the encounter budget stay on this side. Players roll, take their turn, and use what they carry.</p>
+        <div class="dm-tools-grid">
+          <section>
+            <h3>Spark</h3>
+            <div class="kit-actions" role="group" aria-label="Draw a prompt">
+              <button type="button" class="btn" data-dm="draw" data-kind="person">Person</button>
+              <button type="button" class="btn" data-dm="draw" data-kind="place">Place</button>
+              <button type="button" class="btn" data-dm="draw" data-kind="twist">Twist</button>
+              <button type="button" class="btn" data-dm="draw" data-kind="rumor">Rumor</button>
+              <button type="button" class="btn" data-dm="draw" data-kind="trinket">Trinket</button>
+              <button type="button" class="btn primary" data-dm="scene">A whole scene</button>
+            </div>
+            <div id="dm-spark" class="stack"></div>
+          </section>
+          <section>
+            <h3>Threat</h3>
+            <label>Party levels
+              <input id="dm-levels" type="text" maxlength="80" value="1, 1, 1, 1" spellcheck="false">
+            </label>
+            <div id="dm-groups" class="stack"></div>
+            <button type="button" class="btn" data-dm="add-group">Add a creature</button>
+            <div id="dm-threat" class="stack"></div>
+          </section>
+        </div>
+      </section>
       <div class="dm-layout">
         <section class="dm-feed" id="dm-feed" aria-label="What the table just did"></section>
         <div class="player-list" id="player-list"></div>
