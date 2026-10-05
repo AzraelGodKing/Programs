@@ -92,7 +92,7 @@ button { cursor: pointer; }
   border: 0;
 }
 
-.top, .seat, .sticky-tools, main, .scratch, footer {
+.top, .seat, .save-bar, .character-gate, .sticky-tools, main, .scratch, footer {
   width: min(980px, calc(100% - 1.5rem));
   margin-inline: auto;
 }
@@ -108,6 +108,98 @@ button { cursor: pointer; }
 .brand { display: flex; gap: 0.75rem; align-items: center; }
 
 .brand-tag { color: var(--muted); margin-top: 0.2rem; }
+
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.role-chip {
+  display: inline-block;
+  width: fit-content;
+  margin-top: 0.35rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 650;
+}
+
+.player-page .role-chip {
+  background: var(--ember);
+  color: var(--ember-ink);
+}
+
+.dm-page .role-chip {
+  background: var(--ash);
+  color: #10141a;
+}
+
+.door-main {
+  width: min(880px, calc(100% - 1.5rem));
+  margin: 0.4rem auto 3rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.roles {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+.role {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+  min-height: 13.5rem;
+  padding: 1.15rem 1.15rem 1.3rem;
+  border-radius: 0.9rem;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--line);
+  background: var(--raise);
+}
+
+.role:hover { border-color: var(--gold); }
+
+.role-kicker {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 650;
+}
+
+.role-title {
+  font-family: var(--serif);
+  font-size: clamp(1.7rem, 4vw, 2.15rem);
+  line-height: 1;
+}
+
+.role-player {
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(224, 122, 61, 0.32), transparent 58%),
+    var(--raise);
+  box-shadow: inset 4px 0 0 var(--ember);
+}
+
+.role-player .role-kicker { color: var(--ember); }
+
+.role-dm {
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(155, 176, 199, 0.28), transparent 58%),
+    #1a222c;
+  box-shadow: inset 4px 0 0 var(--ash);
+}
+
+.role-dm .role-kicker,
+.role-dm .role-title { color: #d5e2ef; }
+
+.role p:last-child { color: var(--muted); }
 
 .mark {
   width: 2.1rem;
@@ -220,6 +312,52 @@ textarea { width: 100%; resize: vertical; color: var(--cream); }
 
 .seat { padding-bottom: 0.2rem; }
 
+.save-bar {
+  display: grid;
+  gap: 0.45rem;
+  padding-bottom: 0.85rem;
+}
+
+.save-actions { display: flex; flex-wrap: wrap; gap: 0.55rem; }
+
+.character-gate {
+  display: grid;
+  gap: 0.7rem;
+  padding-bottom: 0.4rem;
+}
+
+.roster-row {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--raise);
+}
+
+.roster-row.is-living { box-shadow: inset 4px 0 0 var(--ember); }
+
+.roster-row.is-dead {
+  background: #1a222c;
+  box-shadow: inset 4px 0 0 var(--ash);
+}
+
+.roster-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+
+body.roster-open .sticky-tools,
+body.roster-open #main,
+body.roster-open .scratch,
+body.roster-open footer { display: none !important; }
+
+body.sheet-focus .sticky-tools,
+body.sheet-focus .scratch,
+body.sheet-focus footer { display: none !important; }
+
+body.sheet-focus #panel-dice,
+body.sheet-focus #panel-order,
+body.sheet-focus #panel-threat,
+body.sheet-focus #panel-spark { display: none !important; }
+
 .seat-form input#seat-room {
   width: 6.5rem;
   text-transform: uppercase;
@@ -243,7 +381,27 @@ textarea { width: 100%; resize: vertical; color: var(--cream); }
   color: var(--ember-ink);
 }
 
-body.dm-page { min-height: 100vh; }
+body.dm-page {
+  --bg: #10141a;
+  --raise: #1a222c;
+  --raise-2: #24303c;
+  --line: #3d4e60;
+  --cream: #e7eef6;
+  --muted: #b7c6d6;
+  --faint: #8ea0b3;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 88% -8%, rgba(155, 176, 199, 0.2), transparent 46%),
+    radial-gradient(ellipse at 0% 0%, rgba(230, 194, 122, 0.05), transparent 26%),
+    var(--bg);
+  color: var(--cream);
+}
+
+body.dm-page input,
+body.dm-page select,
+body.dm-page textarea {
+  background: #121820;
+}
 
 .dm-shell {
   width: min(1180px, calc(100% - 1.5rem));
@@ -731,6 +889,10 @@ footer {
 .noscript {
   width: min(980px, calc(100% - 1.5rem));
   margin: 1rem auto;
+}
+
+@media (min-width: 720px) {
+  .roles { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 640px) {
