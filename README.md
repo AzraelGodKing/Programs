@@ -1,7 +1,7 @@
 # Programs
 
-A repo for all my random projects. Each project lives in its own top-level subfolder.
+A shelf for small, finished programs.
 
-## Projects
-
-- [autoclicker](autoclicker/) — Windows WinForms .NET app that automates mouse clicks at the cursor or saved screen points
+| Program | What it is |
+| --- | --- |
+| [Lantern](lantern/) | A table companion for 5e nights: dice, initiative, light, an encounter budget, and improvisation. A DM screen watches every joined player. |

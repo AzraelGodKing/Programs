@@ -1,0 +1,13 @@
+{
+  "name": "programs",
+  "private": true,
+  "type": "module",
+  "description": "A shelf for small, finished programs.",
+  "scripts": {
+    "start": "python3 lantern/server.py",
+    "test": "node --test && python3 -m unittest discover -s lantern/test -p 'test_*.py'"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
