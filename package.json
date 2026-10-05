@@ -1,0 +1,13 @@
+{
+  "name": "programs",
+  "private": true,
+  "type": "module",
+  "description": "A shelf for small, finished programs.",
+  "scripts": {
+    "start": "python3 -m http.server 5173 --directory lantern",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

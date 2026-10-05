@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lantern — a table companion</title>
+  <meta name="description" content="Dice, initiative, light, an encounter budget, and improvisation prompts for a 5e table. Everything stays in this browser.">
+  <meta name="theme-color" content="#14110e">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the table</a>
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 48 64" aria-hidden="true">
+        <path fill="currentColor" d="M22 2h4v8h-4z"/>
+        <rect x="14" y="8" width="20" height="6" rx="1" fill="currentColor"/>
+        <path class="glass" d="M16 16h16l6 10v14l-6 10H16l-6-10V26z"/>
+        <path class="bars" d="M24 24v16M18 32h12"/>
+      </svg>
+      <div>
+        <h1>Lantern</h1>
+        <p class="brand-tag">A light for the table</p>
+      </div>
+    </div>
+    <button type="button" class="text-btn" data-action="reset">Clear this browser</button>
+  </header>
+
+  <div class="sticky-tools">
+    <nav class="tabs" role="tablist" aria-label="Tools">
+      <button type="button" role="tab" id="tab-dice" data-action="tab" data-tab="dice" aria-controls="panel-dice" aria-selected="true">Dice</button>
+      <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-controls="panel-order" aria-selected="false" tabindex="-1">Order</button>
+      <button type="button" role="tab" id="tab-threat" data-action="tab" data-tab="threat" aria-controls="panel-threat" aria-selected="false" tabindex="-1">Threat</button>
+      <button type="button" role="tab" id="tab-spark" data-action="tab" data-tab="spark" aria-controls="panel-spark" aria-selected="false" tabindex="-1">Spark</button>
+    </nav>
+    <section class="wick" aria-label="Light sources">
+      <p id="flame-live" class="sr-only" aria-live="polite"></p>
+      <div id="flames" class="flames"></div>
+      <form id="light-form" data-form="light" class="wick-form" autocomplete="off">
+        <label>Light
+          <select name="kind" aria-label="Light source"></select>
+        </label>
+        <button type="submit" class="btn">Strike</button>
+      </form>
+      <p class="form-error" data-error-for="light"></p>
+    </section>
+  </div>
+
+  <main id="main">
+    <section role="tabpanel" id="panel-dice" aria-labelledby="tab-dice">
+      <h2>Dice</h2>
+      <p class="lede">Roll in front of the table. The last dozen stay on this browser.</p>
+      <div id="dice-result" class="readout" aria-live="polite"></div>
+      <p id="dice-formula" class="formula"></p>
+      <p id="dice-hint" class="hint" hidden>Advantage and disadvantage wait for a d20.</p>
+      <div class="dice-setup">
+        <label>Count
+          <input id="dice-count" type="number" min="1" max="40" value="1" inputmode="numeric">
+        </label>
+        <label>Modifier
+          <input id="dice-mod" type="number" min="-100" max="100" value="0" inputmode="numeric">
+        </label>
+        <div class="modes" role="group" aria-label="d20 mode">
+          <button type="button" data-action="set-mode" data-mode="normal" aria-pressed="true">Normal</button>
+          <button type="button" data-action="set-mode" data-mode="advantage" aria-pressed="false">Advantage</button>
+          <button type="button" data-action="set-mode" data-mode="disadvantage" aria-pressed="false">Disadvantage</button>
+        </div>
+      </div>
+      <div class="tray-row">
+        <div id="dice-tray" class="dice-tray"></div>
+        <button type="button" class="btn primary" data-action="roll">Roll</button>
+      </div>
+      <div class="history-head">
+        <h3>Recent</h3>
+        <button type="button" class="text-btn" id="clear-rolls" data-action="clear-rolls">Clear rolls</button>
+      </div>
+      <div id="dice-history" class="history"></div>
+    </section>
+
+    <section role="tabpanel" id="panel-order" aria-labelledby="tab-order" hidden>
+      <h2>Order</h2>
+      <p class="lede">The highlighted name goes first. Start begins the round there. Ties keep whoever was added first.</p>
+      <div class="turn">
+        <div>
+          <p id="turn-banner" class="turn-banner">The round has not started</p>
+          <p id="turn-meta" class="hint">Add the people in the fight.</p>
+        </div>
+        <div class="turn-actions">
+          <button type="button" class="btn" id="turn-back" data-action="back">Back</button>
+          <button type="button" class="btn primary" id="turn-next" data-action="next">Next</button>
+        </div>
+      </div>
+      <form id="combatant-form" data-form="combatant" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="Mara, or the third guard">
+        </label>
+        <label>Bonus
+          <input name="bonus" type="number" value="0" inputmode="numeric">
+        </label>
+        <label>HP
+          <input name="hp" type="number" value="10" min="0" inputmode="numeric">
+        </label>
+        <label>AC
+          <input name="ac" type="number" min="0" inputmode="numeric" placeholder="—">
+        </label>
+        <label>Initiative
+          <input name="initiative" type="number" inputmode="numeric" placeholder="Blank rolls">
+        </label>
+        <button type="submit" class="btn primary">Add</button>
+      </form>
+      <p class="form-error" data-error-for="combatant"></p>
+      <div class="list-head">
+        <h3>The order</h3>
+        <button type="button" class="text-btn" id="reroll-all" data-action="reroll-all">Reroll initiative</button>
+      </div>
+      <div id="combat-list" class="stack" aria-label="Initiative order"></div>
+    </section>
+
+    <section role="tabpanel" id="panel-threat" aria-labelledby="tab-threat" hidden>
+      <h2>Threat</h2>
+      <p class="lede">A pacing guide from the 2014 encounter budget. It is not a promise.</p>
+      <div id="threat-summary" class="summary" data-rating="none"></div>
+      <h3>Party</h3>
+      <form id="hero-form" data-form="hero" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" type="text" maxlength="80" spellcheck="false" placeholder="Optional">
+        </label>
+        <label>Level
+          <select name="level" aria-label="Level for a new adventurer"></select>
+        </label>
+        <button type="submit" class="btn">Add</button>
+        <button type="button" class="btn" data-action="seat-four">Add four</button>
+      </form>
+      <p class="form-error" data-error-for="hero"></p>
+      <div id="party-list" class="stack"></div>
+      <h3>Creatures</h3>
+      <form id="monster-form" data-form="monster" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="The thing in the door">
+        </label>
+        <label>Count
+          <input name="count" type="number" min="1" max="40" value="1" inputmode="numeric">
+        </label>
+        <label>XP each
+          <input name="xp" type="number" min="0" inputmode="numeric" placeholder="200">
+        </label>
+        <label>Challenge
+          <select name="cr" aria-label="Challenge rating"></select>
+        </label>
+        <button type="submit" class="btn primary">Add creatures</button>
+      </form>
+      <p class="form-error" data-error-for="monster"></p>
+      <div id="monster-list" class="stack"></div>
+    </section>
+
+    <section role="tabpanel" id="panel-spark" aria-labelledby="tab-spark" hidden>
+      <h2>Spark</h2>
+      <p class="lede">Original prompts for the next ten minutes. Nothing here is from a published table.</p>
+      <p id="spark-live" class="sr-only" aria-live="polite"></p>
+      <div class="spark-actions" role="group" aria-label="Draw a prompt">
+        <button type="button" class="btn" data-action="draw" data-kind="person">Person</button>
+        <button type="button" class="btn" data-action="draw" data-kind="place">Place</button>
+        <button type="button" class="btn" data-action="draw" data-kind="twist">Twist</button>
+        <button type="button" class="btn" data-action="draw" data-kind="rumor">Rumor</button>
+        <button type="button" class="btn" data-action="draw" data-kind="trinket">Trinket</button>
+        <button type="button" class="btn primary" data-action="draw-scene">A whole scene</button>
+      </div>
+      <div id="spark-list" class="stack"></div>
+    </section>
+  </main>
+
+  <section class="scratch">
+    <label for="notes">Scratch</label>
+    <textarea id="notes" maxlength="4000" rows="3" placeholder="Names, promises, the thing the rogue palmed."></textarea>
+  </section>
+  <footer>
+    <p>Keys 1–4 switch tools while you are not typing. R rolls. N advances the round. Encounter thresholds and challenge experience are the 2014 math. Light durations are the common gear list. Prompts are written for Lantern.</p>
+  </footer>
+  <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
