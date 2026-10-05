@@ -19,7 +19,7 @@
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: auto; }
 
 body {
   margin: 0;
@@ -348,7 +348,14 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
   box-shadow: inset 3px 0 0 var(--gold);
 }
 
-.combatant.is-down { opacity: 0.62; }
+.combatant.is-down { opacity: 0.55; }
+
+.down-flag {
+  color: var(--blood);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 
 .init-block { text-align: center; }
 
@@ -415,6 +422,7 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
   background: var(--raise);
   border-radius: 0.9rem;
   border: 1px solid var(--line);
+  scroll-margin-top: 12rem;
 }
 
 .verdict { font-size: clamp(2.6rem, 7vw, 4.2rem); line-height: 0.9; }

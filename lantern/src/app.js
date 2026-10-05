@@ -36,7 +36,8 @@ function h(tag, props = {}, children = []) {
     else if (key === "open") node.open = true;
     else node.setAttribute(key, value === true ? "" : String(value));
   }
-  for (const child of children.flat()) {
+  const list = Array.isArray(children) ? children : [children];
+  for (const child of list.flat()) {
     if (child == null || child === false) continue;
     node.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }
@@ -45,6 +46,10 @@ function h(tag, props = {}, children = []) {
 
 function setText(node, value) {
   if (node && node.textContent !== value) node.textContent = value;
+}
+
+function present(items) {
+  return items.filter((item) => item != null && item !== false);
 }
 
 function showError(name, message) {
@@ -164,25 +169,25 @@ function renderStoredResult(item) {
   const root = document.getElementById("dice-result");
   root.dataset.tag = item.tag || "";
   const tag = item.tag === "natural-20" ? "Natural 20" : item.tag === "natural-1" ? "Natural 1" : "";
-  root.replaceChildren(
+  root.replaceChildren(...present([
     h("p", { class: tagClass(item.tag) }, String(item.total)),
     tag ? h("p", { class: "result-tag" }, tag) : null,
     h("p", { class: "result-formula" }, item.formula),
     h("p", { class: "result-detail" }, item.detail),
-  );
+  ]));
 }
 
 function renderFreshResult(result) {
   const root = document.getElementById("dice-result");
   root.dataset.tag = result.tag || "";
   const tag = result.tag === "natural-20" ? "Natural 20" : result.tag === "natural-1" ? "Natural 1" : "";
-  root.replaceChildren(
+  root.replaceChildren(...present([
     h("div", { class: "faces" }, faceNodes(result)),
     h("p", { class: tagClass(result.tag) }, String(result.total)),
     tag ? h("p", { class: "result-tag" }, tag) : null,
     h("p", { class: "result-formula" }, formula(result)),
     h("p", { class: "result-detail" }, facesLabel(result)),
-  );
+  ]));
 }
 
 function renderHistory() {
@@ -307,6 +312,7 @@ function combatRow(person, active) {
           "data-delta": "1",
           "aria-label": `Increase hit points for ${person.name}`,
         }, "+"),
+        person.hp <= 0 ? h("span", { class: "down-flag" }, "Down") : null,
         h("label", { class: "ac-label" }, [
           "AC",
           h("input", {
@@ -575,7 +581,7 @@ function partyLabel() {
   return `Party of ${state.party.length}`;
 }
 
-function renderThreat() {
+function renderThreat({ reveal = false } = {}) {
   const result = rateEncounter({
     levels: state.party.map((hero) => hero.level),
     groups: state.monsters.map((monster) => ({ count: monster.count, xp: monster.xp })),
@@ -609,7 +615,7 @@ function renderThreat() {
     .join(" · ");
 
   mount.dataset.rating = rating;
-  mount.replaceChildren(
+  mount.replaceChildren(...present([
     h("p", { class: "verdict" }, word),
     math ? h("p", { class: "math" }, math) : null,
     result.shift ? h("p", { class: "hint" }, SHIFT[result.shift]) : null,
@@ -618,7 +624,8 @@ function renderThreat() {
     ]),
     h("p", { class: "bands" }, partyLabel() ? `${partyLabel()} · ${bands}` : bands),
     creatures ? h("p", { class: "bands" }, creatures) : null,
-  );
+  ]));
+  if (reveal) document.getElementById("threat-summary").scrollIntoView({ block: "start" });
 }
 
 function addHeroes(form, times) {
@@ -640,7 +647,7 @@ function addHeroes(form, times) {
   }
   persist();
   renderParty();
-  renderThreat();
+  renderThreat({ reveal: true });
 }
 
 function addMonster(form) {
@@ -669,21 +676,21 @@ function addMonster(form) {
   form.elements.name.focus();
   persist();
   renderMonsters();
-  renderThreat();
+  renderThreat({ reveal: true });
 }
 
 function removeHero(id) {
   state.party = state.party.filter((hero) => hero.id !== id);
   persist();
   renderParty();
-  renderThreat();
+  renderThreat({ reveal: true });
 }
 
 function removeMonster(id) {
   state.monsters = state.monsters.filter((monster) => monster.id !== id);
   persist();
   renderMonsters();
-  renderThreat();
+  renderThreat({ reveal: true });
 }
 
 function cardBody(card) {
