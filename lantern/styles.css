@@ -358,6 +358,51 @@ body.sheet-focus #panel-order,
 body.sheet-focus #panel-threat,
 body.sheet-focus #panel-spark { display: none !important; }
 
+body.sheet-play #panel-character > :not(#kit):not(#mark-dead) { display: none; }
+
+body:not(.sheet-play) #kit { display: none; }
+
+#tab-threat, #tab-spark, #panel-threat, #panel-spark { display: none !important; }
+
+.kit-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+
+.gear-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+dialog.gear-dialog {
+  width: min(40rem, calc(100% - 1.5rem));
+  max-height: calc(100% - 2rem);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: var(--bg);
+  color: var(--cream);
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+dialog.gear-dialog::backdrop { background: rgba(8, 6, 4, 0.62); }
+
+.shop-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+}
+
+.dm-tools { margin: 1.25rem 0; }
+
+.dm-tools-grid { display: grid; gap: 1rem; }
+
+@media (min-width: 800px) {
+  .dm-tools-grid { grid-template-columns: 1fr 1fr; }
+}
+
 .seat-form input#seat-room {
   width: 6.5rem;
   text-transform: uppercase;

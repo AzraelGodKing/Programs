@@ -20,8 +20,10 @@ import {
   findBackground,
   findClass,
   findRace,
+  findSkill,
   formatMod,
   offeredSkillIds,
+  proficiencyBonus,
   pointBuySpent,
   presentCharacter,
   racialBonuses,
@@ -31,10 +33,20 @@ import {
   suggestedHp,
 } from "./character.js";
 import { facesLabel, formula, roll, STANDARD_SIDES } from "./dice.js";
+import {
+  GEAR,
+  buyItem,
+  claimItem,
+  equipNewCharacter,
+  findGear,
+  formatCoin,
+  unclaimed,
+  useItem,
+} from "./gear.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, LIGHTS, lightCaption, lightOptionLabel } from "./lights.js";
 import { MARKS } from "./marks.js";
-import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
+import { KIND_LABEL } from "./oracle.js";
 import {
   activeCharacter,
   addCharacter,
@@ -53,7 +65,7 @@ import {
   writeSheet,
 } from "./roster.js";
 import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
-import { loadSeat, normalizeCode, pushTable, rollSummary, saveSeat } from "./table.js";
+import { fetchRoom, loadSeat, normalizeCode, pushTable, rollSummary, saveSeat } from "./table.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -181,6 +193,7 @@ async function flushShare() {
       return;
     }
     ok = true;
+    if (typeof result.shop === "boolean") applyShop(result.shop);
     if (seatError) {
       seatError = "";
       paintSeatStatus();
@@ -286,6 +299,7 @@ function paintGate() {
   const list = code ? charactersAt(roster, code) : [];
   document.body.classList.toggle("roster-open", gateMode === "choose");
   document.body.classList.toggle("sheet-focus", gateMode === "create" || gateMode === "view");
+  document.body.classList.toggle("sheet-play", gateMode === "play");
   if (gate) gate.hidden = gateMode === "play";
   const opener = document.getElementById("open-roster");
   if (opener) opener.hidden = !code || gateMode !== "play";
@@ -349,7 +363,11 @@ function showPlay() {
   gateMode = "play";
   viewingId = "";
   sheetBeforeCreate = null;
+  const before = state.character;
+  state.character = equipNewCharacter(state.character);
   paintGate();
+  renderKit();
+  if (state.character !== before) persist("Packed the starting gear.");
 }
 
 function showChoose() {
@@ -410,6 +428,7 @@ function saveNewCharacter() {
     return;
   }
   state.character.touched = true;
+  state.character = equipNewCharacter(state.character);
   const made = addCharacter(roster, code, state.character);
   if (!made) return;
   roster = made.roster;
@@ -524,6 +543,7 @@ function ensureActive() {
 }
 
 function showTab(tab, { save = true } = {}) {
+  if (tab !== "dice" && tab !== "order" && tab !== "character") tab = "dice";
   state.tab = tab;
   for (const name of ["dice", "order", "threat", "spark", "character"]) {
     const on = name === tab;
@@ -1176,29 +1196,6 @@ function renderSparks() {
   mount.replaceChildren(...state.sparks.map((spark, index) => sparkCard(spark, index === 0)));
 }
 
-function addSpark(card) {
-  state.sparks.unshift({ id: uid(), ...card });
-  state.sparks = state.sparks.slice(0, 8);
-  setText(document.getElementById("spark-live"), sparkText(state.sparks[0]));
-  persist(card.kind === "scene" ? "Drew a whole scene." : `Drew a ${card.kind}: ${card.title}.`);
-  renderSparks();
-}
-
-async function copySpark(id, button) {
-  const spark = state.sparks.find((item) => item.id === id);
-  if (!spark) return;
-  const label = button.textContent;
-  try {
-    await navigator.clipboard.writeText(sparkText(spark));
-    button.textContent = "Copied";
-  } catch {
-    button.textContent = "Copy failed";
-  }
-  setTimeout(() => {
-    button.textContent = label;
-  }, 1200);
-}
-
 function noteIfOut(light, spec, now) {
   if (light.endsAt <= now && !announcedOut.has(light.id)) {
     announcedOut.add(light.id);
@@ -1467,6 +1464,172 @@ function syncSubclass() {
   setControl("character-custom-subclass", state.character.customSubclass);
 }
 
+function skillBonus(character, skillId) {
+  const skill = findSkill(skillId);
+  if (!skill) return 0;
+  const mod = abilityMod(abilityTotals(character)[skill.ability]);
+  const proficient = addBackgroundSkills(character).includes(skillId);
+  return mod + (proficient ? proficiencyBonus(character.level) : 0);
+}
+
+function renderKit() {
+  const mountSkills = document.getElementById("kit-skills");
+  const mountItems = document.getElementById("kit-items");
+  if (!mountSkills || !mountItems) return;
+  const character = state.character;
+  const view = presentCharacter(character);
+  setText(document.getElementById("kit-title"), view ? view.title : "Pack");
+  setText(document.getElementById("kit-meta"), view ? view.meta : "");
+  setText(document.getElementById("kit-hp"), view?.hp || "");
+  setText(document.getElementById("kit-purse"), character.purse == null ? "" : formatCoin(character.purse));
+  const skills = addBackgroundSkills(character);
+  mountSkills.replaceChildren(...(skills.length
+    ? skills.map((id) => {
+      const skill = findSkill(id);
+      if (!skill) return null;
+      return h("button", {
+        type: "button",
+        class: "btn",
+        "data-action": "roll-skill",
+        "data-id": id,
+      }, `${skill.label} ${formatMod(skillBonus(character, id))}`);
+    })
+    : [h("p", { class: "empty" }, "No skills were chosen. That choice stays on the sheet, before the table.")]));
+  mountItems.replaceChildren(...(character.items.length
+    ? character.items.map((item) => h("button", {
+      type: "button",
+      class: "btn",
+      "data-action": "use-item",
+      "data-id": item.id,
+    }, item.qty > 1 ? `${item.name} × ${item.qty}` : item.name))
+    : [h("p", { class: "empty" }, "The pack is empty.")]));
+}
+
+function renderGear() {
+  const character = state.character;
+  setText(document.getElementById("gear-purse"), character.purse == null ? "No purse yet." : formatCoin(character.purse));
+  const claim = document.getElementById("gear-claim");
+  const shop = document.getElementById("gear-shop");
+  const waiting = unclaimed(character);
+  claim.replaceChildren(...(waiting.length
+    ? waiting.map((entry) => {
+      const gear = findGear(entry.id);
+      const label = entry.qty > 1 ? `${gear.name} × ${entry.qty}` : gear.name;
+      return h("div", { class: "gear-row" }, [
+        h("span", {}, label),
+        h("button", { type: "button", class: "btn", "data-action": "claim-item", "data-id": entry.id }, "Claim"),
+      ]);
+    })
+    : [h("p", { class: "hint" }, "Starting gear is already in the pack.")]));
+  const purse = character.purse ?? 0;
+  shop.replaceChildren(...GEAR.map((gear) => h("div", { class: "gear-row" }, [
+    h("span", {}, `${gear.name} · ${formatCoin(gear.cp)}`),
+    h("button", {
+      type: "button",
+      class: "btn",
+      "data-action": "buy-item",
+      "data-id": gear.id,
+      disabled: purse < gear.cp ? true : null,
+    }, "Buy"),
+  ])));
+}
+
+let shopOpen = true;
+
+function applyShop(open) {
+  shopOpen = open !== false;
+  const button = document.querySelector("[data-action='open-gear']");
+  if (button) button.hidden = !shopOpen;
+  const note = document.getElementById("shop-note");
+  if (note) note.hidden = shopOpen;
+  const dialog = document.getElementById("gear-dialog");
+  if (!shopOpen && dialog?.open) dialog.close();
+}
+
+async function watchShop() {
+  const seat = loadSeat();
+  if (!seat.name || !seat.room) {
+    applyShop(true);
+    return;
+  }
+  let room;
+  try {
+    room = await fetchRoom(seat.room);
+  } catch {
+    return;
+  }
+  if (!room) return;
+  applyShop(room.shop);
+}
+
+function openGear() {
+  if (!shopOpen) return;
+  const error = document.getElementById("gear-error");
+  if (error) error.textContent = "";
+  renderGear();
+  document.getElementById("gear-dialog").showModal();
+}
+
+function purchase(id) {
+  if (!shopOpen) return;
+  const result = buyItem(state.character, id);
+  const error = document.getElementById("gear-error");
+  if (!result.ok) {
+    if (error) error.textContent = result.reason;
+    return;
+  }
+  state.character = result.character;
+  if (error) error.textContent = "";
+  persist(`Bought ${findGear(id).name} for ${formatCoin(findGear(id).cp)}.`);
+  renderCharacter();
+  renderGear();
+}
+
+function claimGear(id) {
+  if (!shopOpen) return;
+  const result = claimItem(state.character, id);
+  const error = document.getElementById("gear-error");
+  if (!result.ok) {
+    if (error) error.textContent = result.reason;
+    return;
+  }
+  state.character = result.character;
+  if (error) error.textContent = "";
+  const entry = result.character.items.find((item) => item.id === id);
+  persist(entry ? `Claimed ${entry.name}.` : "Claimed starting gear.");
+  renderCharacter();
+  renderGear();
+}
+
+function spendItem(id) {
+  const result = useItem(state.character, id);
+  if (!result.ok) return;
+  state.character = result.character;
+  const line = result.spent
+    ? (result.left > 0 ? `Uses ${result.used}. ${result.left} left.` : `Uses the last ${result.used}.`)
+    : `Uses ${result.used}.`;
+  persist(line);
+  renderKit();
+}
+
+function rollSkill(id) {
+  const skill = findSkill(id);
+  if (!skill || gateMode !== "play") return;
+  const bonus = skillBonus(state.character, id);
+  state.dice.count = 1;
+  state.dice.sides = 20;
+  state.dice.modifier = bonus;
+  state.dice.mode = "normal";
+  const count = document.getElementById("dice-count");
+  const mod = document.getElementById("dice-mod");
+  const purpose = document.getElementById("roll-for");
+  if (count) count.value = "1";
+  if (mod) mod.value = String(bonus);
+  if (purpose) purpose.value = skill.label;
+  showTab("dice");
+  doRoll();
+}
+
 function renderCharacter() {
   const character = state.character;
   const view = presentCharacter(character);
@@ -1580,10 +1743,11 @@ function renderCharacter() {
   else if (character.hp == null) setText(document.getElementById("hp-hint"), `Suggested ${suggested}, using a d${info.hitDie} and Constitution.`);
   else setText(document.getElementById("hp-hint"), `Set by hand. The die would suggest ${suggested}.`);
   setControl("character-traits", character.traits);
+  renderKit();
 }
 
 function updateSheet(target, { log }) {
-  if (gateMode === "view") return false;
+  if (gateMode === "view" || gateMode === "play") return false;
   const sheet = target.dataset.sheet;
   if (!sheet) return false;
   const character = state.character;
@@ -1892,6 +2056,12 @@ function onClick(event) {
   if (!button) return;
   const { action } = button.dataset;
   if (action === "tab") showTab(button.dataset.tab);
+  else if (action === "roll-skill") rollSkill(button.dataset.id);
+  else if (action === "use-item") spendItem(button.dataset.id);
+  else if (action === "open-gear") openGear();
+  else if (action === "close-gear") document.getElementById("gear-dialog").close();
+  else if (action === "buy-item") purchase(button.dataset.id);
+  else if (action === "claim-item") claimGear(button.dataset.id);
   else if (action === "roll") doRoll();
   else if (action === "set-sides") {
     state.dice.sides = Number(button.dataset.sides);
@@ -1917,20 +2087,11 @@ function onClick(event) {
   else if (action === "remove-combatant") removeCombatant(button.dataset.id);
   else if (action === "next") stepTurn(1);
   else if (action === "back") stepTurn(-1);
-  else if (action === "seat-four") addHeroes(document.getElementById("hero-form"), 4);
-  else if (action === "remove-hero") removeHero(button.dataset.id);
-  else if (action === "remove-monster") removeMonster(button.dataset.id);
+  else if (action === "seat-four" || action === "remove-hero" || action === "remove-monster") return;
+  else if (action === "draw" || action === "draw-scene" || action === "copy-spark" || action === "dismiss-spark") return;
   else if (action === "hood") toggleHood(button.dataset.id);
   else if (action === "snuff") snuff(button.dataset.id);
-  else if (action === "draw") addSpark(draw(button.dataset.kind));
-  else if (action === "draw-scene") addSpark(drawScene());
-  else if (action === "copy-spark") copySpark(button.dataset.id, button);
-  else if (action === "dismiss-spark") {
-    const spark = state.sparks.find((item) => item.id === button.dataset.id);
-    state.sparks = state.sparks.filter((item) => item.id !== button.dataset.id);
-    persist(spark ? `Dismissed ${spark.title}.` : "Dismissed a prompt.");
-    renderSparks();
-  } else if (action === "score-method") applyScoreMethod(button.dataset.method);
+  else if (action === "score-method") applyScoreMethod(button.dataset.method);
   else if (action === "roll-scores") applyScoreMethod("rolled");
   else if (action === "point") {
     const ability = button.dataset.ability;
@@ -1966,8 +2127,7 @@ function onSubmit(event) {
   event.preventDefault();
   if (form.id === "seat-form") joinSeat(form);
   else if (form.dataset.form === "combatant") addCombatant(form);
-  else if (form.dataset.form === "hero") addHeroes(form, 1);
-  else if (form.dataset.form === "monster") addMonster(form);
+  else if (form.dataset.form === "hero" || form.dataset.form === "monster") return;
   else if (form.dataset.form === "light") strike(form);
 }
 
@@ -2145,7 +2305,7 @@ function onKey(event) {
   if (gateMode !== "play") return;
   if (event.target.closest("input, textarea, select, button")) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
-  const tabs = { 1: "dice", 2: "order", 3: "threat", 4: "spark", 5: "character" };
+  const tabs = { 1: "dice", 2: "order", 3: "character" };
   if (tabs[event.key]) {
     event.preventDefault();
     showTab(tabs[event.key]);
@@ -2186,6 +2346,8 @@ function boot() {
   }, { passive: true });
   setInterval(renderFlames, 1000);
   setInterval(() => { void flushShare(); }, 8000);
+  setInterval(() => { void watchShop(); }, 2000);
+  void watchShop();
 }
 
 boot();

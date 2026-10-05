@@ -7,7 +7,7 @@ export const KEY = "lantern.v1";
 export const SAVE_VERSION = 1;
 export const SAVE_BYTES = 300_000;
 
-const TABS = ["dice", "order", "threat", "spark", "character"];
+const TABS = ["dice", "order", "character"];
 const MODES = ["normal", "advantage", "disadvantage"];
 const SIDES = new Set([4, 6, 8, 10, 12, 20, 100]);
 const LIGHT_IDS = new Set(LIGHTS.map((light) => light.id));

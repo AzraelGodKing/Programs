@@ -69,8 +69,20 @@ export async function pushTable(code, body) {
       const payload = await response.json().catch(() => ({}));
       return { ok: false, error: payload.error || "The DM missed that." };
     }
-    return { ok: true };
+    const payload = await response.json().catch(() => ({}));
+    return { ok: true, shop: typeof payload.shop === "boolean" ? payload.shop : null };
   } catch {
     return { ok: false, error: "The table server is not running." };
   }
+}
+
+export async function setShop(code, open) {
+  const response = await fetch(`/api/rooms/${normalizeCode(code)}/shop`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ open: open === true }),
+  });
+  if (response.status === 404) throw new Error("No table with that code.");
+  if (!response.ok) throw new Error("The shop switch did not take.");
+  return response.json();
 }

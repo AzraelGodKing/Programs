@@ -1,9 +1,9 @@
 import { presentCharacter } from "./character.js";
-import { formatXp, rateEncounter } from "./encounter.js";
+import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
-import { KIND_LABEL } from "./oracle.js";
+import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
 import { normalize } from "./store.js";
-import { createRoom, describeSetup, fetchRoom, normalizeCode } from "./table.js";
+import { createRoom, describeSetup, fetchRoom, normalizeCode, setShop } from "./table.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -90,42 +90,178 @@ function lightBlock(lights) {
   }));
 }
 
-function threatBlock(snapshot) {
-  const result = rateEncounter({
-    levels: snapshot.party.map((hero) => hero.level),
-    groups: snapshot.monsters.map((monster) => ({ count: monster.count, xp: monster.xp })),
-  });
-  const party = snapshot.party.length
-    ? snapshot.party.map((hero) => `${hero.name || "Unnamed"} ${hero.level}`).join(", ")
-    : "No party seated.";
-  const creatures = snapshot.monsters.length
-    ? snapshot.monsters.map((monster) => `${monster.count} × ${monster.name} (${formatXp(monster.xp)} XP)`).join(" · ")
-    : "No creatures.";
-  const verdict = result.rating ? WORDS[result.rating] : "No budget yet";
-  const math = result.monsterCount
-    ? `${formatXp(result.adjusted)} adjusted XP · ${formatXp(result.raw)} × ${result.multiplier}`
-    : "";
-  return h("div", { class: "stack" }, [
-    h("p", {}, math ? `${verdict} · ${math}` : verdict),
-    h("p", { class: "hint" }, party),
-    h("p", { class: "hint" }, creatures),
-  ]);
+const DM_KEY = "lantern.dm.v1";
+
+function blankTools() {
+  return {
+    sparks: [],
+    levels: "1, 1, 1, 1",
+    groups: [{ id: crypto.randomUUID(), name: "", count: 1, cr: "1/4" }],
+  };
 }
 
-function sparkBlock(sparks) {
-  if (!sparks.length) return h("p", { class: "hint" }, "No prompts.");
-  return h("div", { class: "stack" }, sparks.map((spark) => {
-    if (spark.kind === "scene") {
-      return h("div", {}, [
-        h("p", {}, "Scene"),
-        ...spark.cards.map((card) => h("p", { class: "hint" }, `${card.title}: ${card.lines?.map((pair) => pair.join(" ")).join(" · ") || card.body}`)),
-      ]);
-    }
-    const lines = spark.lines?.length
-      ? spark.lines.map((pair) => pair.join(": ")).join(" · ")
-      : spark.body;
-    return h("p", {}, `${KIND_LABEL[spark.kind] || spark.title}: ${lines}`);
-  }));
+function cleanGroup(group) {
+  if (!group || typeof group !== "object") return null;
+  const cr = CR_XP.some(([id]) => id === group.cr) ? group.cr : "0";
+  const count = Number(group.count);
+  const name = typeof group.name === "string" ? group.name.slice(0, 80) : "";
+  return {
+    id: typeof group.id === "string" && group.id ? group.id.slice(0, 80) : crypto.randomUUID(),
+    name,
+    count: Number.isInteger(count) ? Math.min(40, Math.max(1, count)) : 1,
+    cr,
+  };
+}
+
+function loadTools() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DM_KEY) || "null");
+    if (!raw || typeof raw !== "object") return blankTools();
+    const groups = Array.isArray(raw.groups) ? raw.groups.map(cleanGroup).filter(Boolean).slice(0, 12) : [];
+    return {
+      sparks: Array.isArray(raw.sparks) ? raw.sparks.slice(0, 8) : [],
+      levels: typeof raw.levels === "string" ? raw.levels.slice(0, 80) : "1, 1, 1, 1",
+      groups: groups.length ? groups : blankTools().groups,
+    };
+  } catch {
+    return blankTools();
+  }
+}
+
+let tools = loadTools();
+
+function saveTools() {
+  localStorage.setItem(DM_KEY, JSON.stringify(tools));
+}
+
+function partyLevels(text) {
+  return String(text || "")
+    .split(/[^0-9]+/)
+    .map((part) => Number(part))
+    .filter((level) => Number.isInteger(level) && level >= 1 && level <= 30)
+    .slice(0, 12);
+}
+
+function xpFor(cr) {
+  return CR_XP.find(([id]) => id === cr)?.[1] ?? 10;
+}
+
+function renderDmSpark() {
+  const mount = document.getElementById("dm-spark");
+  if (!mount) return;
+  if (!tools.sparks.length) {
+    mount.replaceChildren(h("p", { class: "empty" }, "Draw a prompt when the room goes quiet."));
+    return;
+  }
+  mount.replaceChildren(...tools.sparks.map((spark) => h("article", { class: "summary" }, [
+    h("p", { class: "sheet-title" }, spark.title || KIND_LABEL[spark.kind] || "Prompt"),
+    h("p", {}, sparkText(spark)),
+  ])));
+}
+
+function renderDmGroups() {
+  const mount = document.getElementById("dm-groups");
+  if (!mount) return;
+  mount.replaceChildren(...tools.groups.map((group) => h("div", { class: "gear-row" }, [
+    h("input", {
+      type: "text",
+      "data-dm-field": "name",
+      "data-id": group.id,
+      value: group.name,
+      maxlength: "80",
+      placeholder: "Creature",
+      "aria-label": "Creature name",
+    }),
+    h("input", {
+      type: "number",
+      "data-dm-field": "count",
+      "data-id": group.id,
+      value: String(group.count),
+      min: "1",
+      max: "40",
+      "aria-label": "How many",
+    }),
+    h("select", { "data-dm-field": "cr", "data-id": group.id, "aria-label": "Challenge rating" }, CR_XP.map(([id, xp]) => (
+      h("option", { value: id, selected: id === group.cr ? true : null }, `CR ${id} · ${formatXp(xp)}`)
+    ))),
+    h("button", { type: "button", class: "text-btn", "data-dm": "remove-group", "data-id": group.id }, "Remove"),
+  ])));
+}
+
+function renderDmThreat() {
+  const mount = document.getElementById("dm-threat");
+  if (!mount) return;
+  const levels = partyLevels(tools.levels);
+  const groups = tools.groups.map((group) => ({ count: group.count, xp: xpFor(group.cr) }));
+  const result = rateEncounter({ levels, groups });
+  const verdict = result.rating ? WORDS[result.rating] : "Add the party's levels.";
+  const math = result.monsterCount
+    ? `${formatXp(result.adjusted)} adjusted XP · ${formatXp(result.raw)} × ${result.multiplier}`
+    : "No creatures yet.";
+  const easy = result.thresholds.size
+    ? `Easy ${formatXp(result.thresholds.easy)} · Medium ${formatXp(result.thresholds.medium)} · Hard ${formatXp(result.thresholds.hard)} · Deadly ${formatXp(result.thresholds.deadly)}`
+    : "";
+  mount.replaceChildren(...[
+    h("p", {}, `${verdict} · ${math}`),
+    easy ? h("p", { class: "hint" }, easy) : null,
+  ].filter(Boolean));
+}
+
+function paintTools() {
+  const levels = document.getElementById("dm-levels");
+  if (levels && document.activeElement !== levels) levels.value = tools.levels;
+  renderDmSpark();
+  renderDmGroups();
+  renderDmThreat();
+}
+
+function onDmClick(event) {
+  const button = event.target.closest("[data-dm]");
+  if (!button) return;
+  const kind = button.dataset.dm;
+  if (kind === "draw") {
+    tools.sparks.unshift(draw(button.dataset.kind));
+    tools.sparks = tools.sparks.slice(0, 8);
+  } else if (kind === "scene") {
+    tools.sparks.unshift(drawScene());
+    tools.sparks = tools.sparks.slice(0, 8);
+  } else if (kind === "add-group") {
+    tools.groups.push({ id: crypto.randomUUID(), name: "", count: 1, cr: "1/4" });
+  } else if (kind === "remove-group") {
+    tools.groups = tools.groups.filter((group) => group.id !== button.dataset.id);
+    if (!tools.groups.length) tools.groups.push({ id: crypto.randomUUID(), name: "", count: 1, cr: "0" });
+  } else return;
+  saveTools();
+  paintTools();
+}
+
+function onDmInput(event) {
+  const target = event.target;
+  if (target.id === "dm-levels") {
+    tools.levels = target.value.slice(0, 80);
+    saveTools();
+    renderDmThreat();
+    return;
+  }
+  const group = tools.groups.find((item) => item.id === target.dataset.id);
+  const field = target.dataset.dmField;
+  if (!field || !group) return;
+  if (field === "name") group.name = target.value.slice(0, 80);
+  else if (field === "count") {
+    const count = Number(target.value);
+    if (Number.isInteger(count)) group.count = Math.min(40, Math.max(1, count));
+  } else if (field === "cr") group.cr = target.value;
+  saveTools();
+  renderDmThreat();
+}
+
+function bootTools() {
+  const root = document.getElementById("dm-tools");
+  if (!root) return;
+  root.addEventListener("click", onDmClick);
+  root.addEventListener("input", onDmInput);
+  root.addEventListener("change", onDmInput);
+  paintTools();
 }
 
 function characterBlock(character) {
@@ -137,6 +273,8 @@ function characterBlock(character) {
     h("p", {}, view.abilities),
     view.saves ? h("p", { class: "hint" }, `Saves: ${view.saves}.`) : null,
     view.hp ? h("p", {}, view.hp) : null,
+    view.coin ? h("p", {}, view.coin) : null,
+    view.carried ? h("p", {}, view.carried) : null,
     view.skills ? h("p", {}, view.skills) : null,
     view.languages ? h("p", { class: "hint" }, view.languages) : null,
     view.traits ? h("pre", { class: "dm-note" }, view.traits) : null,
@@ -169,14 +307,6 @@ function playerBoard(player, events) {
     h("section", { class: "board-block" }, [
       h("h3", {}, "Light"),
       lightBlock(snapshot.lights),
-    ]),
-    h("section", { class: "board-block" }, [
-      h("h3", {}, "Threat"),
-      threatBlock(snapshot),
-    ]),
-    h("section", { class: "board-block" }, [
-      h("h3", {}, "Spark"),
-      sparkBlock(snapshot.sparks),
     ]),
     h("section", { class: "board-block" }, [
       h("h3", {}, "Scratch"),
@@ -230,6 +360,8 @@ async function poll() {
     return;
   }
   setStatus("");
+  const shopBox = document.getElementById("dm-shop");
+  if (shopBox && document.activeElement !== shopBox) shopBox.checked = room.shop !== false;
   const next = JSON.stringify(room);
   if (next === signature) return;
   signature = next;
@@ -276,8 +408,20 @@ function boot() {
     }
     showTable(next);
   });
+  document.getElementById("dm-shop").addEventListener("change", async (event) => {
+    if (!code) return;
+    const open = event.target.checked;
+    try {
+      await setShop(code, open);
+      signature = "";
+    } catch (error) {
+      event.target.checked = !open;
+      setStatus(error.message);
+    }
+  });
   const initial = normalizeCode(new URLSearchParams(location.search).get("room"));
   if (initial.length === 4) showTable(initial);
+  bootTools();
   setInterval(() => { void poll(); }, 1000);
 }
 
