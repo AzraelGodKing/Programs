@@ -1,10 +1,11 @@
+import { cleanCharacter } from "./character.js";
 import { MARKS } from "./marks.js";
 import { LIGHTS } from "./lights.js";
 import { KINDS } from "./oracle.js";
 
 export const KEY = "lantern.v1";
 
-const TABS = ["dice", "order", "threat", "spark"];
+const TABS = ["dice", "order", "threat", "spark", "character"];
 const MODES = ["normal", "advantage", "disadvantage"];
 const SIDES = new Set([4, 6, 8, 10, 12, 20, 100]);
 const LIGHT_IDS = new Set(LIGHTS.map((light) => light.id));
@@ -158,6 +159,7 @@ export function normalize(input) {
     sparks: asArray(src.sparks).map(cleanSpark).filter(Boolean).slice(0, 8),
     lights: asArray(src.lights).map(cleanLight).filter(Boolean).slice(0, 8),
     notes: typeof src.notes === "string" ? src.notes.slice(0, 4000) : "",
+    character: cleanCharacter(src.character),
   };
 }
 

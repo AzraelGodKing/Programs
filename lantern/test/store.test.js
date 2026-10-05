@@ -11,6 +11,8 @@ test("a fresh night starts on the dice", () => {
   assert.equal(state.combat.started, false);
   assert.deepEqual(state.party, []);
   assert.equal(state.notes, "");
+  assert.equal(state.character.touched, false);
+  assert.equal(state.character.level, 1);
 });
 
 test("bad saves are dropped instead of trusted", () => {

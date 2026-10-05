@@ -47,6 +47,7 @@
       <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-controls="panel-order" aria-selected="false" tabindex="-1">Order</button>
       <button type="button" role="tab" id="tab-threat" data-action="tab" data-tab="threat" aria-controls="panel-threat" aria-selected="false" tabindex="-1">Threat</button>
       <button type="button" role="tab" id="tab-spark" data-action="tab" data-tab="spark" aria-controls="panel-spark" aria-selected="false" tabindex="-1">Spark</button>
+      <button type="button" role="tab" id="tab-character" data-action="tab" data-tab="character" aria-controls="panel-character" aria-selected="false" tabindex="-1">Character</button>
     </nav>
     <section class="wick" aria-label="Light sources">
       <p id="flame-live" class="sr-only" aria-live="polite"></p>
@@ -194,6 +195,132 @@
       </div>
       <div id="spark-list" class="stack"></div>
     </section>
+
+    <section role="tabpanel" id="panel-character" aria-labelledby="tab-character" hidden>
+      <h2>Character</h2>
+      <p class="lede">One hero from the common 2014 list. Choose Custom wherever the table uses something else.</p>
+      <div id="character-summary" class="summary" data-rating="none"></div>
+
+      <div class="form">
+        <label>Name
+          <input id="character-name" data-sheet="name" type="text" maxlength="80" spellcheck="false" placeholder="Mara">
+        </label>
+        <label>Level
+          <select id="character-level" data-sheet="level" aria-label="Character level"></select>
+        </label>
+        <label>Alignment
+          <select id="character-alignment" data-sheet="alignment" aria-label="Alignment"></select>
+        </label>
+        <label id="custom-alignment-field" hidden>Custom alignment
+          <input id="character-custom-alignment" data-sheet="custom-alignment" type="text" maxlength="40" spellcheck="false">
+        </label>
+      </div>
+
+      <div class="form">
+        <label>Race
+          <select id="character-race" data-sheet="race" aria-label="Race"></select>
+        </label>
+        <label id="lineage-field" hidden><span id="lineage-label">Subrace</span>
+          <select id="character-lineage" data-sheet="lineage" aria-label="Subrace or ancestry"></select>
+        </label>
+        <label id="custom-lineage-field" hidden>Custom subrace
+          <input id="character-custom-lineage" data-sheet="custom-lineage" type="text" maxlength="40" spellcheck="false">
+        </label>
+      </div>
+      <div id="custom-race-field" class="form" hidden>
+        <label>Custom race
+          <input id="character-custom-race" data-sheet="custom-race" type="text" maxlength="40" spellcheck="false" placeholder="River folk">
+        </label>
+        <label>Size
+          <select id="character-custom-size" data-sheet="custom-size" aria-label="Size">
+            <option value="Small">Small</option>
+            <option value="Medium">Medium</option>
+          </select>
+        </label>
+        <label>Speed
+          <input id="character-custom-speed" data-sheet="custom-speed" type="number" min="0" max="120" value="30" inputmode="numeric">
+        </label>
+        <label>Languages
+          <input id="character-custom-languages" data-sheet="custom-languages" type="text" maxlength="80" spellcheck="false" placeholder="Common, and one more">
+        </label>
+      </div>
+      <div id="racial-bonus-field" class="form" hidden></div>
+      <div id="heritage-field" hidden>
+        <p class="hint">Half-elves add +1 to two abilities other than Charisma.</p>
+        <div id="heritage-picks" class="skill-grid"></div>
+      </div>
+
+      <div class="form">
+        <label>Class
+          <select id="character-class" data-sheet="class" aria-label="Class"></select>
+        </label>
+        <label id="subclass-field" hidden>Subclass
+          <select id="character-subclass" data-sheet="subclass" aria-label="Subclass"></select>
+        </label>
+        <label id="custom-subclass-field" hidden>Custom subclass
+          <input id="character-custom-subclass" data-sheet="custom-subclass" type="text" maxlength="40" spellcheck="false">
+        </label>
+      </div>
+      <p id="class-hint" class="hint"></p>
+      <div id="custom-class-field" class="form" hidden>
+        <label>Custom class
+          <input id="character-custom-class" data-sheet="custom-class" type="text" maxlength="40" spellcheck="false" placeholder="Warden">
+        </label>
+        <label>Hit die
+          <select id="character-hit-die" data-sheet="hit-die" aria-label="Hit die">
+            <option value="4">d4</option>
+            <option value="6">d6</option>
+            <option value="8">d8</option>
+            <option value="10">d10</option>
+            <option value="12">d12</option>
+          </select>
+        </label>
+        <label>Skill picks
+          <input id="character-skill-count" data-sheet="skill-count" type="number" min="0" max="6" value="2" inputmode="numeric">
+        </label>
+      </div>
+      <div id="save-field" hidden>
+        <p class="hint">Choose up to two saving throws.</p>
+        <div id="save-picks" class="skill-grid"></div>
+      </div>
+
+      <div class="form">
+        <label>Background
+          <select id="character-background" data-sheet="background" aria-label="Background"></select>
+        </label>
+        <label id="custom-background-field" hidden>Custom background
+          <input id="character-custom-background" data-sheet="custom-background" type="text" maxlength="40" spellcheck="false">
+        </label>
+        <button type="button" class="btn" id="background-skills" data-action="background-skills">Add background skills</button>
+      </div>
+      <p id="background-hint" class="hint"></p>
+
+      <h3>Abilities</h3>
+      <div class="modes" id="score-methods" role="group" aria-label="Ability score method">
+        <button type="button" data-action="score-method" data-method="standard" aria-pressed="true">Standard array</button>
+        <button type="button" data-action="score-method" data-method="pointbuy" aria-pressed="false">Point buy</button>
+        <button type="button" data-action="score-method" data-method="rolled" aria-pressed="false">Roll 4d6</button>
+        <button type="button" data-action="score-method" data-method="manual" aria-pressed="false">Manual</button>
+      </div>
+      <p id="point-buy-line" class="hint" hidden></p>
+      <div id="ability-grid" class="ability-grid"></div>
+      <button type="button" class="text-btn" id="roll-again" data-action="roll-scores" hidden>Roll again</button>
+
+      <h3>Skills</h3>
+      <p id="skill-hint" class="hint"></p>
+      <div id="skill-grid" class="skill-grid"></div>
+
+      <div class="form">
+        <label>Hit points
+          <input id="character-hp" data-sheet="hp" type="number" min="0" max="999" inputmode="numeric" placeholder="Suggested">
+        </label>
+        <button type="button" class="btn" data-action="suggest-hp">Use suggested</button>
+      </div>
+      <p id="hp-hint" class="hint"></p>
+
+      <label class="trait-label" for="character-traits">Traits, tools, and anything custom</label>
+      <textarea id="character-traits" data-sheet="traits" maxlength="1000" rows="3" placeholder="A chipped signet, the oath, the language the list forgot."></textarea>
+    </section>
   </main>
 
   <section class="scratch">
@@ -201,7 +328,7 @@
     <textarea id="notes" maxlength="4000" rows="3" placeholder="Names, promises, the thing the rogue palmed."></textarea>
   </section>
   <footer>
-    <p>Keys 1–4 switch tools while you are not typing. R rolls. N advances the round. Encounter thresholds and challenge experience are the 2014 math. Light durations are the common gear list. Prompts are written for Lantern.</p>
+    <p>Keys 1–5 switch tools while you are not typing. R rolls. N advances the round. Encounter thresholds, character options, and light durations are the common 2014 numbers. Prompts are written for Lantern.</p>
   </footer>
   <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
   <script type="module" src="src/app.js"></script>

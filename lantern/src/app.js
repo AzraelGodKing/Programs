@@ -1,3 +1,33 @@
+import {
+  ABILITIES,
+  ALIGNMENTS,
+  BACKGROUNDS,
+  CLASSES,
+  POINT_BUY_BUDGET,
+  RACES,
+  SKILLS,
+  STANDARD_ARRAY,
+  abilityMod,
+  abilityTotals,
+  addBackgroundSkills,
+  assignStandard,
+  choiceSummary,
+  classInfo,
+  defaultScores,
+  findAbility,
+  findBackground,
+  findClass,
+  findRace,
+  formatMod,
+  offeredSkillIds,
+  pointBuySpent,
+  presentCharacter,
+  racialBonuses,
+  rollScores,
+  skillHint,
+  stepPointBuy,
+  suggestedHp,
+} from "./character.js";
 import { facesLabel, formula, roll, STANDARD_SIDES } from "./dice.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, LIGHTS, lightCaption, lightOptionLabel } from "./lights.js";
@@ -75,6 +105,9 @@ function readInt(input, fallback, min, max) {
 const shareQueue = [];
 let shareTimer = null;
 let noteTimer = null;
+let traitTimer = null;
+let lineageKey = "";
+let subclassKey = "";
 let flushing = false;
 let seatError = "";
 
@@ -200,7 +233,7 @@ function ensureActive() {
 
 function showTab(tab, { save = true } = {}) {
   state.tab = tab;
-  for (const name of ["dice", "order", "threat", "spark"]) {
+  for (const name of ["dice", "order", "threat", "spark", "character"]) {
     const on = name === tab;
     document.getElementById(`panel-${name}`).hidden = !on;
     const button = document.getElementById(`tab-${name}`);
@@ -971,6 +1004,451 @@ function snuff(id) {
   renderFlames();
 }
 
+function setControl(id, value) {
+  const node = document.getElementById(id);
+  if (!node || document.activeElement === node) return;
+  const next = value == null ? "" : String(value);
+  if (node.value !== next) node.value = next;
+}
+
+function showField(id, on) {
+  const node = document.getElementById(id);
+  if (node) node.hidden = !on;
+}
+
+function sheetLine() {
+  return choiceSummary(state.character).replace(/^Character, /, "Set the character: ");
+}
+
+function abilityControl(ability, method) {
+  const score = state.character.scores[ability.id];
+  let control;
+  if (method === "standard") {
+    control = h("select", {
+      "data-sheet": "array",
+      "data-ability": ability.id,
+      "aria-label": `${ability.label} score`,
+    }, STANDARD_ARRAY.map((value) => h("option", {
+      value: String(value),
+      selected: value === score ? "selected" : null,
+    }, String(value))));
+  } else if (method === "pointbuy") {
+    control = h("div", { class: "point-step" }, [
+      h("button", {
+        type: "button",
+        class: "step",
+        "data-action": "point",
+        "data-ability": ability.id,
+        "data-delta": "-1",
+        "aria-label": `Lower ${ability.label}`,
+      }, "−"),
+      h("span", { class: "point-value", "data-base": ability.id }, String(score)),
+      h("button", {
+        type: "button",
+        class: "step",
+        "data-action": "point",
+        "data-ability": ability.id,
+        "data-delta": "1",
+        "aria-label": `Raise ${ability.label}`,
+      }, "+"),
+    ]);
+  } else {
+    control = h("input", {
+      type: "number",
+      min: "1",
+      max: "30",
+      value: String(score),
+      "data-sheet": "score",
+      "data-ability": ability.id,
+      "aria-label": `${ability.label} score`,
+    });
+  }
+  return h("article", { class: "ability", "data-ability-card": ability.id }, [
+    h("p", { class: "ability-name" }, ability.short),
+    control,
+    h("p", { class: "ability-total" }, ""),
+    h("p", { class: "ability-note" }, ""),
+  ]);
+}
+
+function renderAbilities() {
+  const mount = document.getElementById("ability-grid");
+  const method = state.character.method;
+  if (mount.dataset.method !== method) {
+    mount.dataset.method = method;
+    mount.replaceChildren(...ABILITIES.map((ability) => abilityControl(ability, method)));
+  }
+  const totals = abilityTotals(state.character);
+  const racial = racialBonuses(state.character);
+  for (const ability of ABILITIES) {
+    const card = mount.querySelector(`[data-ability-card="${ability.id}"]`);
+    const total = totals[ability.id];
+    const bonus = racial[ability.id];
+    const base = state.character.scores[ability.id];
+    setText(card.querySelector(".ability-total"), `${total} (${formatMod(abilityMod(total))})`);
+    setText(card.querySelector(".ability-note"), bonus ? `${base} base, ${formatMod(bonus)} from the people` : `${base} base`);
+    const point = card.querySelector("[data-base]");
+    if (point) setText(point, String(base));
+    const select = card.querySelector("select");
+    if (select && document.activeElement !== select) select.value = String(base);
+    const input = card.querySelector("input");
+    if (input && document.activeElement !== input && input.value !== String(base)) input.value = String(base);
+  }
+  const pointLine = document.getElementById("point-buy-line");
+  pointLine.hidden = method !== "pointbuy";
+  if (method === "pointbuy") {
+    const spent = pointBuySpent(state.character.scores);
+    setText(pointLine, spent == null
+      ? "Scores need to sit between 8 and 15."
+      : `${POINT_BUY_BUDGET - spent} points left of ${POINT_BUY_BUDGET}.`);
+  }
+  document.getElementById("roll-again").hidden = method !== "rolled";
+  for (const button of document.querySelectorAll("#score-methods button")) {
+    button.setAttribute("aria-pressed", button.dataset.method === method ? "true" : "false");
+  }
+}
+
+function renderPickGrid(mount, abilities, selected, sheet) {
+  if (!mount.childElementCount) {
+    mount.replaceChildren(...abilities.map((ability) => h("label", {}, [
+      h("input", {
+        type: "checkbox",
+        "data-sheet": sheet,
+        "data-ability": ability.id,
+      }),
+      ability.label,
+    ])));
+  }
+  for (const input of mount.querySelectorAll("input")) {
+    input.checked = selected.includes(input.dataset.ability);
+  }
+}
+
+function syncLineage() {
+  const race = findRace(state.character.raceId);
+  const field = document.getElementById("lineage-field");
+  const select = document.getElementById("character-lineage");
+  if (!race?.lineages.length) {
+    field.hidden = true;
+    showField("custom-lineage-field", false);
+    lineageKey = "";
+    return;
+  }
+  field.hidden = false;
+  setText(document.getElementById("lineage-label"), race.lineageLabel);
+  if (lineageKey !== race.id) {
+    lineageKey = race.id;
+    select.replaceChildren(
+      ...race.lineages.map((lineage) => h("option", { value: lineage.id }, lineage.name)),
+      h("option", { value: "custom" }, "Custom"),
+    );
+  }
+  if (state.character.lineageId !== "custom" && !race.lineages.some((lineage) => lineage.id === state.character.lineageId)) {
+    state.character.lineageId = race.lineages[0].id;
+  }
+  if (document.activeElement !== select) select.value = state.character.lineageId;
+  showField("custom-lineage-field", state.character.lineageId === "custom");
+  setControl("character-custom-lineage", state.character.customLineage);
+}
+
+function syncSubclass() {
+  const klass = findClass(state.character.classId);
+  const field = document.getElementById("subclass-field");
+  const select = document.getElementById("character-subclass");
+  if (!state.character.classId) {
+    field.hidden = true;
+    showField("custom-subclass-field", false);
+    subclassKey = "";
+    return;
+  }
+  field.hidden = false;
+  if (subclassKey !== state.character.classId) {
+    subclassKey = state.character.classId;
+    select.replaceChildren(
+      h("option", { value: "" }, "No subclass yet"),
+      ...(klass ? klass.subclasses.map((sub) => h("option", { value: sub.id }, sub.name)) : []),
+      h("option", { value: "custom" }, "Custom"),
+    );
+  }
+  if (document.activeElement !== select) select.value = state.character.subclassId;
+  showField("custom-subclass-field", state.character.subclassId === "custom");
+  setControl("character-custom-subclass", state.character.customSubclass);
+}
+
+function renderCharacter() {
+  const character = state.character;
+  const view = presentCharacter(character);
+  const summary = document.getElementById("character-summary");
+  if (!view) {
+    summary.replaceChildren(
+      h("p", { class: "sheet-title" }, "A blank sheet"),
+      h("p", { class: "hint" }, "Choose a people and a class, or write your own."),
+    );
+  } else {
+    summary.replaceChildren(...present([
+      h("p", { class: "sheet-title" }, view.title),
+      h("p", { class: "math" }, view.meta),
+      h("p", {}, view.abilities),
+      view.saves ? h("p", { class: "hint" }, `Saves: ${view.saves}.`) : null,
+      view.hp ? h("p", {}, view.hp) : null,
+      view.languages ? h("p", { class: "hint" }, view.languages) : null,
+      view.skills ? h("p", { class: "hint" }, view.skills) : null,
+    ]));
+  }
+
+  setControl("character-name", character.name);
+  setControl("character-level", character.level);
+  setControl("character-alignment", character.alignment);
+  showField("custom-alignment-field", character.alignment === "custom");
+  setControl("character-custom-alignment", character.customAlignment);
+  setControl("character-race", character.raceId);
+  syncLineage();
+  showField("custom-race-field", character.raceId === "custom");
+  showField("racial-bonus-field", character.raceId === "custom");
+  setControl("character-custom-race", character.customRace);
+  setControl("character-custom-size", character.customSize);
+  setControl("character-custom-speed", character.customSpeed);
+  setControl("character-custom-languages", character.customLanguages);
+  const bonusMount = document.getElementById("racial-bonus-field");
+  if (!bonusMount.childElementCount) {
+    bonusMount.replaceChildren(...ABILITIES.map((ability) => h("label", {}, [
+      ability.short,
+      h("input", {
+        type: "number",
+        min: "-5",
+        max: "6",
+        "data-sheet": "racial-bonus",
+        "data-ability": ability.id,
+        "aria-label": `${ability.label} bonus`,
+        value: "0",
+      }),
+    ])));
+  }
+  for (const input of bonusMount.querySelectorAll("input")) {
+    if (document.activeElement === input) continue;
+    input.value = String(character.customBonuses[input.dataset.ability] || 0);
+  }
+  const race = findRace(character.raceId);
+  showField("heritage-field", Boolean(race?.picks));
+  renderPickGrid(
+    document.getElementById("heritage-picks"),
+    ABILITIES.filter((ability) => ability.id !== "cha"),
+    character.picks,
+    "heritage",
+  );
+
+  setControl("character-class", character.classId);
+  syncSubclass();
+  const info = classInfo(character);
+  showField("custom-class-field", character.classId === "custom");
+  showField("save-field", character.classId === "custom");
+  setControl("character-custom-class", character.customClass);
+  setControl("character-hit-die", character.hitDie);
+  setControl("character-skill-count", character.skillCount);
+  renderPickGrid(document.getElementById("save-picks"), ABILITIES, character.saves, "save");
+  if (!info) setText(document.getElementById("class-hint"), "Saves and the hit die appear with the class.");
+  else if (info.custom) setText(document.getElementById("class-hint"), "A custom class chooses its own saves. Any skill can still be ticked.");
+  else {
+    const saves = info.saves.map((id) => findAbility(id).label).join(" and ");
+    setText(document.getElementById("class-hint"), `Hit die d${info.hitDie}. Saves: ${saves}. A subclass usually waits until level ${info.subclassLevel}.`);
+  }
+
+  setControl("character-background", character.backgroundId);
+  showField("custom-background-field", character.backgroundId === "custom");
+  setControl("character-custom-background", character.customBackground);
+  const background = findBackground(character.backgroundId);
+  document.getElementById("background-skills").hidden = !background;
+  if (character.backgroundId === "custom") setText(document.getElementById("background-hint"), "Write the name. Tick whichever skills the table agreed on.");
+  else if (background) {
+    const names = background.skills.map((id) => SKILLS.find((skill) => skill.id === id).label).join(" and ");
+    setText(document.getElementById("background-hint"), `${background.name} offers ${names}.`);
+  } else setText(document.getElementById("background-hint"), "");
+
+  renderAbilities();
+  const skillMount = document.getElementById("skill-grid");
+  if (!skillMount.childElementCount) {
+    skillMount.replaceChildren(...SKILLS.map((skill) => h("label", { "data-skill-label": skill.id }, [
+      h("input", { type: "checkbox", "data-sheet": "skill", "data-skill": skill.id }),
+      `${skill.label} · ${findAbility(skill.ability).short}`,
+    ])));
+  }
+  const offered = new Set(offeredSkillIds(character));
+  for (const skill of SKILLS) {
+    const label = skillMount.querySelector(`[data-skill-label="${skill.id}"]`);
+    label.classList.toggle("is-offered", offered.has(skill.id));
+    label.querySelector("input").checked = character.skills.includes(skill.id);
+  }
+  setText(document.getElementById("skill-hint"), skillHint(character));
+
+  const hp = document.getElementById("character-hp");
+  const suggested = suggestedHp(character);
+  if (document.activeElement !== hp) hp.value = character.hp == null ? "" : String(character.hp);
+  hp.placeholder = suggested == null ? "Suggested" : String(suggested);
+  if (!info) setText(document.getElementById("hp-hint"), "Pick a class and the suggested total uses its hit die.");
+  else if (character.hp == null) setText(document.getElementById("hp-hint"), `Suggested ${suggested}, using a d${info.hitDie} and Constitution.`);
+  else setText(document.getElementById("hp-hint"), `Set by hand. The die would suggest ${suggested}.`);
+  setControl("character-traits", character.traits);
+}
+
+function updateSheet(target, { log }) {
+  const sheet = target.dataset.sheet;
+  if (!sheet) return false;
+  const character = state.character;
+  let summary = "";
+  if (sheet === "name") {
+    character.name = target.value.slice(0, 80);
+    summary = character.name ? `Named the character ${character.name}.` : "Cleared the character name.";
+  } else if (sheet === "level") {
+    character.level = readInt(target, character.level, 1, 20);
+    summary = sheetLine();
+  } else if (sheet === "alignment") {
+    character.alignment = target.value;
+    summary = sheetLine();
+  } else if (sheet === "custom-alignment") {
+    character.customAlignment = target.value.slice(0, 40);
+    summary = sheetLine();
+  } else if (sheet === "race") {
+    character.raceId = target.value;
+    lineageKey = "";
+    const race = findRace(character.raceId);
+    if (!race?.lineages.some((lineage) => lineage.id === character.lineageId)) {
+      character.lineageId = race?.lineages[0]?.id || "";
+    }
+    if (!race?.picks) character.picks = [];
+    summary = sheetLine();
+  } else if (sheet === "lineage") {
+    character.lineageId = target.value;
+    summary = sheetLine();
+  } else if (sheet === "custom-lineage") {
+    character.customLineage = target.value.slice(0, 40);
+    summary = sheetLine();
+  } else if (sheet === "custom-race") {
+    character.customRace = target.value.slice(0, 40);
+    summary = sheetLine();
+  } else if (sheet === "custom-size") {
+    character.customSize = target.value === "Small" ? "Small" : "Medium";
+    summary = sheetLine();
+  } else if (sheet === "custom-speed") {
+    const speed = looseInt(target.value);
+    if (speed == null || speed < 0 || speed > 120) return true;
+    character.customSpeed = speed;
+    summary = sheetLine();
+  } else if (sheet === "custom-languages") {
+    character.customLanguages = target.value.slice(0, 80);
+    summary = "Updated the character's languages.";
+  } else if (sheet === "racial-bonus") {
+    const bonus = looseInt(target.value);
+    if (bonus == null || bonus < -5 || bonus > 6) return true;
+    character.customBonuses[target.dataset.ability] = bonus;
+    summary = `Set the custom ${findAbility(target.dataset.ability).label} bonus to ${formatMod(bonus)}.`;
+  } else if (sheet === "heritage") {
+    const id = target.dataset.ability;
+    let picks = character.picks.filter((pick) => pick !== id);
+    if (target.checked) picks = [...picks, id].slice(-2);
+    character.picks = picks;
+    summary = "Set the half-elf ability bonuses.";
+  } else if (sheet === "class") {
+    character.classId = target.value;
+    subclassKey = "";
+    const klass = findClass(character.classId);
+    if (!klass?.subclasses.some((sub) => sub.id === character.subclassId)) character.subclassId = "";
+    summary = sheetLine();
+  } else if (sheet === "subclass") {
+    character.subclassId = target.value;
+    summary = sheetLine();
+  } else if (sheet === "custom-class" || sheet === "custom-subclass") {
+    const key = sheet === "custom-class" ? "customClass" : "customSubclass";
+    character[key] = target.value.slice(0, 40);
+    summary = sheetLine();
+  } else if (sheet === "hit-die") {
+    character.hitDie = Number(target.value);
+    summary = `Set the custom hit die to a d${character.hitDie}.`;
+  } else if (sheet === "skill-count") {
+    const count = looseInt(target.value);
+    if (count == null || count < 0 || count > 6) return true;
+    character.skillCount = count;
+    summary = `The custom class chooses ${count} skills.`;
+  } else if (sheet === "save") {
+    const id = target.dataset.ability;
+    let saves = character.saves.filter((save) => save !== id);
+    if (target.checked) saves = [...saves, id].slice(-2);
+    character.saves = saves;
+    summary = "Set the custom saving throws.";
+  } else if (sheet === "background") {
+    character.backgroundId = target.value;
+    summary = sheetLine();
+  } else if (sheet === "custom-background") {
+    character.customBackground = target.value.slice(0, 40);
+    summary = sheetLine();
+  } else if (sheet === "array") {
+    character.scores = assignStandard(character.scores, target.dataset.ability, Number(target.value));
+    summary = `Set ${findAbility(target.dataset.ability).label} to ${character.scores[target.dataset.ability]}.`;
+  } else if (sheet === "score") {
+    const score = looseInt(target.value);
+    if (score == null || score < 1 || score > 30) return true;
+    character.scores[target.dataset.ability] = score;
+    summary = `Set ${findAbility(target.dataset.ability).label} to ${score}.`;
+  } else if (sheet === "skill") {
+    const id = target.dataset.skill;
+    const label = SKILLS.find((skill) => skill.id === id).label;
+    if (target.checked) {
+      if (!character.skills.includes(id)) character.skills.push(id);
+      summary = `Took ${label}.`;
+    } else {
+      character.skills = character.skills.filter((skill) => skill !== id);
+      summary = `Dropped ${label}.`;
+    }
+  } else if (sheet === "hp") {
+    if (target.value.trim() === "") {
+      character.hp = null;
+      summary = "Using the suggested hit points.";
+    } else {
+      const hp = looseInt(target.value);
+      if (hp == null || hp < 0 || hp > 999) return true;
+      character.hp = hp;
+      summary = `Set hit points to ${hp}.`;
+    }
+  } else if (sheet === "traits") {
+    character.traits = target.value.slice(0, 1000);
+    character.touched = true;
+    persist();
+    if (!log) {
+      clearTimeout(traitTimer);
+      traitTimer = setTimeout(() => persist("Updated character traits."), 600);
+    }
+    renderCharacter();
+    return true;
+  } else return false;
+
+  character.touched = true;
+  if (log && summary) persist(summary);
+  else persist();
+  renderCharacter();
+  return true;
+}
+
+function applyScoreMethod(method) {
+  state.character.method = method;
+  if (method === "standard") state.character.scores = defaultScores();
+  if (method === "pointbuy") {
+    const spent = pointBuySpent(state.character.scores);
+    if (spent == null || spent > POINT_BUY_BUDGET) {
+      state.character.scores = { str: 8, dex: 8, con: 8, int: 8, wis: 8, cha: 8 };
+    }
+  }
+  if (method === "rolled") state.character.scores = rollScores();
+  const rolled = ABILITIES.map((ability) => `${ability.short} ${state.character.scores[ability.id]}`).join(", ");
+  const summaries = {
+    standard: "Set ability scores to the standard array.",
+    pointbuy: "Set ability scores with point buy.",
+    rolled: `Rolled ability scores: ${rolled}.`,
+    manual: "Set ability scores by hand.",
+  };
+  state.character.touched = true;
+  persist(summaries[method]);
+  renderCharacter();
+}
+
 function fillSelects() {
   const tray = document.getElementById("dice-tray");
   tray.replaceChildren(...STANDARD_SIDES.map((sides) => h("button", {
@@ -986,6 +1464,28 @@ function fillSelects() {
   cr.replaceChildren(
     h("option", { value: "" }, "Set XP from challenge"),
     ...CR_XP.map(([rating, xp]) => h("option", { value: String(xp) }, `CR ${rating} · ${formatXp(xp)} XP`)),
+  );
+  const raceSelect = document.getElementById("character-race");
+  raceSelect.replaceChildren(
+    h("option", { value: "" }, "Choose a race"),
+    ...RACES.map((race) => h("option", { value: race.id }, race.name)),
+    h("option", { value: "custom" }, "Custom"),
+  );
+  const classSelect = document.getElementById("character-class");
+  classSelect.replaceChildren(
+    h("option", { value: "" }, "Choose a class"),
+    ...CLASSES.map((klass) => h("option", { value: klass.id }, klass.name)),
+    h("option", { value: "custom" }, "Custom"),
+  );
+  const backgroundSelect = document.getElementById("character-background");
+  backgroundSelect.replaceChildren(
+    h("option", { value: "" }, "No background yet"),
+    ...BACKGROUNDS.map((background) => h("option", { value: background.id }, background.name)),
+    h("option", { value: "custom" }, "Custom"),
+  );
+  document.getElementById("character-level").replaceChildren(...levelOptions(state.character.level));
+  document.getElementById("character-alignment").replaceChildren(
+    ...ALIGNMENTS.map(([id, label]) => h("option", { value: id }, label)),
   );
   const kinds = document.querySelector("#light-form select[name='kind']");
   kinds.replaceChildren(...LIGHTS.map((spec) => {
@@ -1010,10 +1510,11 @@ function applyLoaded() {
   renderThreat();
   renderSparks();
   renderFlames();
+  renderCharacter();
 }
 
 function resetAll() {
-  const ok = window.confirm("Clear the fight, the party, the flames, the prompts, and the scratch notes stored in this browser?");
+  const ok = window.confirm("Clear the fight, the party, the flames, the prompts, the character, and the scratch notes stored in this browser?");
   if (!ok) return;
   clearState();
   openMarksId = null;
@@ -1024,7 +1525,9 @@ function resetAll() {
   document.getElementById("monster-form").reset();
   fillSelects();
   applyLoaded();
-  persist("Cleared the fight, the party, the flames, the prompts, and the notes.");
+  lineageKey = "";
+  subclassKey = "";
+  persist("Cleared the fight, the party, the flames, the prompts, the character, and the notes.");
 }
 
 function onClick(event) {
@@ -1070,6 +1573,24 @@ function onClick(event) {
     state.sparks = state.sparks.filter((item) => item.id !== button.dataset.id);
     persist(spark ? `Dismissed ${spark.title}.` : "Dismissed a prompt.");
     renderSparks();
+  } else if (action === "score-method") applyScoreMethod(button.dataset.method);
+  else if (action === "roll-scores") applyScoreMethod("rolled");
+  else if (action === "point") {
+    const ability = button.dataset.ability;
+    state.character.scores = stepPointBuy(state.character.scores, ability, Number(button.dataset.delta));
+    state.character.touched = true;
+    persist(`Set ${findAbility(ability).label} to ${state.character.scores[ability]}.`);
+    renderCharacter();
+  } else if (action === "background-skills") {
+    state.character.skills = addBackgroundSkills(state.character);
+    state.character.touched = true;
+    persist("Added the background skills.");
+    renderCharacter();
+  } else if (action === "suggest-hp") {
+    state.character.hp = null;
+    state.character.touched = true;
+    persist("Using the suggested hit points.");
+    renderCharacter();
   } else if (action === "reset") resetAll();
 }
 
@@ -1086,6 +1607,10 @@ function onSubmit(event) {
 
 function onInput(event) {
   const target = event.target;
+  if (target.dataset?.sheet) {
+    updateSheet(target, { log: false });
+    return;
+  }
   if (target.id === "notes") {
     state.notes = target.value.slice(0, 4000);
     persist();
@@ -1170,6 +1695,10 @@ function onInput(event) {
 
 function onChange(event) {
   const target = event.target;
+  if (target.dataset?.sheet) {
+    updateSheet(target, { log: true });
+    return;
+  }
   if (target.name === "cr" && target.form?.dataset.form === "monster") {
     if (target.value !== "") target.form.elements.xp.value = target.value;
     return;
@@ -1249,7 +1778,7 @@ function onToggle(event) {
 function onKey(event) {
   if (event.target.closest("input, textarea, select, button")) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
-  const tabs = { 1: "dice", 2: "order", 3: "threat", 4: "spark" };
+  const tabs = { 1: "dice", 2: "order", 3: "threat", 4: "spark", 5: "character" };
   if (tabs[event.key]) {
     event.preventDefault();
     showTab(tabs[event.key]);

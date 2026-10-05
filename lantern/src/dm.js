@@ -1,3 +1,4 @@
+import { presentCharacter } from "./character.js";
 import { formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
 import { KIND_LABEL } from "./oracle.js";
@@ -127,6 +128,21 @@ function sparkBlock(sparks) {
   }));
 }
 
+function characterBlock(character) {
+  const view = presentCharacter(character);
+  if (!view) return h("p", { class: "hint" }, "No character yet.");
+  return h("div", { class: "stack" }, [
+    h("p", {}, view.title),
+    h("p", { class: "hint" }, view.meta),
+    h("p", {}, view.abilities),
+    view.saves ? h("p", { class: "hint" }, `Saves: ${view.saves}.`) : null,
+    view.hp ? h("p", {}, view.hp) : null,
+    view.skills ? h("p", {}, view.skills) : null,
+    view.languages ? h("p", { class: "hint" }, view.languages) : null,
+    view.traits ? h("pre", { class: "dm-note" }, view.traits) : null,
+  ]);
+}
+
 function playerBoard(player, events) {
   const snapshot = normalize(player.snapshot);
   const latest = events.find((event) => event.name === player.name);
@@ -138,6 +154,10 @@ function playerBoard(player, events) {
     ]),
     h("p", {}, `Ready to roll ${describeSetup(snapshot.dice, player.intent)}`),
     latest ? h("p", { class: "hint" }, latest.summary) : null,
+    h("section", { class: "board-block" }, [
+      h("h3", {}, "Character"),
+      characterBlock(snapshot.character),
+    ]),
     h("section", { class: "board-block" }, [
       h("h3", {}, "Dice"),
       diceBlock(snapshot.dice.history),
