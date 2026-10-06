@@ -3,6 +3,7 @@ import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
 import {
+  featuredEvent,
   feedKind,
   heroInOrder,
   lightTone,
@@ -525,9 +526,10 @@ function emptyFeed() {
   return "Nothing has happened since this table opened.";
 }
 
-function paintLatest(event) {
+function paintLatest(events) {
   const node = document.getElementById("latest-call");
   if (!node) return;
+  const event = featuredEvent(events);
   if (!event) {
     node.hidden = true;
     seenEvent = "";
@@ -541,8 +543,9 @@ function paintLatest(event) {
   node.className = `${base} is-fresh`;
   clearTimeout(freshTimer);
   freshTimer = setTimeout(() => { node.className = base; }, 2500);
+  const kicker = feedKind(event.summary) === "roll" ? "Last roll" : "Just now";
   node.replaceChildren(
-    h("p", { class: "latest-kicker" }, "Just called"),
+    h("p", { class: "latest-kicker" }, kicker),
     h("p", { class: "latest-line" }, [
       h("strong", {}, event.name),
       ` ${event.summary}`,
@@ -579,7 +582,7 @@ function renderRoom(room) {
     dossierMount.replaceChildren(dossier(chosen, room.events));
   }
   feed.scrollTop = scroll;
-  paintLatest(room.events[0] || null);
+  paintLatest(room.events);
   paintPartyLevels(room.players);
   if (focusSeat) document.querySelector(`[data-seat="${CSS.escape(focusSeat)}"]`)?.focus({ preventScroll: true });
   tickTimes();

@@ -16,6 +16,11 @@ export function feedKind(summary) {
   return /^Rolled \d+ for /.test(String(summary || "")) ? "roll" : "table";
 }
 
+export function featuredEvent(events) {
+  const list = Array.isArray(events) ? events : [];
+  return list.find((event) => feedKind(event?.summary) === "roll") || list[0] || null;
+}
+
 export function naturalTag(summary) {
   const text = String(summary || "");
   if (text.includes("Natural 20")) return "natural-20";

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  featuredEvent,
   feedKind,
   heroInOrder,
   lightTone,
@@ -17,6 +18,14 @@ test("only a numbered roll is a roll, and a natural result is marked", () => {
   assert.equal(naturalTag("Rolled 20 for Attack. 1d20. Natural 20."), "natural-20");
   assert.equal(naturalTag("Rolled 1 for Save. 1d20. Natural 1."), "natural-1");
   assert.equal(naturalTag("Lit a torch."), "");
+});
+
+test("the pinned call stays on the latest roll when newer news is not a roll", () => {
+  const roll = { id: "r", summary: "Rolled 18 for Perception. 1d20 + 5." };
+  const torch = { id: "t", summary: "Lit a torch." };
+  assert.equal(featuredEvent([torch, roll]), roll);
+  assert.equal(featuredEvent([torch]), torch);
+  assert.equal(featuredEvent([]), null);
 });
 
 test("a light is low in the last five minutes and out at zero", () => {
