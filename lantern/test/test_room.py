@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from room import Table, TableError
+from room import DM_NAME, Table, TableError
 from server import Handler
 from http.server import ThreadingHTTPServer
 
@@ -67,6 +67,35 @@ class TableTests(unittest.TestCase):
         self.assertEqual(view["events"][0]["summary"], "Action 519")
 
 
+class TalkTests(unittest.TestCase):
+    def test_whispers_stay_between_the_two_seats(self):
+        table = Table()
+        code = table.create()
+        table.talk(code, {"name": "Mara", "text": "On the table.", "to": ""})
+        table.talk(code, {"name": "Mara", "text": "Just for Ivo.", "to": "Ivo"})
+        table.talk(code, {"name": DM_NAME, "text": "The door is trapped.", "to": "Mara"})
+        self.assertEqual(
+            [item["text"] for item in table.view(code)["messages"]],
+            ["On the table."],
+        )
+        self.assertEqual(
+            [item["text"] for item in table.view(code, "Ivo")["messages"]],
+            ["On the table.", "Just for Ivo."],
+        )
+        self.assertEqual(
+            [item["text"] for item in table.view(code, "Mara")["messages"]],
+            ["On the table.", "Just for Ivo.", "The door is trapped."],
+        )
+        self.assertEqual(
+            [item["text"] for item in table.view(code, DM_NAME)["messages"]],
+            ["On the table.", "The door is trapped."],
+        )
+        with self.assertRaises(TableError):
+            table.talk(code, {"name": "Mara", "text": "   ", "to": ""})
+        with self.assertRaises(TableError):
+            table.talk(code, {"name": "Mara", "text": "Hello", "to": "Mara"})
+
+
 class ServerTests(unittest.TestCase):
     def test_http_round_trip(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -97,6 +126,25 @@ class ServerTests(unittest.TestCase):
             self.assertIs(again["shop"], False)
             opened = request(port, "POST", f"/api/rooms/{code}/shop", {"open": True})
             self.assertIs(json.loads(opened.body)["shop"], True)
+            said = request(port, "POST", f"/api/rooms/{code}/talk", {
+                "name": "Mara",
+                "text": "The well is warm.",
+                "to": "",
+            })
+            self.assertEqual(said.status, 200)
+            whispered = request(port, "POST", f"/api/rooms/{code}/talk", {
+                "name": "Mara",
+                "text": "I palmed the key.",
+                "to": DM_NAME,
+            })
+            self.assertEqual(whispered.status, 200)
+            public = json.loads(request(port, "GET", f"/api/rooms/{code}").body)
+            self.assertEqual([item["text"] for item in public["messages"]], ["The well is warm."])
+            privately = json.loads(request(port, "GET", f"/api/rooms/{code}?as={DM_NAME.replace(' ', '%20')}").body)
+            self.assertEqual(
+                [item["text"] for item in privately["messages"]],
+                ["The well is warm.", "I palmed the key."],
+            )
             missing = request(port, "GET", "/api/rooms/ZZZZ")
             self.assertEqual(missing.status, 404)
         finally:

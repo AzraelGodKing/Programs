@@ -22,12 +22,14 @@ The player seat is http://localhost:5173/player.html. The DM screen is http://lo
 - **Dice.** The usual set, with advantage and disadvantage on the d20. Say what the roll is for. A natural 20 or 1 is marked from the die that counts. The last dozen rolls stay visible.
 - **Order.** Initiative, hit points, armor class, and the conditions you actually track, plus concentration. Ties keep the earlier name. The highlighted name goes first, and Start begins the round there.
 - **Light.** Candle, torch, oil lamp, hooded lantern, and bullseye lantern, timed from the moment you strike them. Lowering the hood does not save the oil.
-- **Pack.** The sheet is finished before anyone sits down. At the table it is a row of skills and carried items. Tap a skill to roll it. Tap an item to use it. The class starting gear is packed on the way in, and the shop takes the price out of the purse. The DM can close that popup, and open it again.
+- **Pack.** The sheet is finished before anyone sits down, in six steps: name, people, class, scores, story, then sit down. At the table it is a row of skills and carried items. Tap a skill to roll it. Tap an item to use it. The class starting gear is packed on the way in, and the shop takes the price out of the purse. The DM can close that popup, and open it again.
+- **Notes.** Drafts stay in this browser. The DM does not see them. Scratch is the one line the DM can read.
+- **Table.** Say it to everyone, or whisper one person. A whisper shows for those two seats. The DM can whisper a player back. The table code is still the only key.
 - **Threat, on the DM screen.** The 2014 encounter budget: party thresholds, creature experience, and the multiplier for how many creatures are in the fight. A party smaller than three steps the multiplier up. A party of six or more steps it down. It is a pacing guide, not a promise.
 - **Spark, on the DM screen.** Original people, places, twists, rumors, and trinkets. They are not from a published adventure or table.
 - **Character.** One hero from the common 2014 races, classes, subclasses, and backgrounds, made before the table. Custom is there for a people, a class, or a subclass the list does not have. Scores can be the standard array, point buy, four d6s dropping the lowest, or typed in. Joining a table with no character starts a sheet. Later joins load a living character, create another, or view and export one who died.
 - **Scratch.** A note that stays with the rest of the night.
 
-Keys 1–3 switch dice, order, and the pack while you are not typing. R rolls. N advances the round.
+Keys 1–5 switch dice, order, the pack, notes, and the table while you are not typing. R rolls. N advances the round.
 
 This browser holds the game. Save a copy keeps a file of the fight, the party, the flames, the prompts, the character, and the notes. Clearing this browser deletes the copy stored here.

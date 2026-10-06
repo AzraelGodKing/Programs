@@ -65,7 +65,8 @@ import {
   writeSheet,
 } from "./roster.js";
 import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
-import { fetchRoom, loadSeat, normalizeCode, pushTable, rollSummary, saveSeat } from "./table.js";
+import { DM_NAME, fetchRoom, loadSeat, normalizeCode, postTalk, pushTable, rollSummary, saveSeat } from "./table.js";
+import { paintTalk, paintTargets } from "./talk.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -146,6 +147,22 @@ let activeId = "";
 let gateMode = "play";
 let viewingId = "";
 let sheetBeforeCreate = null;
+let creatorStep = 0;
+
+const CREATOR_STEPS = [
+  { id: "name", copy: "Start with the name the table will use." },
+  { id: "people", copy: "Where they are from. Custom is there when the list is short." },
+  { id: "class", copy: "What they do when the torch goes out." },
+  { id: "scores", copy: "The standard array, point buy, four d6s, or numbers you already rolled." },
+  { id: "story", copy: "Background, skills, and the hit points they sit down with." },
+  { id: "review", copy: "Read it once. Saving seats them, and the pack is what they use at the table." },
+];
+
+function sharedSnapshot() {
+  const snapshot = { ...state };
+  delete snapshot.drafts;
+  return snapshot;
+}
 
 function currentIntent() {
   return document.getElementById("roll-for")?.value || "";
@@ -181,7 +198,7 @@ async function flushShare() {
     const result = await pushTable(seat.room, {
       name: seat.name,
       summaries,
-      snapshot: state,
+      snapshot: sharedSnapshot(),
       intent: currentIntent(),
     });
     const status = document.getElementById("seat-status");
@@ -244,6 +261,10 @@ function joinSeat(form) {
     if (status) status.textContent = "Add your name and the four-character table code.";
     return;
   }
+  if (name.toLowerCase() === DM_NAME.toLowerCase()) {
+    if (status) status.textContent = "That name is the DM's. Pick another.";
+    return;
+  }
   form.elements.room.value = room;
   saveSeat({ name, room });
   seatError = "";
@@ -300,6 +321,7 @@ function paintGate() {
   document.body.classList.toggle("roster-open", gateMode === "choose");
   document.body.classList.toggle("sheet-focus", gateMode === "create" || gateMode === "view");
   document.body.classList.toggle("sheet-play", gateMode === "play");
+  document.body.classList.toggle("creating", gateMode === "create");
   if (gate) gate.hidden = gateMode === "play";
   const opener = document.getElementById("open-roster");
   if (opener) opener.hidden = !code || gateMode !== "play";
@@ -311,11 +333,12 @@ function paintGate() {
   if (gateMode === "play") {
     setGateStatus("");
     showTab(state.tab, { save: false });
+    paintCreator();
     return;
   }
   if (gateMode === "create" || gateMode === "view") {
     document.getElementById("panel-character").hidden = false;
-    for (const name of ["dice", "order", "threat", "spark"]) {
+    for (const name of ["dice", "order", "threat", "spark", "notes", "table"]) {
       document.getElementById(`panel-${name}`).hidden = true;
     }
   }
@@ -325,14 +348,13 @@ function paintGate() {
   const mount = document.getElementById("character-gate-list");
   if (gateMode === "create") {
     title.textContent = "Create a character";
-    lede.textContent = list.length
-      ? "A new hero for this table. Give them a name, then sit down."
-      : "This table has no character yet. Give them a name, then sit down.";
+    lede.textContent = "Six steps. Jump back whenever you want, then sit down.";
     actions.replaceChildren(
       h("button", { type: "button", class: "btn primary", "data-action": "save-character" }, "Save this character"),
       list.length ? h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back") : null,
     );
     mount.replaceChildren();
+    paintCreator();
     return;
   }
   if (gateMode === "view") {
@@ -346,6 +368,7 @@ function paintGate() {
       h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back"),
     );
     mount.replaceChildren();
+    paintCreator();
     return;
   }
   title.textContent = "Who sits down?";
@@ -357,6 +380,106 @@ function paintGate() {
     ...list.filter((entry) => !entry.dead).map((entry) => rosterRow(entry, "Load", "load-character")),
     ...list.filter((entry) => entry.dead).map((entry) => rosterRow(entry, "View", "view-character")),
   );
+  paintCreator();
+}
+
+function paintCreator() {
+  const creating = gateMode === "create";
+  const nav = document.getElementById("creator-nav");
+  const copy = document.getElementById("creator-copy");
+  if (nav) nav.hidden = !creating;
+  if (copy) copy.hidden = !creating;
+  const step = CREATOR_STEPS[Math.min(creatorStep, CREATOR_STEPS.length - 1)] || CREATOR_STEPS[0];
+  if (creating && copy) copy.textContent = step.copy;
+  for (const item of CREATOR_STEPS) {
+    const node = document.querySelector(`#panel-character > [data-step="${item.id}"]`);
+    if (node) node.classList.toggle("is-on", creating && item.id === step.id);
+  }
+  nav?.querySelectorAll("[data-creator-step], [data-step]").forEach((button) => {
+    if (!button.dataset.step || button.dataset.action !== "creator-step") return;
+    const on = button.dataset.step === step.id;
+    if (on) button.setAttribute("aria-current", "step");
+    else button.removeAttribute("aria-current");
+  });
+  const saveBottom = document.getElementById("save-character-bottom");
+  if (saveBottom && creating) saveBottom.hidden = step.id !== "review";
+}
+
+function renderDrafts() {
+  const list = document.getElementById("draft-list");
+  if (!list) return;
+  if (!state.drafts.length) {
+    list.replaceChildren(h("p", { class: "hint" }, "No drafts yet."));
+    return;
+  }
+  list.replaceChildren(...state.drafts.map((draft) => h("article", { class: "draft" }, [
+    h("input", {
+      type: "text",
+      "data-draft": "title",
+      "data-id": draft.id,
+      value: draft.title,
+      maxlength: "80",
+      placeholder: "A title for you",
+      "aria-label": "Draft title",
+    }),
+    h("textarea", {
+      "data-draft": "body",
+      "data-id": draft.id,
+      maxlength: "4000",
+      rows: "4",
+      placeholder: "What you do not want the table to hear yet.",
+      "aria-label": "Draft",
+    }, draft.body),
+    h("button", { type: "button", class: "text-btn", "data-action": "delete-draft", "data-id": draft.id }, "Delete draft"),
+  ])));
+}
+
+function addDraft() {
+  state.drafts.push({ id: crypto.randomUUID(), title: "", body: "" });
+  saveState(state);
+  renderDrafts();
+  document.querySelector("#draft-list article:last-child input")?.focus();
+}
+
+function deleteDraft(id) {
+  state.drafts = state.drafts.filter((draft) => draft.id !== id);
+  saveState(state);
+  renderDrafts();
+}
+
+function rememberDraft(target) {
+  const draft = state.drafts.find((item) => item.id === target.dataset.id);
+  if (!draft) return;
+  if (target.dataset.draft === "title") draft.title = target.value.slice(0, 80);
+  if (target.dataset.draft === "body") draft.body = target.value.slice(0, 4000);
+  saveState(state);
+}
+
+async function sendTalk() {
+  const seat = loadSeat();
+  const field = document.getElementById("talk-text");
+  const status = document.getElementById("talk-status");
+  const text = field?.value.trim() || "";
+  if (!seat.name || !seat.room) {
+    if (status) status.textContent = "Join a table to talk. Drafts still stay on this seat.";
+    return;
+  }
+  if (!text) {
+    if (status) status.textContent = "Write a message first.";
+    return;
+  }
+  try {
+    await postTalk(seat.room, {
+      name: seat.name,
+      text,
+      to: document.getElementById("talk-to")?.value || "",
+    });
+    if (field) field.value = "";
+    if (status) status.textContent = "";
+    await watchShop();
+  } catch (error) {
+    if (status) status.textContent = error.message;
+  }
 }
 
 function showPlay() {
@@ -384,6 +507,7 @@ function beginCreate() {
   if (!adopt) state.character = blankCharacter();
   lineageKey = "";
   subclassKey = "";
+  creatorStep = 0;
   gateMode = "create";
   viewingId = "";
   setGateStatus("");
@@ -543,9 +667,9 @@ function ensureActive() {
 }
 
 function showTab(tab, { save = true } = {}) {
-  if (tab !== "dice" && tab !== "order" && tab !== "character") tab = "dice";
+  if (!["dice", "order", "character", "notes", "table"].includes(tab)) tab = "dice";
   state.tab = tab;
-  for (const name of ["dice", "order", "threat", "spark", "character"]) {
+  for (const name of ["dice", "order", "threat", "spark", "character", "notes", "table"]) {
     const on = name === tab;
     document.getElementById(`panel-${name}`).hidden = !on;
     const button = document.getElementById(`tab-${name}`);
@@ -1546,12 +1670,18 @@ async function watchShop() {
   }
   let room;
   try {
-    room = await fetchRoom(seat.room);
+    room = await fetchRoom(seat.room, seat.name);
   } catch {
     return;
   }
   if (!room) return;
   applyShop(room.shop);
+  paintTalk(document.getElementById("talk-log"), room.messages || []);
+  paintTargets(
+    document.getElementById("talk-to"),
+    (room.players || []).map((player) => player.name),
+    seat.name,
+  );
 }
 
 function openGear() {
@@ -1948,6 +2078,7 @@ function applyLoaded() {
   document.getElementById("dice-count").value = String(state.dice.count);
   document.getElementById("dice-mod").value = String(state.dice.modifier);
   document.getElementById("notes").value = state.notes;
+  renderDrafts();
   showTab(state.tab, { save: false });
   paintDice();
   if (state.dice.history[0]) renderStoredResult(state.dice.history[0]);
@@ -2111,6 +2242,12 @@ function onClick(event) {
   else if (action === "view-character") viewCharacter(button.dataset.id);
   else if (action === "export-character") exportOne(button.dataset.id);
   else if (action === "mark-dead") markCharacterDead();
+  else if (action === "creator-step") {
+    const index = CREATOR_STEPS.findIndex((item) => item.id === button.dataset.step);
+    if (index >= 0) creatorStep = index;
+    paintCreator();
+  } else if (action === "add-draft") addDraft();
+  else if (action === "delete-draft") deleteDraft(button.dataset.id);
 }
 
 function onSubmit(event) {
@@ -2118,6 +2255,7 @@ function onSubmit(event) {
   if (!(form instanceof HTMLFormElement)) return;
   event.preventDefault();
   if (form.id === "seat-form") joinSeat(form);
+  else if (form.id === "talk-form") void sendTalk();
   else if (form.dataset.form === "combatant") addCombatant(form);
   else if (form.dataset.form === "hero" || form.dataset.form === "monster") return;
   else if (form.dataset.form === "light") strike(form);
@@ -2127,6 +2265,10 @@ function onInput(event) {
   const target = event.target;
   if (target.dataset?.sheet) {
     updateSheet(target, { log: false });
+    return;
+  }
+  if (target.dataset?.draft) {
+    rememberDraft(target);
     return;
   }
   if (target.id === "notes") {
@@ -2297,7 +2439,7 @@ function onKey(event) {
   if (gateMode !== "play") return;
   if (event.target.closest("input, textarea, select, button")) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
-  const tabs = { 1: "dice", 2: "order", 3: "character" };
+  const tabs = { 1: "dice", 2: "order", 3: "character", 4: "notes", 5: "table" };
   if (tabs[event.key]) {
     event.preventDefault();
     showTab(tabs[event.key]);

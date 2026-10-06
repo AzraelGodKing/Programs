@@ -8,6 +8,9 @@
 - The DM screen leads with the party. Each seat shows hit points, armor class, conditions, passive Perception and Insight, and the light closest to going out. The latest roll stays pinned above the table, the log can show only rolls, and notes typed here never reach the players. The encounter budget can take its levels from the seated heroes.
 - The player seat no longer builds prompts or encounters. Spark and the encounter budget live on the Dungeon Master screen.
 - At the table the sheet is a pack. Skills and carried items are buttons. The class starting gear is packed when the character sits down, and the shop takes the price out of the purse. The DM screen has a switch that closes that popup, and opens it again.
+- A character is made in six steps: name, people, class, scores, story, then sit down.
+- Players keep private drafts on the Notes tab. Scratch is still the line the DM can read.
+- The table can talk. A message to everyone is heard by the whole table. A whisper is heard by the two people in it, and the DM can whisper a player back.
 - A front door. Opening Lantern asks you to choose the player seat or the Dungeon Master screen, and the two sides no longer share one page. A link with a table code still opens the player seat.
 - A save file for the night. Save a copy downloads the character and the rest of the table, and Restore puts that file back into this browser. The browser still holds the live game, and clearing that stored data deletes it.
 - Characters belong to a table. The first join creates one. Later joins can load a living character, create another, or view and export a character who died.

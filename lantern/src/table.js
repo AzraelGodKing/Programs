@@ -1,5 +1,7 @@
 const SEAT_KEY = "lantern.seat";
 
+export const DM_NAME = "Dungeon Master";
+
 export function normalizeCode(value) {
   return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
 }
@@ -50,8 +52,9 @@ export async function createRoom() {
   return response.json();
 }
 
-export async function fetchRoom(code) {
-  const response = await fetch(`/api/rooms/${normalizeCode(code)}`, { cache: "no-store" });
+export async function fetchRoom(code, viewer = "") {
+  const query = viewer ? `?as=${encodeURIComponent(viewer)}` : "";
+  const response = await fetch(`/api/rooms/${normalizeCode(code)}${query}`, { cache: "no-store" });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("The table did not answer.");
   return response.json();
@@ -84,5 +87,19 @@ export async function setShop(code, open) {
   });
   if (response.status === 404) throw new Error("No table with that code.");
   if (!response.ok) throw new Error("The shop switch did not take.");
+  return response.json();
+}
+
+export async function postTalk(code, { name, text, to = "" }) {
+  const response = await fetch(`/api/rooms/${normalizeCode(code)}/talk`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, text, to }),
+  });
+  if (response.status === 404) throw new Error("No table with that code.");
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "The table did not hear that.");
+  }
   return response.json();
 }

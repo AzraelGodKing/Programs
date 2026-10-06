@@ -4,6 +4,7 @@
 import json
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from room import Table, TableError
 
@@ -23,7 +24,8 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path.startswith("/api/rooms/"):
             code = path.removeprefix("/api/rooms/").strip("/")
-            view = TABLE.view(code)
+            viewer = parse_qs(urlparse(self.path).query).get("as", [""])[0]
+            view = TABLE.view(code, viewer)
             if view is None:
                 self.send_json(404, {"error": "No table with that code."})
                 return
@@ -55,6 +57,22 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_json(404, {"error": "No table with that code."})
                 return
             self.send_json(200, {"ok": True, "shop": open_ is True})
+            return
+        if path.startswith("/api/rooms/") and path.endswith("/talk"):
+            code = path.removeprefix("/api/rooms/").removesuffix("/talk").strip("/")
+            try:
+                payload = self.read_json()
+                message = TABLE.talk(code, payload)
+            except TableError as error:
+                self.send_json(400, {"error": str(error)})
+                return
+            except json.JSONDecodeError:
+                self.send_json(400, {"error": "That was not JSON."})
+                return
+            if message is None:
+                self.send_json(404, {"error": "No table with that code."})
+                return
+            self.send_json(200, {"ok": True, "message": message})
             return
         if path.startswith("/api/rooms/"):
             code = path.removeprefix("/api/rooms/").strip("/")
