@@ -23,11 +23,11 @@ import {
   findSkill,
   formatMod,
   offeredSkillIds,
-  proficiencyBonus,
   pointBuySpent,
   presentCharacter,
   racialBonuses,
   rollScores,
+  skillBonus,
   skillHint,
   stepPointBuy,
   suggestedHp,
@@ -1462,14 +1462,6 @@ function syncSubclass() {
   if (document.activeElement !== select) select.value = state.character.subclassId;
   showField("custom-subclass-field", state.character.subclassId === "custom");
   setControl("character-custom-subclass", state.character.customSubclass);
-}
-
-function skillBonus(character, skillId) {
-  const skill = findSkill(skillId);
-  if (!skill) return 0;
-  const mod = abilityMod(abilityTotals(character)[skill.ability]);
-  const proficient = addBackgroundSkills(character).includes(skillId);
-  return mod + (proficient ? proficiencyBonus(character.level) : 0);
 }
 
 function renderKit() {

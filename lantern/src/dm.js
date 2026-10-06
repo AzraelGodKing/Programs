@@ -1,7 +1,16 @@
-import { presentCharacter } from "./character.js";
+import { ABILITIES, abilityMod, abilityTotals, formatMod, presentCharacter } from "./character.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
+import {
+  feedKind,
+  heroInOrder,
+  lightTone,
+  naturalTag,
+  partyLevels,
+  passiveSummary,
+  skilledSummary,
+} from "./screen.js";
 import { normalize } from "./store.js";
 import { createRoom, describeSetup, fetchRoom, normalizeCode, setShop } from "./table.js";
 
@@ -13,9 +22,18 @@ const WORDS = {
   deadly: "Deadly",
 };
 
+const FEED_LABEL = { all: "All", rolls: "Rolls", table: "The rest" };
 const AWAY_MS = 20000;
+const NOTE_CAP = 4000;
+const NOTE_ROOMS = 20;
+
 let code = "";
+let playerUrl = "";
 let signature = "";
+let openName = "";
+let lastRoom = null;
+let seenEvent = "";
+let freshTimer = 0;
 
 function h(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -40,12 +58,13 @@ function turnOrder(combatants) {
   return [...combatants].sort((a, b) => b.init - a.init || a.order - b.order);
 }
 
+function soonestLight(lights) {
+  if (!lights.length) return null;
+  return [...lights].sort((a, b) => a.endsAt - b.endsAt)[0];
+}
+
 function feedRow(event) {
-  const natural = event.summary.includes("Natural 20")
-    ? "natural-20"
-    : event.summary.includes("Natural 1")
-      ? "natural-1"
-      : "";
+  const natural = naturalTag(event.summary);
   return h("article", { class: natural ? `feed-row ${natural}` : "feed-row" }, [
     h("p", { class: "feed-name" }, event.name),
     h("p", { class: "feed-summary" }, event.summary),
@@ -53,41 +72,186 @@ function feedRow(event) {
   ]);
 }
 
+function markChips(marks, tag = "p") {
+  if (!marks.length) return null;
+  return h(tag, { class: "mark-row" }, marks.map((mark) => h("span", {
+    class: mark === "concentrating" ? "mark-chip is-concentrating" : "mark-chip",
+  }, mark)));
+}
+
+function presence(player, tag = "p") {
+  const away = Date.now() - player.seen > AWAY_MS;
+  return h(tag, {
+    class: away ? "away-flag is-away" : "away-flag",
+    "data-seen": String(player.seen),
+  }, away ? "Away" : "Here");
+}
+
+function lightLine(light, now, tag = "p") {
+  const spec = findLight(light.kind);
+  if (!spec) return null;
+  const remaining = light.endsAt - now;
+  const tone = lightTone(remaining);
+  const toneClass = tone === "steady" ? "" : ` is-${tone}`;
+  return h(tag, { class: `light-row${toneClass}`, "data-ends": String(light.endsAt) }, [
+    `${spec.label} · ${lightCaption(spec, light.covered)} · `,
+    h("span", { class: "dm-time" }, formatRemaining(remaining)),
+  ]);
+}
+
 function diceBlock(history) {
   if (!history.length) return h("p", { class: "hint" }, "No rolls yet.");
-  return h("div", { class: "stack" }, history.map((item) => h("p", {}, [
-    item.purpose ? `${item.purpose}: ` : "",
-    `${item.total} · ${item.formula}`,
-    item.detail ? ` · ${item.detail}` : "",
-    item.tag === "natural-20" ? " · Natural 20" : item.tag === "natural-1" ? " · Natural 1" : "",
-  ].join(""))));
+  const [latest, ...rest] = history;
+  const tag = latest.tag || "";
+  return h("div", { class: "stack" }, [
+    h("p", { class: tag ? `roll-total ${tag}` : "roll-total" }, String(latest.total)),
+    h("p", {}, [
+      latest.purpose ? `${latest.purpose} · ` : "",
+      latest.formula,
+      latest.detail ? ` · ${latest.detail}` : "",
+      tag === "natural-20" ? " · Natural 20" : tag === "natural-1" ? " · Natural 1" : "",
+    ].join("")),
+    rest.length ? h("div", { class: "stack" }, rest.map((item) => h("p", { class: "hint" }, [
+      item.purpose ? `${item.purpose}: ` : "",
+      `${item.total} · ${item.formula}`,
+      item.detail ? ` · ${item.detail}` : "",
+      item.tag === "natural-20" ? " · Natural 20" : item.tag === "natural-1" ? " · Natural 1" : "",
+    ].join("")))) : null,
+  ]);
 }
 
 function orderBlock(combat) {
   const list = turnOrder(combat.combatants);
   if (!list.length) return h("p", { class: "hint" }, "No one is in the order.");
-  return h("div", { class: "stack" }, list.map((person) => {
-    const active = person.id === combat.activeId;
-    const down = person.hp <= 0;
-    const ac = person.ac == null ? "" : ` · AC ${person.ac}`;
-    const marks = person.marks.length ? ` · ${person.marks.join(", ")}` : "";
-    const flag = down ? " · Down" : "";
-    return h("p", { class: `dm-row${active ? " is-active" : ""}${down ? " is-down" : ""}` },
-      `${person.init}  ${person.name}  ${person.hp}/${person.maxHp}${ac}${marks}${flag}`);
-  }));
+  const who = list.find((person) => person.id === combat.activeId);
+  const started = combat.started || combat.round > 1;
+  const round = started
+    ? `Round ${combat.round}${who ? ` · ${who.name}'s turn` : ""}`
+    : "The order has not started.";
+  return h("div", { class: "stack" }, [
+    h("p", { class: "hint" }, round),
+    h("div", { class: "dm-order" }, list.map((person) => {
+      const active = person.id === combat.activeId && started;
+      const down = person.hp <= 0;
+      const ac = person.ac == null ? "AC —" : `AC ${person.ac}`;
+      return h("article", { class: `dm-person${active ? " is-active" : ""}${down ? " is-down" : ""}` }, [
+        h("p", { class: "dm-init" }, String(person.init)),
+        h("div", {}, [
+          h("p", {}, person.name),
+          markChips(person.marks),
+        ]),
+        h("p", { class: "vitals" }, `${person.hp}/${person.maxHp} · ${ac}${down ? " · Down" : ""}`),
+      ]);
+    })),
+  ]);
 }
 
 function lightBlock(lights) {
   if (!lights.length) return h("p", { class: "hint" }, "No lights.");
   const now = Date.now();
-  return h("div", { class: "stack" }, lights.map((light) => {
-    const spec = findLight(light.kind);
-    if (!spec) return null;
-    return h("p", {}, [
-      `${spec.label} · ${lightCaption(spec, light.covered)} · `,
-      h("span", { class: "dm-time", "data-ends": String(light.endsAt) }, formatRemaining(light.endsAt - now)),
+  return h("div", { class: "stack" }, lights.map((light) => lightLine(light, now)));
+}
+
+function abilityRow(character) {
+  const totals = abilityTotals(character);
+  return h("div", { class: "score-row" }, ABILITIES.map((ability) => {
+    const total = totals[ability.id];
+    return h("p", { class: "score-cell" }, [
+      h("strong", {}, ability.short),
+      h("b", {}, String(total)),
+      ` ${formatMod(abilityMod(total))}`,
     ]);
   }));
+}
+
+function characterBlock(character) {
+  const view = presentCharacter(character);
+  if (!view) return h("p", { class: "hint" }, "No character yet.");
+  const skills = skilledSummary(character);
+  return h("div", { class: "stack" }, [
+    h("p", {}, view.title),
+    h("p", { class: "hint" }, view.meta),
+    abilityRow(character),
+    h("p", {}, passiveSummary(character)),
+    view.saves ? h("p", { class: "hint" }, `Saves: ${view.saves}.`) : null,
+    view.hp ? h("p", {}, view.hp) : null,
+    skills ? h("p", {}, skills) : null,
+    view.coin ? h("p", {}, view.coin) : null,
+    view.carried ? h("p", {}, view.carried) : null,
+    view.languages ? h("p", { class: "hint" }, view.languages) : null,
+    view.traits ? h("pre", { class: "dm-note" }, view.traits) : null,
+  ]);
+}
+
+function seatCard(player) {
+  const snapshot = normalize(player.snapshot);
+  const view = presentCharacter(snapshot.character);
+  const hero = heroInOrder(snapshot.combat.combatants, [snapshot.character.name, player.name]);
+  const started = snapshot.combat.started || snapshot.combat.round > 1;
+  const active = Boolean(hero && started && hero.id === snapshot.combat.activeId);
+  const down = Boolean(hero && hero.hp <= 0);
+  const open = player.name === openName;
+  const now = Date.now();
+  const light = soonestLight(snapshot.lights);
+  const classes = ["seat-card"];
+  if (open) classes.push("is-open");
+  if (active) classes.push("is-active");
+  if (down) classes.push("is-down");
+  const vitals = hero
+    ? `${hero.hp}/${hero.maxHp} · ${hero.ac == null ? "AC —" : `AC ${hero.ac}`} · Init ${hero.init}`
+    : "";
+  return h("button", {
+    type: "button",
+    class: classes.join(" "),
+    "data-seat": player.name,
+    "aria-pressed": open ? "true" : "false",
+  }, [
+    h("span", { class: "seat-top" }, [
+      h("span", { class: "seat-name" }, player.name),
+      presence(player, "span"),
+    ]),
+    h("span", { class: "hint" }, view ? view.title : "No character yet."),
+    vitals ? h("span", { class: "vitals" }, vitals) : null,
+    active ? h("span", { class: "their-turn" }, "Their turn") : null,
+    down ? h("span", { class: "down-flag" }, "Down") : null,
+    passiveSummary(snapshot.character) ? h("span", {}, passiveSummary(snapshot.character)) : null,
+    hero ? markChips(hero.marks, "span") : null,
+    light ? lightLine(light, now, "span") : null,
+    h("span", { class: "hint" }, `Set for ${describeSetup(snapshot.dice, player.intent)}`),
+  ]);
+}
+
+function dossier(player, events) {
+  const snapshot = normalize(player.snapshot);
+  const latest = events.find((event) => event.name === player.name);
+  return h("article", {}, [
+    h("header", { class: "player-head" }, [
+      h("h2", {}, player.name),
+      presence(player),
+    ]),
+    h("p", {}, `Ready to roll ${describeSetup(snapshot.dice, player.intent)}`),
+    latest ? h("p", { class: "hint" }, latest.summary) : null,
+    h("section", { class: "board-block" }, [
+      h("h3", {}, "Character"),
+      characterBlock(snapshot.character),
+    ]),
+    h("section", { class: "board-block" }, [
+      h("h3", {}, "Dice"),
+      diceBlock(snapshot.dice.history),
+    ]),
+    h("section", { class: "board-block" }, [
+      h("h3", {}, "Order"),
+      orderBlock(snapshot.combat),
+    ]),
+    h("section", { class: "board-block" }, [
+      h("h3", {}, "Light"),
+      lightBlock(snapshot.lights),
+    ]),
+    h("section", { class: "board-block" }, [
+      h("h3", {}, "Scratch"),
+      h("pre", { class: "dm-note" }, snapshot.notes || "No notes."),
+    ]),
+  ]);
 }
 
 const DM_KEY = "lantern.dm.v1";
@@ -97,6 +261,9 @@ function blankTools() {
     sparks: [],
     levels: "1, 1, 1, 1",
     groups: [{ id: crypto.randomUUID(), name: "", count: 1, cr: "1/4" }],
+    prepareOpen: false,
+    feed: "all",
+    notes: {},
   };
 }
 
@@ -113,15 +280,30 @@ function cleanGroup(group) {
   };
 }
 
+function cleanNotes(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const notes = {};
+  for (const [room, text] of Object.entries(raw).slice(-NOTE_ROOMS)) {
+    const key = normalizeCode(room);
+    if (key.length < 4 || typeof text !== "string") continue;
+    notes[key] = text.slice(0, NOTE_CAP);
+  }
+  return notes;
+}
+
 function loadTools() {
   try {
     const raw = JSON.parse(localStorage.getItem(DM_KEY) || "null");
     if (!raw || typeof raw !== "object") return blankTools();
     const groups = Array.isArray(raw.groups) ? raw.groups.map(cleanGroup).filter(Boolean).slice(0, 12) : [];
+    const feed = raw.feed === "rolls" || raw.feed === "table" ? raw.feed : "all";
     return {
       sparks: Array.isArray(raw.sparks) ? raw.sparks.slice(0, 8) : [],
       levels: typeof raw.levels === "string" ? raw.levels.slice(0, 80) : "1, 1, 1, 1",
       groups: groups.length ? groups : blankTools().groups,
+      prepareOpen: raw.prepareOpen === true,
+      feed,
+      notes: cleanNotes(raw.notes),
     };
   } catch {
     return blankTools();
@@ -134,16 +316,27 @@ function saveTools() {
   localStorage.setItem(DM_KEY, JSON.stringify(tools));
 }
 
-function partyLevels(text) {
-  return String(text || "")
-    .split(/[^0-9]+/)
-    .map((part) => Number(part))
-    .filter((level) => Number.isInteger(level) && level >= 1 && level <= 30)
-    .slice(0, 12);
+function rememberNotes(text) {
+  if (!code) return;
+  const notes = { ...tools.notes };
+  delete notes[code];
+  notes[code] = text.slice(0, NOTE_CAP);
+  const keys = Object.keys(notes);
+  while (keys.length > NOTE_ROOMS) delete notes[keys.shift()];
+  tools.notes = notes;
+  saveTools();
 }
 
-function xpFor(cr) {
-  return CR_XP.find(([id]) => id === cr)?.[1] ?? 10;
+function partyLevelText(players) {
+  const levels = partyLevels(players.map((player) => normalize(player.snapshot).character));
+  return levels.join(", ");
+}
+
+function creaturePhrase(groups) {
+  return groups
+    .filter((group) => group.name.trim())
+    .map((group) => `${group.count} ${group.name.trim()}`)
+    .join(", ");
 }
 
 function renderDmSpark() {
@@ -191,10 +384,15 @@ function renderDmGroups() {
 function renderDmThreat() {
   const mount = document.getElementById("dm-threat");
   if (!mount) return;
-  const levels = partyLevels(tools.levels);
-  const groups = tools.groups.map((group) => ({ count: group.count, xp: xpFor(group.cr) }));
+  const levels = String(tools.levels || "")
+    .split(/[^0-9]+/)
+    .map((part) => Number(part))
+    .filter((level) => Number.isInteger(level) && level >= 1 && level <= 30)
+    .slice(0, 12);
+  const groups = tools.groups.map((group) => ({ count: group.count, xp: CR_XP.find(([id]) => id === group.cr)?.[1] ?? 10 }));
   const result = rateEncounter({ levels, groups });
   const verdict = result.rating ? WORDS[result.rating] : "Add the party's levels.";
+  const named = creaturePhrase(tools.groups);
   const math = result.monsterCount
     ? `${formatXp(result.adjusted)} adjusted XP · ${formatXp(result.raw)} × ${result.multiplier}`
     : "No creatures yet.";
@@ -202,17 +400,52 @@ function renderDmThreat() {
     ? `Easy ${formatXp(result.thresholds.easy)} · Medium ${formatXp(result.thresholds.medium)} · Hard ${formatXp(result.thresholds.hard)} · Deadly ${formatXp(result.thresholds.deadly)}`
     : "";
   mount.replaceChildren(...[
-    h("p", {}, `${verdict} · ${math}`),
+    h("p", { class: "threat-verdict", "data-rating": result.rating || "" }, verdict),
+    named ? h("p", {}, named) : null,
+    h("p", {}, math),
     easy ? h("p", { class: "hint" }, easy) : null,
   ].filter(Boolean));
+}
+
+function paintPartyLevels(players) {
+  const hint = document.getElementById("party-level-hint");
+  const button = document.getElementById("use-party");
+  if (!hint || !button) return;
+  const text = partyLevelText(players);
+  if (!text) {
+    hint.textContent = "No finished sheets at the table yet.";
+    button.hidden = true;
+    return;
+  }
+  hint.textContent = `Seated heroes: level ${text}.`;
+  button.hidden = false;
+  button.dataset.levels = text;
+}
+
+function paintFeedFilter(counts) {
+  for (const button of document.querySelectorAll("[data-feed]")) {
+    const kind = button.dataset.feed;
+    button.setAttribute("aria-pressed", kind === tools.feed ? "true" : "false");
+    if (counts && Object.hasOwn(counts, kind)) button.textContent = `${FEED_LABEL[kind]} · ${counts[kind]}`;
+  }
+}
+
+function paintNotes() {
+  const notes = document.getElementById("dm-notes");
+  if (!notes || document.activeElement === notes) return;
+  notes.value = tools.notes[code] || "";
 }
 
 function paintTools() {
   const levels = document.getElementById("dm-levels");
   if (levels && document.activeElement !== levels) levels.value = tools.levels;
+  const prepare = document.getElementById("dm-prepare");
+  if (prepare) prepare.open = tools.prepareOpen;
   renderDmSpark();
   renderDmGroups();
   renderDmThreat();
+  paintFeedFilter();
+  paintNotes();
 }
 
 function onDmClick(event) {
@@ -261,89 +494,146 @@ function bootTools() {
   root.addEventListener("click", onDmClick);
   root.addEventListener("input", onDmInput);
   root.addEventListener("change", onDmInput);
+  document.getElementById("dm-prepare")?.addEventListener("toggle", () => {
+    tools.prepareOpen = document.getElementById("dm-prepare").open;
+    saveTools();
+  });
+  document.getElementById("use-party")?.addEventListener("click", () => {
+    const text = document.getElementById("use-party").dataset.levels || "";
+    if (!text) return;
+    tools.levels = text;
+    saveTools();
+    const levels = document.getElementById("dm-levels");
+    if (levels) levels.value = text;
+    renderDmThreat();
+  });
+  document.getElementById("dm-notes")?.addEventListener("input", (event) => {
+    rememberNotes(event.target.value);
+  });
   paintTools();
 }
 
-function characterBlock(character) {
-  const view = presentCharacter(character);
-  if (!view) return h("p", { class: "hint" }, "No character yet.");
-  return h("div", { class: "stack" }, [
-    h("p", {}, view.title),
-    h("p", { class: "hint" }, view.meta),
-    h("p", {}, view.abilities),
-    view.saves ? h("p", { class: "hint" }, `Saves: ${view.saves}.`) : null,
-    view.hp ? h("p", {}, view.hp) : null,
-    view.coin ? h("p", {}, view.coin) : null,
-    view.carried ? h("p", {}, view.carried) : null,
-    view.skills ? h("p", {}, view.skills) : null,
-    view.languages ? h("p", { class: "hint" }, view.languages) : null,
-    view.traits ? h("pre", { class: "dm-note" }, view.traits) : null,
-  ]);
+function filteredEvents(events) {
+  if (tools.feed === "rolls") return events.filter((event) => feedKind(event.summary) === "roll");
+  if (tools.feed === "table") return events.filter((event) => feedKind(event.summary) !== "roll");
+  return events;
 }
 
-function playerBoard(player, events) {
-  const snapshot = normalize(player.snapshot);
-  const latest = events.find((event) => event.name === player.name);
-  const away = Date.now() - player.seen > AWAY_MS;
-  return h("article", { class: "player-board" }, [
-    h("header", { class: "player-head" }, [
-      h("h2", {}, player.name),
-      h("p", { class: away ? "away-flag is-away" : "away-flag", "data-seen": String(player.seen) }, away ? "Away" : "Here"),
+function emptyFeed() {
+  if (tools.feed === "rolls") return "No rolls yet.";
+  if (tools.feed === "table") return "No other news yet.";
+  return "Nothing has happened since this table opened.";
+}
+
+function paintLatest(event) {
+  const node = document.getElementById("latest-call");
+  if (!node) return;
+  if (!event) {
+    node.hidden = true;
+    seenEvent = "";
+    return;
+  }
+  node.hidden = false;
+  if (event.id === seenEvent) return;
+  seenEvent = event.id;
+  const tag = naturalTag(event.summary);
+  const base = `latest-call${tag ? ` ${tag}` : ""}`;
+  node.className = `${base} is-fresh`;
+  clearTimeout(freshTimer);
+  freshTimer = setTimeout(() => { node.className = base; }, 2500);
+  node.replaceChildren(
+    h("p", { class: "latest-kicker" }, "Just called"),
+    h("p", { class: "latest-line" }, [
+      h("strong", {}, event.name),
+      ` ${event.summary}`,
     ]),
-    h("p", {}, `Ready to roll ${describeSetup(snapshot.dice, player.intent)}`),
-    latest ? h("p", { class: "hint" }, latest.summary) : null,
-    h("section", { class: "board-block" }, [
-      h("h3", {}, "Character"),
-      characterBlock(snapshot.character),
-    ]),
-    h("section", { class: "board-block" }, [
-      h("h3", {}, "Dice"),
-      diceBlock(snapshot.dice.history),
-    ]),
-    h("section", { class: "board-block" }, [
-      h("h3", {}, "Order"),
-      orderBlock(snapshot.combat),
-    ]),
-    h("section", { class: "board-block" }, [
-      h("h3", {}, "Light"),
-      lightBlock(snapshot.lights),
-    ]),
-    h("section", { class: "board-block" }, [
-      h("h3", {}, "Scratch"),
-      h("pre", { class: "dm-note" }, snapshot.notes || "No notes."),
-    ]),
-  ]);
+  );
 }
 
 function renderRoom(room) {
+  lastRoom = room;
+  const names = room.players.map((player) => player.name);
+  if (!names.includes(openName)) openName = names[0] || "";
+  const focusSeat = document.activeElement?.dataset?.seat || "";
   const feed = document.getElementById("dm-feed");
-  const players = document.getElementById("player-list");
-  feed.replaceChildren(
-    h("h2", {}, "Just now"),
-    ...(room.events.length
-      ? room.events.map(feedRow)
-      : [h("p", { class: "hint" }, "Nothing has happened since this table opened.")]),
+  const scroll = feed.scrollTop;
+  const counts = {
+    all: room.events.length,
+    rolls: room.events.filter((event) => feedKind(event.summary) === "roll").length,
+    table: room.events.filter((event) => feedKind(event.summary) !== "roll").length,
+  };
+  const shown = filteredEvents(room.events);
+  document.getElementById("feed-list").replaceChildren(
+    ...(shown.length ? shown.map(feedRow) : [h("p", { class: "hint" }, emptyFeed())]),
   );
-  players.replaceChildren(...(room.players.length
-    ? room.players.map((player) => playerBoard(player, room.events))
-    : [h("p", { class: "empty" }, "No one has joined. Share the code.")]));
+  paintFeedFilter(counts);
+  const strip = document.getElementById("party-strip");
+  strip.replaceChildren(...(room.players.length
+    ? room.players.map(seatCard)
+    : [h("p", { class: "empty" }, "No one has joined. Read them the code.")]));
+  const chosen = room.players.find((player) => player.name === openName);
+  const dossierMount = document.getElementById("dm-dossier");
+  if (!chosen) dossierMount.hidden = true;
+  else {
+    dossierMount.hidden = false;
+    dossierMount.replaceChildren(dossier(chosen, room.events));
+  }
+  feed.scrollTop = scroll;
+  paintLatest(room.events[0] || null);
+  paintPartyLevels(room.players);
+  if (focusSeat) document.querySelector(`[data-seat="${CSS.escape(focusSeat)}"]`)?.focus({ preventScroll: true });
+  tickTimes();
 }
 
 function tickTimes() {
   const now = Date.now();
   for (const node of document.querySelectorAll("[data-ends]")) {
-    node.textContent = formatRemaining(Number(node.dataset.ends) - now);
+    const remaining = Number(node.dataset.ends) - now;
+    const time = node.querySelector(".dm-time");
+    if (time) time.textContent = formatRemaining(remaining);
+    const tone = lightTone(remaining);
+    node.classList.toggle("is-low", tone === "low");
+    node.classList.toggle("is-out", tone === "out");
   }
+  let here = 0;
+  let away = 0;
   for (const node of document.querySelectorAll("[data-seen]")) {
-    const away = now - Number(node.dataset.seen) > AWAY_MS;
-    node.textContent = away ? "Away" : "Here";
-    node.classList.toggle("is-away", away);
+    const isAway = now - Number(node.dataset.seen) > AWAY_MS;
+    node.textContent = isAway ? "Away" : "Here";
+    node.classList.toggle("is-away", isAway);
+    if (node.closest(".seat-card")) {
+      if (isAway) away += 1;
+      else here += 1;
+    }
   }
+  const count = document.getElementById("dm-count");
+  if (!count) return;
+  const seated = here + away;
+  count.textContent = seated ? (away ? `${here} here · ${away} away` : `${here} here`) : "";
 }
 
 function setStatus(message) {
   const status = document.getElementById("dm-status");
   if (status) status.textContent = message;
+}
+
+async function copyText(text, button) {
+  const previous = button.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.left = "-1000px";
+    document.body.append(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  button.textContent = "Copied";
+  setTimeout(() => { button.textContent = previous; }, 1200);
 }
 
 async function poll() {
@@ -365,16 +655,28 @@ async function poll() {
   const next = JSON.stringify(room);
   if (next === signature) return;
   signature = next;
-  const feed = document.getElementById("dm-feed");
-  const scroll = feed.scrollTop;
   renderRoom(room);
-  document.getElementById("dm-feed").scrollTop = scroll;
-  tickTimes();
+}
+
+function chooseSeat(name) {
+  if (!lastRoom || !lastRoom.players.some((player) => player.name === name)) return;
+  openName = name;
+  renderRoom(lastRoom);
+  document.getElementById("dm-dossier")?.scrollIntoView({ block: "nearest" });
+}
+
+function cycleSeat(step) {
+  if (!lastRoom?.players.length) return;
+  const names = lastRoom.players.map((player) => player.name);
+  const index = Math.max(0, names.indexOf(openName));
+  chooseSeat(names[(index + step + names.length) % names.length]);
 }
 
 function showTable(next) {
   code = normalizeCode(next);
   signature = "";
+  seenEvent = "";
+  openName = "";
   const url = new URL(location.href);
   url.searchParams.set("room", code);
   history.replaceState(null, "", url);
@@ -382,9 +684,10 @@ function showTable(next) {
   document.getElementById("dm-main").hidden = false;
   document.getElementById("room-code").textContent = code;
   const link = document.getElementById("player-link");
-  const playerUrl = `${location.origin}/player.html?room=${code}`;
+  playerUrl = `${location.origin}/player.html?room=${code}`;
   link.href = playerUrl;
   link.textContent = playerUrl;
+  paintNotes();
   void poll();
 }
 
@@ -418,6 +721,34 @@ function boot() {
       event.target.checked = !open;
       setStatus(error.message);
     }
+  });
+  document.getElementById("copy-code").addEventListener("click", () => {
+    if (code) void copyText(code, document.getElementById("copy-code"));
+  });
+  document.getElementById("copy-link").addEventListener("click", () => {
+    if (playerUrl) void copyText(playerUrl, document.getElementById("copy-link"));
+  });
+  document.getElementById("dm-feed").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-feed]");
+    if (!button) return;
+    tools.feed = button.dataset.feed === "rolls" || button.dataset.feed === "table" ? button.dataset.feed : "all";
+    saveTools();
+    if (lastRoom) renderRoom(lastRoom);
+  });
+  document.getElementById("party-strip").addEventListener("click", (event) => {
+    const card = event.target.closest("[data-seat]");
+    if (card) chooseSeat(card.dataset.seat);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const tag = event.target?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || event.target?.isContentEditable) return;
+    if (!code) return;
+    if (event.key === "c" || event.key === "C") {
+      event.preventDefault();
+      void copyText(code, document.getElementById("copy-code"));
+    } else if (event.key === "[") cycleSeat(-1);
+    else if (event.key === "]") cycleSeat(1);
   });
   const initial = normalizeCode(new URLSearchParams(location.search).get("room"));
   if (initial.length === 4) showTable(initial);

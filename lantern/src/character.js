@@ -654,6 +654,19 @@ export function addBackgroundSkills(character) {
   return skills;
 }
 
+export function skillBonus(character, skillId) {
+  const skill = findSkill(skillId);
+  if (!skill) return 0;
+  const clean = cleanCharacter(character);
+  const mod = abilityMod(abilityTotals(clean)[skill.ability]);
+  const proficient = addBackgroundSkills(clean).includes(skillId);
+  return mod + (proficient ? proficiencyBonus(clean.level) : 0);
+}
+
+export function passiveScore(character, skillId) {
+  return 10 + skillBonus(character, skillId);
+}
+
 export function presentCharacter(input) {
   const character = cleanCharacter(input);
   if (!character.touched) return null;
