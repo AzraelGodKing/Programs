@@ -11,6 +11,7 @@ test("a fresh night starts on the dice", () => {
   assert.equal(state.combat.started, false);
   assert.deepEqual(state.party, []);
   assert.equal(state.notes, "");
+  assert.deepEqual(state.drafts, []);
   assert.equal(state.character.touched, false);
   assert.equal(state.character.level, 1);
 });
@@ -32,6 +33,7 @@ test("bad saves are dropped instead of trusted", () => {
     lights: [{ kind: "sun", endsAt: Date.now() }, { kind: "torch", endsAt: Date.parse("2024-01-01T00:00:00Z") }],
     sparks: [{ kind: "place", title: "Place", body: "A ferry that only crosses when a passenger names the river." }],
     notes: "x".repeat(5000),
+    drafts: [{ title: "The well", body: "Warm." }, { title: "  ", body: "  " }, null],
   });
 
   assert.equal(state.tab, "dice");
@@ -53,6 +55,9 @@ test("bad saves are dropped instead of trusted", () => {
   assert.equal(state.lights[0].kind, "torch");
   assert.equal(state.sparks[0].kind, "place");
   assert.equal(state.notes.length, 4000);
+  assert.equal(state.drafts.length, 1);
+  assert.equal(state.drafts[0].title, "The well");
+  assert.equal(state.drafts[0].body, "Warm.");
 });
 
 test("a save file round-trips the night and refuses anything else", () => {
