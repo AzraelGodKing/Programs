@@ -15,7 +15,7 @@ npm start
 
 Open http://localhost:5173 and choose a side.
 
-The player seat is http://localhost:5173/player.html. The DM screen is http://localhost:5173/dm.html. Open a table, share the four-character code, and each player joins with their name. The code is the only key. Anyone who has it can post, and the DM sees every seat: the character and what they carry, rolls and what they were for, the order, hit points, lights, and scratch notes. Prompts and the encounter budget are drawn on the DM screen. Solo play still works with the name and code left blank. The shared table lives in the memory of that server, so restarting it starts a new night.
+The player seat is http://localhost:5173/player.html. The DM screen is http://localhost:5173/dm.html. Open a table, share the four-character code, and each player joins with their name. The code is the only key. Anyone who has it can post, and the DM sees every seat: the character and what they carry, rolls and what they were for, the order, hit points, lights, and scratch notes. The party sits in a row, with passive Perception and Insight, armor class, conditions, and the light closest to going out. The newest call stays on screen, and the log can be narrowed to rolls. Notes typed on the DM screen stay in that browser. Prompts and the encounter budget are drawn on the DM screen, and the budget can use the levels of the heroes who sat down. Solo play still works with the name and code left blank. The shared table lives in the memory of that server, so restarting it starts a new night.
 
 ## What is on the table
 
