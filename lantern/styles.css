@@ -587,14 +587,16 @@ body.dm-page textarea {
   text-align: left;
   font: inherit;
   color: inherit;
+  white-space: normal;
   background: var(--raise);
   border: 1px solid var(--line);
   border-radius: 0.8rem;
   padding: 0.7rem 0.8rem;
   display: grid;
   gap: 0.28rem;
-  flex: 1 0 16rem;
-  max-width: 24rem;
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-width: 22rem;
   scroll-snap-align: start;
   cursor: pointer;
 }
@@ -604,6 +606,8 @@ body.dm-page textarea {
 .seat-card.is-active { background: var(--raise-2); }
 
 .seat-card.is-down { opacity: 0.78; }
+
+.seat-card .hint, .seat-card .light-row, .seat-card .vitals { overflow-wrap: anywhere; }
 
 .seat-top { display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; }
 
@@ -753,8 +757,9 @@ body.dm-page textarea {
 .threat-verdict[data-rating="deadly"] { color: var(--blood); }
 
 @media (max-width: 640px) {
+  .dm-head { flex-direction: column; align-items: flex-start; }
   .score-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .seat-card { flex-basis: 86%; }
+  .seat-card { flex: 0 0 88%; max-width: 88%; }
 }
 
 @media (min-width: 900px) {
