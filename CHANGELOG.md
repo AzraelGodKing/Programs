@@ -4,6 +4,7 @@
 
 ### Added
 
+- The DM screen leads with the party. Each seat shows hit points, armor class, conditions, passive Perception and Insight, and the light closest to going out. The newest call stays on screen, the log can show only rolls, and notes typed here never reach the players. The encounter budget can take its levels from the seated heroes.
 - The player seat no longer builds prompts or encounters. Spark and the encounter budget live on the Dungeon Master screen.
 - At the table the sheet is a pack. Skills and carried items are buttons. The class starting gear is packed when the character sits down, and the shop takes the price out of the purse. The DM screen has a switch that closes that popup, and opens it again.
 - A front door. Opening Lantern asks you to choose the player seat or the Dungeon Master screen, and the two sides no longer share one page. A link with a table code still opens the player seat.

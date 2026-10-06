@@ -9,10 +9,12 @@ import {
   cleanCharacter,
   effectiveHp,
   formatMod,
+  passiveScore,
   pointBuySpent,
   presentCharacter,
   proficiencyBonus,
   rollScores,
+  skillBonus,
   stepPointBuy,
   suggestedHp,
 } from "../src/character.js";
@@ -146,6 +148,20 @@ test("custom people and classes survive a reload, and unknown ids do not", () =>
   assert.deepEqual(saved.saves, ["wis", "con"]);
   assert.equal(saved.customBackground, "Ferry pilot");
   assert.deepEqual(saved.skills, ["perception"]);
+});
+
+test("a chosen skill adds proficiency, and a passive score starts at 10", () => {
+  const character = cleanCharacter({
+    touched: true,
+    level: 5,
+    skills: ["perception"],
+    scores: { str: 15, dex: 14, con: 13, int: 10, wis: 12, cha: 8 },
+  });
+  assert.equal(skillBonus(character, "perception"), 4);
+  assert.equal(passiveScore(character, "perception"), 14);
+  assert.equal(skillBonus(character, "insight"), 1);
+  assert.equal(passiveScore(character, "insight"), 11);
+  assert.equal(skillBonus(character, "nope"), 0);
 });
 
 test("background skills are added without dropping the ones already taken", () => {

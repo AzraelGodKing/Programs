@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lantern — DM screen</title>
-  <meta name="description" content="Watch every roll, the order, the lights, the encounter, the prompts, and the notes at a Lantern table.">
+  <meta name="description" content="Watch the party, every roll, the order, the lights, and your own notes at a Lantern table.">
   <meta name="theme-color" content="#10141a">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -47,46 +47,85 @@
     </section>
 
     <main id="dm-main" hidden>
-      <p class="hint">Players open this link and join with their name.</p>
-      <p><a id="player-link" href="/"></a></p>
-      <p id="room-code" class="room-code"></p>
-      <label class="shop-switch">
-        <input id="dm-shop" type="checkbox" checked>
-        Shop popup
-      </label>
-      <p class="hint">On, a player can open the shop. Off, that popup closes.</p>
-      <p id="dm-status" class="hint" role="status"></p>
-      <section id="dm-tools" class="dm-tools">
-        <h2>You prepare</h2>
-        <p class="lede">Prompts and the encounter budget stay on this side. Players roll, take their turn, and use what they carry.</p>
-        <div class="dm-tools-grid">
-          <section>
-            <h3>Spark</h3>
-            <div class="kit-actions" role="group" aria-label="Draw a prompt">
-              <button type="button" class="btn" data-dm="draw" data-kind="person">Person</button>
-              <button type="button" class="btn" data-dm="draw" data-kind="place">Place</button>
-              <button type="button" class="btn" data-dm="draw" data-kind="twist">Twist</button>
-              <button type="button" class="btn" data-dm="draw" data-kind="rumor">Rumor</button>
-              <button type="button" class="btn" data-dm="draw" data-kind="trinket">Trinket</button>
-              <button type="button" class="btn primary" data-dm="scene">A whole scene</button>
+      <div class="dm-command">
+        <div>
+          <p class="hint">Say this code, or send the link.</p>
+          <p id="room-code" class="room-code"></p>
+          <div class="dm-actions">
+            <button type="button" class="btn" id="copy-code">Copy code</button>
+            <button type="button" class="btn" id="copy-link">Copy the player link</button>
+          </div>
+          <p class="hint"><a id="player-link" class="player-link" href="/"></a></p>
+        </div>
+        <div class="dm-command-side">
+          <p id="dm-count" class="hint"></p>
+          <label class="shop-switch">
+            <input id="dm-shop" type="checkbox" checked>
+            Shop popup
+          </label>
+          <p class="hint">On, a player can open the shop. Off, that popup closes.</p>
+          <p id="dm-status" class="hint" role="status"></p>
+          <p class="hint">C copies the code. [ and ] move between seats.</p>
+        </div>
+      </div>
+
+      <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
+      <div id="party-strip" class="party-strip" aria-label="The party"></div>
+
+      <div class="dm-layout">
+        <section class="dm-feed" id="dm-feed" aria-label="What the table just did">
+          <div class="feed-head">
+            <h2>Just now</h2>
+            <div class="feed-filters" role="group" aria-label="Filter the log">
+              <button type="button" class="btn" data-feed="all" aria-pressed="true">All</button>
+              <button type="button" class="btn" data-feed="rolls" aria-pressed="false">Rolls</button>
+              <button type="button" class="btn" data-feed="table" aria-pressed="false">The rest</button>
             </div>
-            <div id="dm-spark" class="stack"></div>
-          </section>
-          <section>
-            <h3>Threat</h3>
-            <label>Party levels
-              <input id="dm-levels" type="text" maxlength="80" value="1, 1, 1, 1" spellcheck="false">
+          </div>
+          <div id="feed-list" class="stack"></div>
+        </section>
+        <div class="dm-side">
+          <section id="dm-dossier" class="player-board" hidden></section>
+          <section class="dm-margin">
+            <label>Your notes
+              <textarea id="dm-notes" rows="5" maxlength="4000" placeholder="A ruling, a name, the thing you do not want to forget."></textarea>
             </label>
-            <div id="dm-groups" class="stack"></div>
-            <button type="button" class="btn" data-dm="add-group">Add a creature</button>
-            <div id="dm-threat" class="stack"></div>
+            <p class="hint">Players never see this. It stays in this browser, with this table code.</p>
           </section>
         </div>
-      </section>
-      <div class="dm-layout">
-        <section class="dm-feed" id="dm-feed" aria-label="What the table just did"></section>
-        <div class="player-list" id="player-list"></div>
       </div>
+
+      <details id="dm-prepare" class="dm-prepare">
+        <summary>Prepare the next room</summary>
+        <section id="dm-tools" class="dm-tools">
+          <p class="lede">Prompts and the encounter budget stay on this side. Players roll, take their turn, and use what they carry.</p>
+          <div class="dm-tools-grid">
+            <section>
+              <h3>Spark</h3>
+              <div class="kit-actions" role="group" aria-label="Draw a prompt">
+                <button type="button" class="btn" data-dm="draw" data-kind="person">Person</button>
+                <button type="button" class="btn" data-dm="draw" data-kind="place">Place</button>
+                <button type="button" class="btn" data-dm="draw" data-kind="twist">Twist</button>
+                <button type="button" class="btn" data-dm="draw" data-kind="rumor">Rumor</button>
+                <button type="button" class="btn" data-dm="draw" data-kind="trinket">Trinket</button>
+                <button type="button" class="btn primary" data-dm="scene">A whole scene</button>
+              </div>
+              <div id="dm-spark" class="stack"></div>
+            </section>
+            <section>
+              <h3>Threat</h3>
+              <label>Party levels
+                <input id="dm-levels" type="text" maxlength="80" value="1, 1, 1, 1" spellcheck="false">
+              </label>
+              <p id="party-level-hint" class="hint"></p>
+              <button type="button" class="btn" id="use-party" hidden>Use the party</button>
+              <div id="dm-groups" class="stack"></div>
+              <button type="button" class="btn" data-dm="add-group">Add a creature</button>
+              <div id="dm-threat" class="stack"></div>
+            </section>
+          </div>
+        </section>
+      </details>
     </main>
   </div>
   <script type="module" src="src/dm.js"></script>
