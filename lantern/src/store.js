@@ -7,7 +7,7 @@ export const KEY = "lantern.v1";
 export const SAVE_VERSION = 1;
 export const SAVE_BYTES = 300_000;
 
-const TABS = ["dice", "order", "character"];
+const TABS = ["dice", "order", "character", "notes", "table"];
 const MODES = ["normal", "advantage", "disadvantage"];
 const SIDES = new Set([4, 6, 8, 10, 12, 20, 100]);
 const LIGHT_IDS = new Set(LIGHTS.map((light) => light.id));
@@ -120,6 +120,18 @@ function cleanSpark(item, index) {
   return { id, ...card };
 }
 
+function cleanDraft(item, index) {
+  if (!item || typeof item !== "object") return null;
+  const title = text(item.title, 80);
+  const body = typeof item.body === "string" ? item.body.slice(0, 4000) : "";
+  if (!title && !body.trim()) return null;
+  return {
+    id: text(item.id, 80) || `d${index}`,
+    title,
+    body,
+  };
+}
+
 function cleanLight(item, index) {
   if (!item || typeof item !== "object") return null;
   if (!LIGHT_IDS.has(item.kind)) return null;
@@ -161,6 +173,7 @@ export function normalize(input) {
     sparks: asArray(src.sparks).map(cleanSpark).filter(Boolean).slice(0, 8),
     lights: asArray(src.lights).map(cleanLight).filter(Boolean).slice(0, 8),
     notes: typeof src.notes === "string" ? src.notes.slice(0, 4000) : "",
+    drafts: asArray(src.drafts).map(cleanDraft).filter(Boolean).slice(0, 40),
     character: cleanCharacter(src.character),
   };
 }

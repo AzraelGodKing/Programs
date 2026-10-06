@@ -12,6 +12,9 @@ SUMMARY_LENGTH = 300
 NAME_LENGTH = 40
 INTENT_LENGTH = 60
 SNAPSHOT_BYTES = 200_000
+MESSAGE_CAP = 200
+MESSAGE_LENGTH = 400
+DM_NAME = "Dungeon Master"
 
 
 class TableError(ValueError):
@@ -26,14 +29,15 @@ class Table:
     def create(self):
         with self._lock:
             code = self._fresh_code()
-            self._rooms[code] = {"events": [], "players": {}, "shop": True}
+            self._rooms[code] = {"events": [], "players": {}, "shop": True, "messages": []}
             return code
 
-    def view(self, code):
+    def view(self, code, viewer=""):
         with self._lock:
             room = self._rooms.get(code)
             if room is None:
                 return None
+            who = clean_viewer(viewer)
             players = [
                 {
                     "name": name,
@@ -45,11 +49,17 @@ class Table:
             ]
             players.sort(key=lambda player: player["seen"], reverse=True)
             events = list(reversed(room["events"]))
+            messages = [
+                dict(message)
+                for message in room.get("messages", [])
+                if message_visible(message, who)
+            ]
             return {
                 "code": code,
                 "events": events,
                 "players": players,
                 "shop": room.get("shop", True) is not False,
+                "messages": messages,
             }
 
     def update(self, code, payload):
@@ -97,12 +107,70 @@ class Table:
             room["shop"] = open_
             return True
 
+    def talk(self, code, payload):
+        if not isinstance(payload, dict):
+            raise TableError("Expected an object.")
+        name = clean_name(payload.get("name"))
+        text = clean_message(payload.get("text"))
+        target = clean_target(payload.get("to"))
+        if target == name:
+            raise TableError("Whisper someone else.")
+        with self._lock:
+            room = self._rooms.get(code)
+            if room is None:
+                return None
+            messages = room.setdefault("messages", [])
+            message = {
+                "id": secrets.token_hex(8),
+                "at": int(time.time() * 1000),
+                "from": name,
+                "to": target,
+                "text": text,
+            }
+            messages.append(message)
+            if len(messages) > MESSAGE_CAP:
+                room["messages"] = messages[-MESSAGE_CAP:]
+            return dict(message)
+
     def _fresh_code(self):
         for _ in range(30):
             code = "".join(secrets.choice(ALPHABET) for _ in range(4))
             if code not in self._rooms:
                 return code
         raise TableError("Could not open a table.")
+
+
+def clean_viewer(value):
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.split())[:NAME_LENGTH]
+
+
+def message_visible(message, viewer):
+    target = message.get("to") or ""
+    if not target:
+        return True
+    if not viewer:
+        return False
+    return message.get("from") == viewer or target == viewer
+
+
+def clean_message(value):
+    if not isinstance(value, str):
+        raise TableError("A message has to be text.")
+    text = " ".join(value.split())[:MESSAGE_LENGTH]
+    if not text:
+        raise TableError("Write a message first.")
+    return text
+
+
+def clean_target(value):
+    if value is None or value == "":
+        return ""
+    if not isinstance(value, str):
+        raise TableError("Whisper a name, or leave it open to the table.")
+    target = " ".join(value.split())[:NAME_LENGTH]
+    return target
 
 
 def clean_name(value):

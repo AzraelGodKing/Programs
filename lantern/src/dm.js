@@ -13,7 +13,8 @@ import {
   skilledSummary,
 } from "./screen.js";
 import { normalize } from "./store.js";
-import { createRoom, describeSetup, fetchRoom, normalizeCode, setShop } from "./table.js";
+import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postTalk, setShop } from "./table.js";
+import { paintTalk, paintTargets } from "./talk.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -643,7 +644,7 @@ async function poll() {
   if (!code) return;
   let room;
   try {
-    room = await fetchRoom(code);
+    room = await fetchRoom(code, DM_NAME);
   } catch (error) {
     setStatus(error.message);
     return;
@@ -659,6 +660,12 @@ async function poll() {
   if (next === signature) return;
   signature = next;
   renderRoom(room);
+  paintTalk(document.getElementById("dm-talk-log"), room.messages || []);
+  paintTargets(
+    document.getElementById("dm-talk-to"),
+    (room.players || []).map((player) => player.name),
+    DM_NAME,
+  );
 }
 
 function chooseSeat(name) {
@@ -713,6 +720,28 @@ function boot() {
       return;
     }
     showTable(next);
+  });
+  document.getElementById("dm-talk-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!code) return;
+    const field = document.getElementById("dm-talk-text");
+    const text = field.value.trim();
+    if (!text) {
+      setStatus("Write a message first.");
+      return;
+    }
+    try {
+      await postTalk(code, {
+        name: DM_NAME,
+        text,
+        to: document.getElementById("dm-talk-to").value,
+      });
+      field.value = "";
+      signature = "";
+      await poll();
+    } catch (error) {
+      setStatus(error.message);
+    }
   });
   document.getElementById("dm-shop").addEventListener("change", async (event) => {
     if (!code) return;

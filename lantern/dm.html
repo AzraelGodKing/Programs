@@ -72,6 +72,21 @@
       <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
       <div id="party-strip" class="party-strip" aria-label="The party"></div>
 
+      <section id="dm-talk" class="dm-talk">
+        <h2>Table talk</h2>
+        <p class="lede">Everyone hears the room. A whisper reaches only the player you name, and you hear the ones meant for you.</p>
+        <div id="dm-talk-log" class="talk-log" aria-live="polite"></div>
+        <form id="dm-talk-form" class="talk-form" autocomplete="off">
+          <label>To
+            <select id="dm-talk-to" aria-label="Who hears this"></select>
+          </label>
+          <label>Message
+            <input id="dm-talk-text" maxlength="400" placeholder="Say it, then send.">
+          </label>
+          <button class="btn primary" type="submit">Send</button>
+        </form>
+      </section>
+
       <div class="dm-layout">
         <section class="dm-feed" id="dm-feed" aria-label="What the table just did">
           <div class="feed-head">
