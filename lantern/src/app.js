@@ -230,11 +230,21 @@ function paintSeatStatus() {
   const status = document.getElementById("seat-status");
   if (!status) return;
   const seat = loadSeat();
-  if (!seat.name || !seat.room) {
+  const seated = Boolean(seat.name && seat.room);
+  document.body.classList.toggle("is-seated", seated);
+  const edit = document.getElementById("edit-seat");
+  if (edit) edit.hidden = !seated || document.body.classList.contains("seat-editing");
+  if (!seated) {
     status.textContent = "Solo until you join a table. The DM sees the night from the moment you join.";
     return;
   }
   status.textContent = `Sharing with the DM as ${seat.name} at ${seat.room}.`;
+}
+
+function editSeat() {
+  document.body.classList.add("seat-editing");
+  paintSeatStatus();
+  document.getElementById("seat-name")?.focus();
 }
 
 function paintPurposes() {
@@ -269,6 +279,7 @@ function joinSeat(form) {
   }
   form.elements.room.value = room;
   saveSeat({ name, room });
+  document.body.classList.remove("seat-editing");
   seatError = "";
   paintSeatStatus();
   persist(`${name} joined the table.`);
@@ -2409,6 +2420,7 @@ function onClick(event) {
     persist("Using the suggested hit points.");
     renderCharacter();
   } else if (action === "reset") resetAll();
+  else if (action === "edit-seat") editSeat();
   else if (action === "export-night") downloadNight();
   else if (action === "import-night") document.getElementById("import-file")?.click();
   else if (action === "open-roster") openRoster();

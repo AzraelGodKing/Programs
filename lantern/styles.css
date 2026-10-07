@@ -92,7 +92,7 @@ button { cursor: pointer; }
   border: 0;
 }
 
-.top, .seat, .save-bar, .character-gate, .sticky-tools, main, .scratch, footer {
+.top, .seat-wrap, .character-gate, .sticky-tools, main, .scratch, footer {
   width: min(980px, calc(100% - 1.5rem));
   margin-inline: auto;
 }
@@ -311,6 +311,28 @@ textarea { width: 100%; resize: vertical; color: var(--cream); }
 }
 
 .seat { padding-bottom: 0.2rem; }
+
+.seat-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; }
+
+.text-btn.danger { color: var(--blood); }
+
+/* Seated: the join form and the long explanation fold away into one line. */
+body.is-seated:not(.seat-editing) #seat-form,
+body.is-seated .save-explain { display: none; }
+
+body.is-seated .seat-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  padding-bottom: 0.7rem;
+}
+
+body.is-seated .seat,
+body.is-seated .save-bar { padding-bottom: 0; }
+
+body.is-seated .save-bar .btn { padding: 0.3rem 0.75rem; font-size: 0.92rem; }
 
 .save-bar {
   display: grid;
