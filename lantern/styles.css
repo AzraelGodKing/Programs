@@ -868,7 +868,7 @@ body.dm-page textarea {
 
 .dm-person.is-down { opacity: 0.55; }
 
-.dm-margin, .dm-prepare {
+.dm-margin, .dm-prepare, .dm-side .dm-talk {
   background: var(--raise);
   border: 1px solid var(--line);
   border-radius: 0.8rem;
@@ -893,6 +893,14 @@ body.dm-page textarea {
   font-family: var(--serif);
   font-size: 1.45rem;
 }
+
+.summary-note { font-family: var(--sans); font-size: 0.9rem; color: var(--muted); }
+
+.dm-side .dm-talk h2 { font-size: 1.45rem; }
+
+.dm-side .dm-talk .talk-log { max-height: 16rem; }
+
+#dm-shop-wrap .dm-shop { margin-bottom: 0; border-top: 0; }
 
 .threat-verdict { font-family: var(--serif); font-size: 1.8rem; }
 

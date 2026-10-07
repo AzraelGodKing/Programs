@@ -694,6 +694,8 @@ function paintShopLive(room) {
   const name = shop && typeof shop === "object" && shop.name ? shop.name : "the market";
   const live = document.getElementById("shop-live");
   if (live) live.textContent = open ? `Players see ${name}.` : "The shop is closed.";
+  const summary = document.getElementById("shop-summary");
+  if (summary) summary.textContent = open ? `· open, ${name}` : "· closed";
   const box = document.getElementById("dm-shop");
   if (box && document.activeElement !== box) box.checked = open;
 }
