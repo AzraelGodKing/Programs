@@ -5,6 +5,8 @@ import {
   counterFor,
   parseCoin,
   payCounter,
+  sellOffers,
+  sellToCounter,
   stallById,
 } from "../src/gear.js";
 
@@ -38,4 +40,38 @@ test("a bare number is gold, and a service is paid not packed", () => {
   assert.equal(bought.service, false);
   assert.equal(bought.character.purse, 59700);
   assert.equal(bought.character.items[0].id, "potion-healing");
+});
+
+test("a stall buys its own goods at half price and leaves the rest", () => {
+  const sheet = {
+    ...blankCharacter(),
+    touched: true,
+    purse: 1000,
+    items: [
+      { id: "longsword", name: "Longsword", qty: 1 },
+      { id: "potion-healing", name: "Potion of healing", qty: 2 },
+    ],
+  };
+  const smith = counterFor("smith");
+  const sword = smith.goods.find((good) => good.id === "longsword");
+  const sold = sellToCounter(sheet, { ...sword, cp: 1500 });
+  assert.equal(sold.ok, true);
+  assert.equal(sold.gained, 750);
+  assert.equal(sold.character.purse, 1750);
+  assert.equal(sold.character.items.some((item) => item.id === "longsword"), false);
+  assert.equal(sold.character.items.find((item) => item.id === "potion-healing").qty, 2);
+
+  const apothecary = counterFor("apothecary");
+  const canSell = sellOffers(apothecary.goods, sold.character.items).map((offer) => offer.id);
+  assert.deepEqual(canSell, ["potion-healing"]);
+  const potion = apothecary.goods.find((good) => good.id === "potion-healing");
+  const vials = sellToCounter(sold.character, { ...potion, cp: 4000 });
+  assert.equal(vials.gained, 2000);
+  assert.equal(vials.character.purse, 3750);
+  assert.equal(vials.character.items.find((item) => item.id === "potion-healing").qty, 1);
+
+  const upgrade = smith.goods.find((good) => good.id === "upgrade-plus-1");
+  assert.equal(sellToCounter(vials.character, upgrade).ok, false);
+  assert.equal(sellOffers(counterFor("tavern").goods, vials.character.items).length, 0);
+  assert.equal(sellToCounter(vials.character, { id: "rope", name: "Rope", cp: 100, service: false }).ok, false);
 });
