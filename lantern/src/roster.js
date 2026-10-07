@@ -160,3 +160,14 @@ export function characterFilename(entry, now = new Date()) {
   const day = now.toISOString().slice(0, 10);
   return slug ? `lantern-character-${slug}-${day}.json` : `lantern-character-${day}.json`;
 }
+
+/** Read a character file made by Export. Returns the clean sheet, or throws with a reason. */
+export function readCharacterFile(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("That file is not a Lantern character.");
+  if (data.kind !== "character" || !data.character || typeof data.character !== "object") {
+    throw new Error("That file is not a Lantern character. A saved night goes in Restore.");
+  }
+  const sheet = cleanCharacter(data.character);
+  if (!sheet.name.trim()) throw new Error("That character has no name.");
+  return { sheet, dead: data.dead === true };
+}
