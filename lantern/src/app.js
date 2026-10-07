@@ -41,6 +41,9 @@ import {
   findOffer,
   formatCoin,
   payCounter,
+  sellOffers,
+  sellPrice,
+  sellToCounter,
   unclaimed,
   useItem,
 } from "./gear.js";
@@ -1644,8 +1647,8 @@ function renderGear() {
   const lede = document.getElementById("gear-lede");
   if (lede) {
     lede.textContent = offers.some((offer) => offer.service)
-      ? "Claim any starting gear that is not already in the pack. Buying takes the price out of the purse. A service is paid, not packed."
-      : "Claim any starting gear that is not already in the pack. Buying takes the price out of the purse.";
+      ? "Claim any starting gear that is not already in the pack. Buying takes the price out of the purse. This counter buys those goods back at half price. A service is paid, not packed."
+      : "Claim any starting gear that is not already in the pack. Buying takes the price out of the purse. This counter buys those goods back at half price.";
   }
   shop.replaceChildren(...(offers.length
     ? offers.map((offer) => h("div", { class: "gear-row" }, [
@@ -1659,6 +1662,22 @@ function renderGear() {
       }, offer.service ? "Pay" : "Buy"),
     ]))
     : [h("p", { class: "hint" }, "Nothing is on this counter.")]));
+  const sell = document.getElementById("gear-sell");
+  if (!sell) return;
+  const sales = sellOffers(offers, character.items);
+  const carried = new Map((character.items || []).map((item) => [item.id, item]));
+  sell.replaceChildren(...(sales.length
+    ? sales.map((offer) => {
+      const item = carried.get(offer.id);
+      const label = item && item.qty > 1 ? `${offer.name} × ${item.qty}` : offer.name;
+      return h("div", { class: "gear-row" }, [
+        h("span", {}, `${label} · ${formatCoin(sellPrice(offer.cp))}`),
+        h("button", { type: "button", class: "btn", "data-action": "sell-item", "data-id": offer.id }, "Sell"),
+      ]);
+    })
+    : [h("p", { class: "hint" }, offers.some((offer) => !offer.service)
+      ? "Nothing in the pack is something this counter buys."
+      : "This counter does not buy gear.")]));
 }
 
 let shopOpen = true;
@@ -1754,6 +1773,22 @@ function purchase(id) {
   persist(result.service
     ? `Paid ${name} at ${counter.name}. ${price}.`
     : `Bought ${name} for ${price}.`);
+  renderCharacter();
+  renderGear();
+}
+
+function sellPiece(id) {
+  if (!shopOpen) return;
+  const offer = counterOffers().find((item) => item.id === id);
+  const result = offer ? sellToCounter(state.character, offer) : { ok: false, reason: "That is not on the counter." };
+  const error = document.getElementById("gear-error");
+  if (!result.ok) {
+    if (error) error.textContent = result.reason;
+    return;
+  }
+  state.character = result.character;
+  if (error) error.textContent = "";
+  persist(`Sold ${offer.name} at ${counter.name} for ${formatCoin(result.gained)}.`);
   renderCharacter();
   renderGear();
 }
@@ -2235,6 +2270,7 @@ function onClick(event) {
   else if (action === "open-gear") openGear();
   else if (action === "close-gear") document.getElementById("gear-dialog").close();
   else if (action === "buy-item") purchase(button.dataset.id);
+  else if (action === "sell-item") sellPiece(button.dataset.id);
   else if (action === "claim-item") claimGear(button.dataset.id);
   else if (action === "roll") doRoll();
   else if (action === "set-sides") {
