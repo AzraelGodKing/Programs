@@ -284,40 +284,6 @@ export function equipNewCharacter(character) {
     ...character,
     items,
     purse: startingPurse(character.classId),
-    kitClaimed: kitFor(character.classId).map((entry) => entry.id),
-  };
-}
-
-export function cleanKitClaimed(input, classId) {
-  const kit = new Set(kitFor(classId || input?.classId).map((entry) => entry.id));
-  const carried = cleanItems(input?.items).map((item) => item.id);
-  const source = Array.isArray(input?.kitClaimed) ? input.kitClaimed : carried;
-  const claimed = [];
-  for (const id of source) {
-    if (typeof id !== "string" || !kit.has(id) || claimed.includes(id)) continue;
-    claimed.push(id);
-  }
-  return claimed;
-}
-
-export function unclaimed(character) {
-  const taken = new Set(Array.isArray(character.kitClaimed) ? character.kitClaimed : []);
-  for (const item of character.items || []) taken.add(item.id);
-  return kitFor(character.classId).filter((entry) => !taken.has(entry.id));
-}
-
-export function claimItem(character, id) {
-  const entry = unclaimed(character).find((item) => item.id === id);
-  if (!entry) return { ok: false, reason: "That is already in the pack, or it is not starting gear." };
-  const kitClaimed = Array.isArray(character.kitClaimed) ? [...character.kitClaimed] : [];
-  if (!kitClaimed.includes(entry.id)) kitClaimed.push(entry.id);
-  return {
-    ok: true,
-    character: {
-      ...character,
-      items: addPiece(character.items || [], entry.id, entry.qty),
-      kitClaimed,
-    },
   };
 }
 

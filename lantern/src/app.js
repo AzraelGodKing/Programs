@@ -35,16 +35,13 @@ import {
 import { facesLabel, formula, roll, STANDARD_SIDES } from "./dice.js";
 import {
   GEAR,
-  claimItem,
   equipNewCharacter,
-  findGear,
   findOffer,
   formatCoin,
   payCounter,
   sellOffers,
   sellPrice,
   sellToCounter,
-  unclaimed,
   useItem,
 } from "./gear.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
@@ -1628,19 +1625,7 @@ function renderKit() {
 function renderGear() {
   const character = state.character;
   setText(document.getElementById("gear-purse"), character.purse == null ? "No purse yet." : formatCoin(character.purse));
-  const claim = document.getElementById("gear-claim");
   const shop = document.getElementById("gear-shop");
-  const waiting = unclaimed(character);
-  claim.replaceChildren(...(waiting.length
-    ? waiting.map((entry) => {
-      const gear = findGear(entry.id);
-      const label = entry.qty > 1 ? `${gear.name} × ${entry.qty}` : gear.name;
-      return h("div", { class: "gear-row" }, [
-        h("span", {}, label),
-        h("button", { type: "button", class: "btn", "data-action": "claim-item", "data-id": entry.id }, "Claim"),
-      ]);
-    })
-    : [h("p", { class: "hint" }, "Starting gear is already in the pack.")]));
   const purse = character.purse ?? 0;
   const offers = counterOffers();
   setText(document.getElementById("gear-title"), counter.name || "Shop");
@@ -1648,10 +1633,11 @@ function renderGear() {
   if (lede) {
     const goods = offers.some((offer) => !offer.service);
     const services = offers.some((offer) => offer.service);
-    const lines = ["Claim any starting gear that is not already in the pack."];
+    const lines = [];
     if (goods) lines.push("Buying takes the price out of the purse. This counter buys those goods back at half price.");
     if (services) lines.push("A service is paid, not packed.");
     if (!goods) lines.push("This counter does not buy gear.");
+    if (!lines.length) lines.push("Nothing is on this counter.");
     lede.textContent = lines.join(" ");
   }
   shop.replaceChildren(...(offers.length
@@ -1793,22 +1779,6 @@ function sellPiece(id) {
   state.character = result.character;
   if (error) error.textContent = "";
   persist(`Sold ${offer.name} at ${counter.name} for ${formatCoin(result.gained)}.`);
-  renderCharacter();
-  renderGear();
-}
-
-function claimGear(id) {
-  if (!shopOpen) return;
-  const result = claimItem(state.character, id);
-  const error = document.getElementById("gear-error");
-  if (!result.ok) {
-    if (error) error.textContent = result.reason;
-    return;
-  }
-  state.character = result.character;
-  if (error) error.textContent = "";
-  const entry = result.character.items.find((item) => item.id === id);
-  persist(entry ? `Claimed ${entry.name}.` : "Claimed starting gear.");
   renderCharacter();
   renderGear();
 }
@@ -2275,7 +2245,6 @@ function onClick(event) {
   else if (action === "close-gear") document.getElementById("gear-dialog").close();
   else if (action === "buy-item") purchase(button.dataset.id);
   else if (action === "sell-item") sellPiece(button.dataset.id);
-  else if (action === "claim-item") claimGear(button.dataset.id);
   else if (action === "roll") doRoll();
   else if (action === "set-sides") {
     state.dice.sides = Number(button.dataset.sides);
