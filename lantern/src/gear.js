@@ -238,6 +238,20 @@ function addPiece(items, id, qty) {
   return next.slice(0, 40);
 }
 
+function takePiece(items, id) {
+  let taken = false;
+  const next = [];
+  for (const item of items) {
+    if (!taken && item.id === id && item.qty > 0) {
+      taken = true;
+      if (item.qty > 1) next.push({ ...item, qty: item.qty - 1 });
+    } else {
+      next.push({ ...item });
+    }
+  }
+  return taken ? next : null;
+}
+
 export function cleanItems(value) {
   if (!Array.isArray(value)) return [];
   const items = [];
@@ -316,6 +330,44 @@ export function payCounter(character, offer) {
       ...character,
       purse: purse - cp,
       items: addPiece(character.items || [], gear.id, 1),
+    },
+  };
+}
+
+export function sellPrice(cp) {
+  if (!Number.isInteger(cp) || cp < 0) return null;
+  return Math.floor(cp / 2);
+}
+
+export function sellOffers(offers, items) {
+  const carried = new Set((items || []).filter((item) => item && item.qty > 0).map((item) => item.id));
+  return (offers || []).filter((offer) => (
+    offer
+    && offer.service !== true
+    && !SERVICE_IDS.has(offer.id)
+    && carried.has(offer.id)
+    && findGear(offer.id)
+  ));
+}
+
+export function sellToCounter(character, offer) {
+  if (!offer || typeof offer.id !== "string") return { ok: false, reason: "That is not on the counter." };
+  if (offer.service === true || SERVICE_IDS.has(offer.id)) {
+    return { ok: false, reason: "A service is not something this counter buys." };
+  }
+  const gear = findGear(offer.id);
+  if (!gear) return { ok: false, reason: "That is not on the counter." };
+  const gained = sellPrice(offer.cp);
+  if (gained == null) return { ok: false, reason: "That price is not a price." };
+  const next = takePiece(character.items || [], gear.id);
+  if (!next) return { ok: false, reason: "That is not in the pack." };
+  return {
+    ok: true,
+    gained,
+    character: {
+      ...character,
+      purse: Math.min(10_000_000, (character.purse ?? 0) + gained),
+      items: next,
     },
   };
 }
