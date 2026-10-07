@@ -7,6 +7,8 @@
   <meta name="description" content="Choose the player seat or the Dungeon Master screen for a Lantern table.">
   <meta name="theme-color" content="#14110e">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/lantern-192.png">
   <link rel="stylesheet" href="styles.css">
   <script>
     const room = new URLSearchParams(location.search).get("room");
@@ -46,5 +48,9 @@
       </a>
     </div>
   </main>
+  <script type="module">
+    import { registerOffline } from "./src/pwa.js";
+    registerOffline();
+  </script>
 </body>
 </html>

@@ -17,6 +17,7 @@ import { normalize } from "./store.js";
 import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postTalk, setShop } from "./table.js";
 import { paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
+import { registerOffline } from "./pwa.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -816,6 +817,7 @@ function showTable(next) {
 
 function boot() {
   bootTextSize(document.getElementById("text-size"));
+  registerOffline();
   document.getElementById("toggle-code")?.addEventListener("click", () => {
     codeBig = !codeBig;
     paintCodeSize(lastRoom?.players.length || 0);
