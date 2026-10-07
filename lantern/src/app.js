@@ -38,6 +38,7 @@ import {
   equipNewCharacter,
   findOffer,
   formatCoin,
+  buyBackItem,
   payCounter,
   sellOffers,
   sellPrice,
@@ -66,7 +67,7 @@ import {
   writeSheet,
 } from "./roster.js";
 import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
-import { DM_NAME, fetchRoom, loadSeat, normalizeCode, postTalk, pushTable, rollSummary, saveSeat } from "./table.js";
+import { DM_NAME, fetchRoom, loadSeat, normalizeCode, postBuyback, postTalk, pushTable, rollSummary, saveSeat } from "./table.js";
 import { paintTalk, paintTargets } from "./talk.js";
 
 const WORDS = {
@@ -1668,10 +1669,49 @@ function renderGear() {
     : [h("p", { class: "hint" }, offers.some((offer) => !offer.service)
       ? "Nothing in the pack is something this counter buys."
       : "This counter does not buy gear.")]));
+  const held = heldForSeat();
+  const buybackTitle = document.getElementById("gear-buyback-title");
+  const buybackHint = document.getElementById("gear-buyback-hint");
+  const buyback = document.getElementById("gear-buyback");
+  if (buybackTitle) buybackTitle.hidden = held.length === 0;
+  if (buybackHint) buybackHint.hidden = held.length === 0;
+  if (buyback) {
+    buyback.replaceChildren(...held.map((line) => {
+      const gear = findOffer(line.id);
+      const label = line.qty > 1 ? `${gear.name} × ${line.qty}` : gear.name;
+      return h("div", { class: "gear-row" }, [
+        h("span", {}, `${label} · ${formatCoin(line.cp)}`),
+        h("button", {
+          type: "button",
+          class: "btn",
+          "data-action": "buy-back",
+          "data-id": line.id,
+          "data-cp": String(line.cp),
+          disabled: purse < line.cp ? true : null,
+        }, "Buy back"),
+      ]);
+    }));
+  }
 }
 
 let shopOpen = true;
+let shopBusy = false;
 let counter = { open: true, name: "Market", goods: null };
+let buybacks = [];
+
+function heldForSeat() {
+  const seat = loadSeat();
+  return buybacks.filter((line) => (
+    line
+    && line.seller === seat.name
+    && Number.isInteger(line.cp)
+    && line.cp >= 0
+    && Number.isInteger(line.qty)
+    && line.qty > 0
+    && findOffer(line.id)
+    && findOffer(line.id).service !== true
+  ));
+}
 
 function normalizeShop(shop) {
   if (shop && typeof shop === "object") {
@@ -1702,9 +1742,11 @@ function counterOffers() {
   });
 }
 
-function applyShop(shop) {
+function applyShop(shop, held) {
   counter = normalizeShop(shop);
   shopOpen = counter.open;
+  if (Array.isArray(held)) buybacks = held;
+  else if (!shopOpen) buybacks = [];
   const button = document.querySelector("[data-action='open-gear']");
   if (button) {
     button.hidden = !shopOpen;
@@ -1720,7 +1762,7 @@ function applyShop(shop) {
 async function watchShop() {
   const seat = loadSeat();
   if (!seat.name || !seat.room) {
-    applyShop(true);
+    applyShop(true, []);
     return;
   }
   let room;
@@ -1730,7 +1772,7 @@ async function watchShop() {
     return;
   }
   if (!room) return;
-  applyShop(room.shop);
+  applyShop(room.shop, room.buybacks);
   paintTalk(document.getElementById("talk-log"), room.messages || []);
   paintTargets(
     document.getElementById("talk-to"),
@@ -1767,8 +1809,8 @@ function purchase(id) {
   renderGear();
 }
 
-function sellPiece(id) {
-  if (!shopOpen) return;
+async function sellPiece(id) {
+  if (!shopOpen || shopBusy) return;
   const offer = counterOffers().find((item) => item.id === id);
   const result = offer ? sellToCounter(state.character, offer) : { ok: false, reason: "That is not on the counter." };
   const error = document.getElementById("gear-error");
@@ -1776,9 +1818,82 @@ function sellPiece(id) {
     if (error) error.textContent = result.reason;
     return;
   }
+  const seat = loadSeat();
+  if (seat.name && seat.room) {
+    shopBusy = true;
+    try {
+      const saved = await postBuyback(seat.room, {
+        name: seat.name,
+        id: offer.id,
+        cp: result.gained,
+        action: "sell",
+      });
+      buybacks = Array.isArray(saved.buybacks) ? saved.buybacks : buybacks;
+    } catch (err) {
+      if (error) error.textContent = err.message;
+      return;
+    } finally {
+      shopBusy = false;
+    }
+  }
   state.character = result.character;
   if (error) error.textContent = "";
   persist(`Sold ${offer.name} at ${counter.name} for ${formatCoin(result.gained)}.`);
+  renderCharacter();
+  renderGear();
+}
+
+async function buyBackPiece(id, cpText) {
+  if (!shopOpen || shopBusy) return;
+  const cp = Number(cpText);
+  const error = document.getElementById("gear-error");
+  const line = heldForSeat().find((item) => item.id === id && item.cp === cp);
+  if (!line) {
+    if (error) error.textContent = "That is no longer held for buy back.";
+    return;
+  }
+  const gear = findOffer(line.id);
+  const preview = buyBackItem(state.character, { id: line.id, cp: line.cp });
+  if (!preview.ok) {
+    if (error) error.textContent = preview.reason;
+    return;
+  }
+  const seat = loadSeat();
+  if (!seat.name || !seat.room) {
+    if (error) error.textContent = "Join a table before buying that back.";
+    return;
+  }
+  shopBusy = true;
+  try {
+    const saved = await postBuyback(seat.room, {
+      name: seat.name,
+      id: line.id,
+      cp: line.cp,
+      action: "buy",
+    });
+    const taken = buyBackItem(state.character, { id: line.id, cp: line.cp });
+    if (!taken.ok) {
+      const restored = await postBuyback(seat.room, {
+        name: seat.name,
+        id: line.id,
+        cp: line.cp,
+        action: "sell",
+      }).catch(() => saved);
+      buybacks = Array.isArray(restored.buybacks) ? restored.buybacks : buybacks;
+      if (error) error.textContent = taken.reason;
+      renderGear();
+      return;
+    }
+    buybacks = Array.isArray(saved.buybacks) ? saved.buybacks : buybacks;
+    state.character = taken.character;
+  } catch (err) {
+    if (error) error.textContent = err.message;
+    return;
+  } finally {
+    shopBusy = false;
+  }
+  if (error) error.textContent = "";
+  persist(`Bought back ${gear.name} for ${formatCoin(line.cp)}.`);
   renderCharacter();
   renderGear();
 }
@@ -2245,6 +2360,7 @@ function onClick(event) {
   else if (action === "close-gear") document.getElementById("gear-dialog").close();
   else if (action === "buy-item") purchase(button.dataset.id);
   else if (action === "sell-item") sellPiece(button.dataset.id);
+  else if (action === "buy-back") buyBackPiece(button.dataset.id, button.dataset.cp);
   else if (action === "roll") doRoll();
   else if (action === "set-sides") {
     state.dice.sides = Number(button.dataset.sides);

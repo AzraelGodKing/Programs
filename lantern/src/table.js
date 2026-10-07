@@ -91,6 +91,20 @@ export async function setShop(code, shop) {
   return response.json();
 }
 
+export async function postBuyback(code, body) {
+  const response = await fetch(`/api/rooms/${normalizeCode(code)}/buyback`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 404) throw new Error("No table with that code.");
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "The counter did not take that.");
+  }
+  return response.json();
+}
+
 export async function postTalk(code, { name, text, to = "" }) {
   const response = await fetch(`/api/rooms/${normalizeCode(code)}/talk`, {
     method: "POST",
