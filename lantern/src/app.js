@@ -10,6 +10,7 @@ import {
   abilityMod,
   abilityTotals,
   addBackgroundSkills,
+  askBonus,
   assignStandard,
   blankCharacter,
   choiceSummary,
@@ -1790,6 +1791,7 @@ async function watchShop() {
   applyShop(room.shop, room.buybacks);
   paintTalk(document.getElementById("talk-log"), room.messages || []);
   paintHere(document.getElementById("table-here"), room.players || [], seat.name);
+  paintAsk(room.messages || [], seat.name);
   paintTargets(
     document.getElementById("talk-to"),
     (room.players || []).map((player) => player.name),
@@ -1923,6 +1925,76 @@ function spendItem(id) {
     : `Uses ${result.used}.`;
   persist(line);
   renderKit();
+}
+
+const ASK_KEY = "lantern.asks.done";
+const ASK_FRESH_MS = 15 * 60 * 1000;
+let pendingAsk = null;
+
+function answeredAsks() {
+  try {
+    const list = JSON.parse(localStorage.getItem(ASK_KEY) || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function markAsk(id) {
+  const list = answeredAsks().filter((item) => item !== id);
+  list.push(id);
+  try { localStorage.setItem(ASK_KEY, JSON.stringify(list.slice(-50))); } catch { /* still hidden for this page */ }
+}
+
+function paintAsk(messages, selfName) {
+  const done = new Set(answeredAsks());
+  const now = Date.now();
+  const ask = [...(messages || [])].reverse().find((message) => (
+    message.ask
+    && message.from === DM_NAME
+    && (!message.to || message.to === selfName)
+    && now - message.at < ASK_FRESH_MS
+    && !done.has(message.id)
+  ));
+  pendingAsk = ask || null;
+  const banner = document.getElementById("ask-banner");
+  if (!banner) return;
+  banner.hidden = !ask || gateMode !== "play";
+  if (!ask) return;
+  const info = askBonus(state.character, ask.ask);
+  const what = info ? `${info.label} (${formatMod(info.bonus)})` : ask.ask;
+  setText(document.getElementById("ask-text"), `The DM asks ${ask.to ? "you" : "the table"} for ${what}.`);
+}
+
+function answerAsk() {
+  if (!pendingAsk) return;
+  const ask = pendingAsk;
+  markAsk(ask.id);
+  document.getElementById("ask-banner").hidden = true;
+  const info = askBonus(state.character, ask.ask);
+  const purpose = document.getElementById("roll-for");
+  state.dice.count = 1;
+  state.dice.sides = 20;
+  state.dice.mode = "normal";
+  document.getElementById("dice-count").value = "1";
+  if (purpose) purpose.value = info ? info.label : ask.ask;
+  showTab("dice");
+  if (info) {
+    state.dice.modifier = info.bonus;
+    document.getElementById("dice-mod").value = String(info.bonus);
+    doRoll();
+  } else {
+    paintDice();
+    paintPurposes();
+    document.getElementById("dice-mod")?.focus();
+  }
+}
+
+function skipAsk() {
+  if (!pendingAsk) return;
+  markAsk(pendingAsk.id);
+  pendingAsk = null;
+  document.getElementById("ask-banner").hidden = true;
 }
 
 function rollSkill(id) {
@@ -2426,6 +2498,8 @@ function onClick(event) {
     renderCharacter();
   } else if (action === "reset") resetAll();
   else if (action === "edit-seat") editSeat();
+  else if (action === "answer-ask") answerAsk();
+  else if (action === "skip-ask") skipAsk();
   else if (action === "open-keys") document.getElementById("keys-dialog")?.showModal();
   else if (action === "close-keys") document.getElementById("keys-dialog")?.close();
   else if (action === "export-night") downloadNight();

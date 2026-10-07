@@ -228,6 +228,27 @@ button { cursor: pointer; }
   border-bottom: 1px solid var(--line);
 }
 
+.ask-banner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+  margin: 0.5rem 0 0.2rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--gold);
+  border-radius: 0.7rem;
+  background: rgba(230, 194, 122, 0.12);
+  font-family: var(--serif);
+  font-size: 1.15rem;
+}
+
+.ask-actions { display: flex; gap: 0.6rem; align-items: center; }
+
+.ask-form { display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: end; margin-top: 0.8rem; }
+
+.ask-form label { flex: 1 1 14rem; }
+
 .tabs {
   display: flex;
   overflow-x: auto;

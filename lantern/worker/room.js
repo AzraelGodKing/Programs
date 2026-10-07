@@ -10,6 +10,7 @@ export const SNAPSHOT_BYTES = 200_000;
 export const BODY_BYTES = 300_000;
 export const MESSAGE_CAP = 200;
 export const MESSAGE_LENGTH = 400;
+export const DM_NAME = "Dungeon Master";
 export const IDLE_MS = 7 * 24 * 60 * 60 * 1000;
 const GOODS_CAP = 60;
 const BUYBACK_CAP = 60;
@@ -106,7 +107,16 @@ export function cleanTalk(payload) {
   const text = cleanMessage(payload.text);
   const to = cleanTarget(payload.to);
   if (to === name) throw new TableError("Whisper someone else.");
-  return { name, text, to };
+  const ask = cleanAsk(payload.ask, name);
+  return ask ? { name, text, to, ask } : { name, text, to };
+}
+
+/** A roll the DM asks for, like "Perception" or "Dexterity save". Only the DM can ask. */
+export function cleanAsk(value, name) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value !== "string") throw new TableError("Ask for a roll by name.");
+  if (name !== DM_NAME) throw new TableError("Only the DM asks for rolls.");
+  return collapse(value).slice(0, INTENT_LENGTH);
 }
 
 export function shopIsOpen(shop) {
@@ -273,6 +283,7 @@ export class TableRoom {
     const now = Date.now();
     let messages = (await this.storage.get("messages")) || [];
     const stored = { id: hexId(), at: now, from: message.name, to: message.to, text: message.text };
+    if (message.ask) stored.ask = message.ask;
     messages.push(stored);
     if (messages.length > MESSAGE_CAP) messages = messages.slice(-MESSAGE_CAP);
     await this.storage.put("messages", messages);
