@@ -35,11 +35,12 @@ import {
 import { facesLabel, formula, roll, STANDARD_SIDES } from "./dice.js";
 import {
   GEAR,
-  buyItem,
   claimItem,
   equipNewCharacter,
   findGear,
+  findOffer,
   formatCoin,
+  payCounter,
   unclaimed,
   useItem,
 } from "./gear.js";
@@ -210,7 +211,7 @@ async function flushShare() {
       return;
     }
     ok = true;
-    if (typeof result.shop === "boolean") applyShop(result.shop);
+    if ("shop" in result) applyShop(result.shop);
     if (seatError) {
       seatError = "";
       paintSeatStatus();
@@ -1638,28 +1639,73 @@ function renderGear() {
     })
     : [h("p", { class: "hint" }, "Starting gear is already in the pack.")]));
   const purse = character.purse ?? 0;
-  shop.replaceChildren(...GEAR.map((gear) => h("div", { class: "gear-row" }, [
-    h("span", {}, `${gear.name} · ${formatCoin(gear.cp)}`),
-    h("button", {
-      type: "button",
-      class: "btn",
-      "data-action": "buy-item",
-      "data-id": gear.id,
-      disabled: purse < gear.cp ? true : null,
-    }, "Buy"),
-  ])));
+  const offers = counterOffers();
+  setText(document.getElementById("gear-title"), counter.name || "Shop");
+  const lede = document.getElementById("gear-lede");
+  if (lede) {
+    lede.textContent = offers.some((offer) => offer.service)
+      ? "Claim any starting gear that is not already in the pack. Buying takes the price out of the purse. A service is paid, not packed."
+      : "Claim any starting gear that is not already in the pack. Buying takes the price out of the purse.";
+  }
+  shop.replaceChildren(...(offers.length
+    ? offers.map((offer) => h("div", { class: "gear-row" }, [
+      h("span", {}, `${offer.name} · ${formatCoin(offer.cp)}`),
+      h("button", {
+        type: "button",
+        class: "btn",
+        "data-action": "buy-item",
+        "data-id": offer.id,
+        disabled: purse < offer.cp ? true : null,
+      }, offer.service ? "Pay" : "Buy"),
+    ]))
+    : [h("p", { class: "hint" }, "Nothing is on this counter.")]));
 }
 
 let shopOpen = true;
+let counter = { open: true, name: "Market", goods: null };
 
-function applyShop(open) {
-  shopOpen = open !== false;
+function normalizeShop(shop) {
+  if (shop && typeof shop === "object") {
+    const name = typeof shop.name === "string" ? shop.name.trim() : "";
+    return {
+      open: shop.open !== false,
+      name: name || "Shop",
+      goods: Array.isArray(shop.goods) ? shop.goods : null,
+    };
+  }
+  return { open: shop !== false, name: "Market", goods: null };
+}
+
+function counterOffers() {
+  if (!Array.isArray(counter.goods)) {
+    return GEAR.map((gear) => ({ id: gear.id, name: gear.name, cp: gear.cp, service: false }));
+  }
+  return counter.goods.flatMap((good) => {
+    if (!good || typeof good.id !== "string" || !Number.isInteger(good.cp) || good.cp < 0) return [];
+    const known = findOffer(good.id);
+    if (!known) return [];
+    return [{
+      id: known.id,
+      name: known.name,
+      cp: good.cp,
+      service: known.service === true || good.service === true,
+    }];
+  });
+}
+
+function applyShop(shop) {
+  counter = normalizeShop(shop);
+  shopOpen = counter.open;
   const button = document.querySelector("[data-action='open-gear']");
-  if (button) button.hidden = !shopOpen;
+  if (button) {
+    button.hidden = !shopOpen;
+    button.textContent = counter.name || "Shop";
+  }
   const note = document.getElementById("shop-note");
   if (note) note.hidden = shopOpen;
   const dialog = document.getElementById("gear-dialog");
   if (!shopOpen && dialog?.open) dialog.close();
+  if (dialog?.open) renderGear();
 }
 
 async function watchShop() {
@@ -1694,7 +1740,8 @@ function openGear() {
 
 function purchase(id) {
   if (!shopOpen) return;
-  const result = buyItem(state.character, id);
+  const offer = counterOffers().find((item) => item.id === id);
+  const result = offer ? payCounter(state.character, offer) : { ok: false, reason: "That is not on the counter." };
   const error = document.getElementById("gear-error");
   if (!result.ok) {
     if (error) error.textContent = result.reason;
@@ -1702,7 +1749,11 @@ function purchase(id) {
   }
   state.character = result.character;
   if (error) error.textContent = "";
-  persist(`Bought ${findGear(id).name} for ${formatCoin(findGear(id).cp)}.`);
+  const name = offer.name;
+  const price = formatCoin(offer.cp);
+  persist(result.service
+    ? `Paid ${name} at ${counter.name}. ${price}.`
+    : `Bought ${name} for ${price}.`);
   renderCharacter();
   renderGear();
 }

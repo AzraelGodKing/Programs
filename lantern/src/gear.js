@@ -29,6 +29,14 @@ export const GEAR = [
   { id: "thieves-tools", name: "Thieves' tools", cp: 2500 },
   { id: "healers-kit", name: "Healer's kit", cp: 500 },
   { id: "spellbook", name: "Spellbook", cp: 5000 },
+  { id: "book", name: "Book", cp: 2500 },
+  { id: "ink", name: "Ink (1 ounce)", cp: 1000 },
+  { id: "paper", name: "Paper (one sheet)", cp: 20 },
+  { id: "parchment", name: "Parchment (one sheet)", cp: 10 },
+  { id: "antitoxin", name: "Antitoxin", cp: 5000 },
+  { id: "acid", name: "Acid (vial)", cp: 2500 },
+  { id: "alchemists-fire", name: "Alchemist's fire", cp: 5000 },
+  { id: "holy-water", name: "Holy water", cp: 2500 },
   { id: "lute", name: "Lute", cp: 3500 },
   { id: "explorers-pack", name: "Explorer's pack", cp: 1000 },
   { id: "dungeoneers-pack", name: "Dungeoneer's pack", cp: 1200 },
@@ -78,10 +86,114 @@ const STARTING_CP = {
   custom: 5000,
 };
 
+const SERVICES = [
+  { id: "upgrade-plus-1", name: "Bring a weapon or armor from +0 to +1", cp: 50000, service: true },
+  { id: "ale-mug", name: "Ale, mug", cp: 4, service: true },
+  { id: "meal-modest", name: "Meal, modest", cp: 30, service: true },
+  { id: "room-modest", name: "Room for the night, modest", cp: 50, service: true },
+  { id: "wine-fine", name: "Wine, fine (bottle)", cp: 1000, service: true },
+];
+
+const SMITH = [
+  "dagger", "handaxe", "javelin", "mace", "quarterstaff", "spear",
+  "shortsword", "scimitar", "longsword", "rapier", "greataxe",
+  "shortbow", "longbow", "light-crossbow", "dart", "shield",
+  "leather", "scale-mail", "chain-shirt", "chain-mail", "arrows", "bolts",
+  "upgrade-plus-1",
+];
+
+export const STALLS = [
+  {
+    id: "market",
+    name: "Market",
+    hint: "The general counter: rope, rations, weapons, and the rest.",
+    goods: [
+      "dagger", "handaxe", "javelin", "mace", "quarterstaff", "spear",
+      "shortsword", "scimitar", "longsword", "rapier", "greataxe",
+      "shortbow", "longbow", "light-crossbow", "dart", "shield",
+      "leather", "scale-mail", "chain-shirt", "chain-mail",
+      "holy-symbol", "arcane-focus", "druidic-focus", "component-pouch",
+      "thieves-tools", "healers-kit", "spellbook", "lute",
+      "explorers-pack", "dungeoneers-pack", "scholars-pack", "priests-pack",
+      "burglars-pack", "diplomats-pack", "entertainers-pack",
+      "clothes", "rope", "torch", "rations", "potion-healing", "arrows", "bolts",
+    ],
+  },
+  {
+    id: "apothecary",
+    name: "Apothecary",
+    hint: "Vials and kits. A potions counter does not sell swords.",
+    goods: ["potion-healing", "antitoxin", "acid", "alchemists-fire", "holy-water", "healers-kit"],
+  },
+  {
+    id: "smith",
+    name: "Smith",
+    hint: "Blades, armor, and a +1 from this forge. The price is what this smith charges.",
+    goods: SMITH,
+  },
+  {
+    id: "scribe",
+    name: "Scribe",
+    hint: "Spellbooks, ink, and paper.",
+    goods: ["spellbook", "book", "ink", "paper", "parchment", "component-pouch"],
+  },
+  {
+    id: "tavern",
+    name: "Tavern",
+    hint: "A tab at the bar, or a room for the night. Paying does not put the room in the pack.",
+    goods: ["ale-mug", "meal-modest", "room-modest", "wine-fine"],
+  },
+];
+
 const GEAR_IDS = new Set(GEAR.map((item) => item.id));
+const SERVICE_IDS = new Set(SERVICES.map((item) => item.id));
 
 export function findGear(id) {
   return GEAR.find((item) => item.id === id) || null;
+}
+
+export function findService(id) {
+  return SERVICES.find((item) => item.id === id) || null;
+}
+
+export function findOffer(id) {
+  return findGear(id) || findService(id);
+}
+
+export function stallById(id) {
+  return STALLS.find((stall) => stall.id === id) || null;
+}
+
+export function counterFor(stallId) {
+  const stall = stallById(stallId) || STALLS[0];
+  return {
+    stall: stall.id,
+    name: stall.name,
+    goods: stall.goods.map((id) => {
+      const offer = findOffer(id);
+      return {
+        id: offer.id,
+        name: offer.name,
+        cp: offer.cp,
+        service: offer.service === true,
+      };
+    }),
+  };
+}
+
+export function parseCoin(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return null;
+  if (/^\d{1,7}$/.test(raw)) return Math.min(10_000_000, Number(raw) * 100);
+  let total = 0;
+  let any = false;
+  for (const match of raw.matchAll(/(\d+)\s*(gp|sp|cp)/g)) {
+    any = true;
+    const count = Number(match[1]);
+    total += match[2] === "gp" ? count * 100 : match[2] === "sp" ? count * 10 : count;
+  }
+  if (!any) return null;
+  return Math.min(10_000_000, total);
 }
 
 export function formatCoin(cp) {
@@ -178,14 +290,32 @@ export function claimItem(character, id) {
 export function buyItem(character, id) {
   const gear = findGear(id);
   if (!gear) return { ok: false, reason: "That is not in the shop." };
+  return payCounter(character, { id: gear.id, name: gear.name, cp: gear.cp, service: false });
+}
+
+export function payCounter(character, offer) {
+  if (!offer || typeof offer.id !== "string") return { ok: false, reason: "That is not on the counter." };
+  const cp = offer.cp;
+  if (!Number.isInteger(cp) || cp < 0) return { ok: false, reason: "That price is not a price." };
   const purse = character.purse ?? 0;
-  if (purse < gear.cp) return { ok: false, reason: "Not enough coin." };
+  if (purse < cp) return { ok: false, reason: "Not enough coin." };
+  const service = offer.service === true || SERVICE_IDS.has(offer.id);
+  if (service) {
+    return {
+      ok: true,
+      service: true,
+      character: { ...character, purse: purse - cp },
+    };
+  }
+  const gear = findGear(offer.id);
+  if (!gear) return { ok: false, reason: "That is not on the counter." };
   return {
     ok: true,
+    service: false,
     character: {
       ...character,
-      purse: purse - gear.cp,
-      items: addPiece(character.items || [], id, 1),
+      purse: purse - cp,
+      items: addPiece(character.items || [], gear.id, 1),
     },
   };
 }
