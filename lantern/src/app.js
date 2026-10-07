@@ -1409,6 +1409,8 @@ function strike(form) {
   showError("light", "");
   persist(`Lit ${spoken(spec.label)}.`);
   renderFlames();
+  const add = form.closest("details");
+  if (add) add.open = false;
 }
 
 function toggleHood(id) {
