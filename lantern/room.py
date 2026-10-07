@@ -55,11 +55,14 @@ class Table:
                 for message in room.get("messages", [])
                 if message_visible(message, who)
             ]
+            shop = room.get("shop", True)
+            buybacks = [dict(line) for line in room.get("buybacks", [])] if shop_is_open(shop) else []
             return {
                 "code": code,
                 "events": events,
                 "players": players,
-                "shop": room.get("shop", True),
+                "shop": shop,
+                "buybacks": buybacks,
                 "messages": messages,
             }
 
@@ -105,7 +108,37 @@ class Table:
             if room is None:
                 return None
             room["shop"] = shop
+            if not shop_is_open(shop):
+                room["buybacks"] = []
             return shop
+
+    def trade_buyback(self, code, payload):
+        name, action, item_id, price = clean_buyback(payload)
+        with self._lock:
+            room = self._rooms.get(code)
+            if room is None:
+                return None
+            if not shop_is_open(room.get("shop", True)):
+                raise TableError("The shop is closed.")
+            lines = room.setdefault("buybacks", [])
+            found = next((
+                line for line in lines
+                if line["seller"] == name and line["id"] == item_id and line["cp"] == price
+            ), None)
+            if action == "sell":
+                if found:
+                    found["qty"] = min(99, found["qty"] + 1)
+                elif len(lines) >= 60:
+                    raise TableError("The counter is holding too much.")
+                else:
+                    lines.append({"id": item_id, "seller": name, "cp": price, "qty": 1})
+            else:
+                if not found or found["qty"] < 1:
+                    raise TableError("That is no longer held for buy back.")
+                found["qty"] -= 1
+                if found["qty"] <= 0:
+                    lines.remove(found)
+            return [dict(line) for line in lines]
 
     def talk(self, code, payload):
         if not isinstance(payload, dict):
@@ -138,6 +171,28 @@ class Table:
             if code not in self._rooms:
                 return code
         raise TableError("Could not open a table.")
+
+
+def shop_is_open(shop):
+    if isinstance(shop, dict):
+        return shop.get("open") is not False
+    return shop is not False
+
+
+def clean_buyback(payload):
+    if not isinstance(payload, dict):
+        raise TableError("Expected an object.")
+    name = clean_name(payload.get("name"))
+    action = payload.get("action")
+    if action not in ("sell", "buy"):
+        raise TableError("Say whether this is a sale or a buy back.")
+    item_id = payload.get("id")
+    if not isinstance(item_id, str) or re.fullmatch(r"[a-z0-9-]{1,40}", item_id) is None:
+        raise TableError("That is not on the counter.")
+    price = payload.get("cp")
+    if isinstance(price, bool) or not isinstance(price, int) or price < 0 or price > 10_000_000:
+        raise TableError("That price is not a price.")
+    return name, action, item_id, price
 
 
 def clean_shop(payload):

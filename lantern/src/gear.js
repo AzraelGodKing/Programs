@@ -320,6 +320,27 @@ export function payCounter(character, offer) {
   };
 }
 
+export function buyBackItem(character, offer) {
+  if (!offer || typeof offer.id !== "string") return { ok: false, reason: "That is no longer held for buy back." };
+  if (offer.service === true || SERVICE_IDS.has(offer.id)) {
+    return { ok: false, reason: "A service is not something you can buy back." };
+  }
+  const gear = findGear(offer.id);
+  if (!gear) return { ok: false, reason: "That is no longer held for buy back." };
+  const cp = offer.cp;
+  if (!Number.isInteger(cp) || cp < 0) return { ok: false, reason: "That price is not a price." };
+  const purse = character.purse ?? 0;
+  if (purse < cp) return { ok: false, reason: "Not enough coin." };
+  return {
+    ok: true,
+    character: {
+      ...character,
+      purse: purse - cp,
+      items: addPiece(character.items || [], gear.id, 1),
+    },
+  };
+}
+
 export function sellPrice(cp) {
   if (!Number.isInteger(cp) || cp < 0) return null;
   return Math.floor(cp / 2);

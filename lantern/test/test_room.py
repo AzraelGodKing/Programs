@@ -119,6 +119,36 @@ class TalkTests(unittest.TestCase):
         self.assertIs(closed["open"], False)
         self.assertEqual(table.view(code)["shop"]["goods"][0]["cp"], 4000)
 
+    def test_a_sale_can_be_bought_back_until_the_dm_closes(self):
+        table = Table()
+        code = table.create()
+        table.set_shop(code, {
+            "open": True,
+            "name": "Smith",
+            "stall": "smith",
+            "goods": [{"id": "longsword", "name": "Longsword", "cp": 1500, "service": False}],
+        })
+        held = table.trade_buyback(code, {"name": "Mara", "action": "sell", "id": "longsword", "cp": 750})
+        held = table.trade_buyback(code, {"name": "Mara", "action": "sell", "id": "longsword", "cp": 750})
+        self.assertEqual(held, [{"id": "longsword", "seller": "Mara", "cp": 750, "qty": 2}])
+        with self.assertRaises(TableError):
+            table.trade_buyback(code, {"name": "Ivo", "action": "buy", "id": "longsword", "cp": 750})
+        table.set_shop(code, {
+            "open": True,
+            "name": "Tavern",
+            "stall": "tavern",
+            "goods": [],
+        })
+        self.assertEqual(table.view(code)["buybacks"][0]["qty"], 2)
+        bought = table.trade_buyback(code, {"name": "Mara", "action": "buy", "id": "longsword", "cp": 750})
+        self.assertEqual(bought[0]["qty"], 1)
+        table.set_shop(code, {"open": False, "name": "Tavern", "stall": "tavern", "goods": []})
+        self.assertEqual(table.view(code)["buybacks"], [])
+        with self.assertRaises(TableError):
+            table.trade_buyback(code, {"name": "Mara", "action": "buy", "id": "longsword", "cp": 750})
+        table.set_shop(code, {"open": True, "name": "Smith", "stall": "smith", "goods": []})
+        self.assertEqual(table.view(code)["buybacks"], [])
+
 
 class ServerTests(unittest.TestCase):
     def test_http_round_trip(self):

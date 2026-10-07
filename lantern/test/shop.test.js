@@ -4,6 +4,7 @@ import { blankCharacter } from "../src/character.js";
 import {
   counterFor,
   parseCoin,
+  buyBackItem,
   payCounter,
   sellOffers,
   sellToCounter,
@@ -74,4 +75,22 @@ test("a stall buys its own goods at half price and leaves the rest", () => {
   assert.equal(sellToCounter(vials.character, upgrade).ok, false);
   assert.equal(sellOffers(counterFor("tavern").goods, vials.character.items).length, 0);
   assert.equal(sellToCounter(vials.character, { id: "rope", name: "Rope", cp: 100, service: false }).ok, false);
+});
+
+test("buying back costs the coin the sale paid", () => {
+  const sheet = {
+    ...blankCharacter(),
+    touched: true,
+    purse: 1000,
+    items: [{ id: "longsword", name: "Longsword", qty: 1 }],
+  };
+  const sold = sellToCounter(sheet, { id: "longsword", cp: 1500, service: false });
+  assert.equal(sold.gained, 750);
+  assert.equal(sold.character.purse, 1750);
+  const back = buyBackItem(sold.character, { id: "longsword", cp: sold.gained });
+  assert.equal(back.ok, true);
+  assert.equal(back.character.purse, 1000);
+  assert.equal(back.character.items[0].qty, 1);
+  assert.equal(buyBackItem(sold.character, { id: "upgrade-plus-1", cp: 750 }).ok, false);
+  assert.equal(buyBackItem({ ...sold.character, purse: 100 }, { id: "longsword", cp: 750 }).ok, false);
 });
