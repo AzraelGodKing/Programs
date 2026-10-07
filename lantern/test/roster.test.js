@@ -10,6 +10,7 @@ import {
   markDead,
   normalizeRoster,
   writeSheet,
+  readCharacterFile,
 } from "../src/roster.js";
 
 const mara = { name: "Mara Vale", touched: true, raceId: "human", classId: "fighter" };
@@ -67,4 +68,14 @@ test("a bad roster drops unknown codes and duplicate ids", () => {
   assert.deepEqual(Object.keys(roster.tables), ["AB12"]);
   assert.equal(roster.tables.AB12.length, 1);
   assert.equal(roster.active.AB12, "hero-1");
+});
+
+test("a character file reads back into a sheet, and other files are refused", () => {
+  const made = addCharacter({}, "AB12", { name: "Bram", touched: true });
+  const file = JSON.parse(JSON.stringify(exportCharacter(made.entry)));
+  const back = readCharacterFile(file);
+  assert.equal(back.sheet.name, "Bram");
+  assert.equal(back.dead, false);
+  assert.throws(() => readCharacterFile({ lantern: 1, kind: "night" }), /not a Lantern character/);
+  assert.throws(() => readCharacterFile([]), /not a Lantern character/);
 });
