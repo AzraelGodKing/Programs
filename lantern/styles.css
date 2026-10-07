@@ -5,7 +5,7 @@
   --line: #43382d;
   --cream: #f4e7d2;
   --muted: #cbbba6;
-  --faint: #8d7d6b;
+  --faint: #a8977f;
   --ember: #e07a3d;
   --ember-ink: #2a140c;
   --gold: #e6c27a;
@@ -582,7 +582,7 @@ body.dm-page {
   --line: #3d4e60;
   --cream: #e7eef6;
   --muted: #b7c6d6;
-  --faint: #8ea0b3;
+  --faint: #a3b3c4;
   min-height: 100vh;
   background:
     radial-gradient(ellipse at 88% -8%, rgba(155, 176, 199, 0.2), transparent 46%),
@@ -1343,9 +1343,12 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 
 footer {
   padding: 0 0 2rem;
-  color: var(--faint);
-  font-size: 0.85rem;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
+
+/* Placeholders read as examples, but stay legible in a dim room. */
+::placeholder { color: var(--faint); opacity: 1; font-style: italic; }
 
 .noscript {
   width: min(980px, calc(100% - 1.5rem));
