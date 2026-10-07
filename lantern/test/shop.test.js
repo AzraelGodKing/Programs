@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { blankCharacter } from "../src/character.js";
+import { blankCharacter, cleanCharacter } from "../src/character.js";
 import {
+  claimItem,
   counterFor,
+  equipNewCharacter,
   parseCoin,
   payCounter,
   sellOffers,
   sellToCounter,
   stallById,
+  unclaimed,
 } from "../src/gear.js";
 
 test("an apothecary has vials and no blades", () => {
@@ -74,4 +77,22 @@ test("a stall buys its own goods at half price and leaves the rest", () => {
   assert.equal(sellToCounter(vials.character, upgrade).ok, false);
   assert.equal(sellOffers(counterFor("tavern").goods, vials.character.items).length, 0);
   assert.equal(sellToCounter(vials.character, { id: "rope", name: "Rope", cp: 100, service: false }).ok, false);
+});
+
+test("selling a starting sword does not put it back on the claim list", () => {
+  const fighter = equipNewCharacter({ ...blankCharacter(), classId: "fighter", touched: true });
+  const sold = sellToCounter(fighter, { id: "longsword", name: "Longsword", cp: 1500, service: false });
+  assert.equal(sold.ok, true);
+  assert.equal(unclaimed(sold.character).some((item) => item.id === "longsword"), false);
+  assert.equal(claimItem(sold.character, "longsword").ok, false);
+  const old = cleanCharacter({
+    touched: true,
+    classId: "fighter",
+    purse: 12500,
+    items: [{ id: "longsword", qty: 1 }],
+  });
+  assert.ok(old.kitClaimed.includes("longsword"));
+  assert.equal(old.kitClaimed.includes("shield"), false);
+  const again = sellToCounter(old, { id: "longsword", cp: 1500, service: false });
+  assert.equal(unclaimed(again.character).some((item) => item.id === "longsword"), false);
 });
