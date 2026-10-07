@@ -1,0 +1,54 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "lantern",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "account_id": "d05dae265db549002979eca48fd26156",
+  "workers_dev": true,
+  "preview_urls": true,
+  "routes": [
+    {
+      "pattern": "lantern.azraelsmods.com",
+      "custom_domain": true,
+      "previews_enabled": false
+    }
+  ],
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TABLE",
+        "class_name": "Table"
+      }
+    ]
+  },
+  // Tag v1 already created the SQLite namespace lantern_Table
+  // (462e6d6089cc4789b5b8969261b4de78). Do not replace this tag
+  // with one that deletes Table. That would drop tables in progress.
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Table"]
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": false,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
+  }
+}

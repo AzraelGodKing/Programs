@@ -17,6 +17,8 @@ Open http://localhost:5173 and choose a side.
 
 The player seat is http://localhost:5173/player.html. The DM screen is http://localhost:5173/dm.html. Open a table, share the four-character code, and each player joins with their name. The code is the only key. Anyone who has it can post, and the DM sees every seat: the character and what they carry, rolls and what they were for, the order, hit points, lights, and scratch notes. The party sits in a row, with passive Perception and Insight, armor class, conditions, and the light closest to going out. The newest call stays on screen, and the log can be narrowed to rolls. Notes typed on the DM screen stay in that browser. Prompts and the encounter budget are drawn on the DM screen, and the budget can use the levels of the heroes who sat down. Solo play still works with the name and code left blank. The shared table lives in the memory of that server, so restarting it starts a new night.
 
+A merge to main runs the Buildkite pipeline `lantern`. That pipeline tests this repository, then deploys the Worker and these pages to https://lantern.azraelsmods.com. The deploy agent needs `CLOUDFLARE_API_TOKEN`.
+
 ## What is on the table
 
 - **Dice.** The usual set, with advantage and disadvantage on the d20. Say what the roll is for. A natural 20 or 1 is marked from the die that counts. The last dozen rolls stay visible.
