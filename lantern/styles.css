@@ -685,6 +685,15 @@ body.dm-page textarea {
 
 .dm-command { justify-content: space-between; align-items: end; }
 
+/* Once someone sits down, the code shrinks to a line so the table gets the room. */
+.dm-command.is-compact { align-items: center; }
+.dm-command.is-compact .room-code { font-size: 1.7rem; letter-spacing: 0.1em; display: inline-block; margin-right: 0.6rem; }
+.dm-command.is-compact > div:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
+.dm-command.is-compact > div:first-child > .hint,
+.dm-command.is-compact .dm-command-side > .hint:last-child { display: none; }
+.dm-command.is-compact .dm-actions .btn { padding: 0.3rem 0.75rem; font-size: 0.92rem; }
+.dm-command.is-compact .dm-command-side { flex-direction: row; flex-wrap: wrap; gap: 0.2rem 0.9rem; }
+
 .dm-command-side { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
 
 .player-link { color: var(--ash); word-break: break-all; }
