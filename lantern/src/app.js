@@ -69,6 +69,7 @@ import {
 import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
 import { DM_NAME, fetchRoom, loadSeat, normalizeCode, postBuyback, postTalk, pushTable, rollSummary, saveSeat } from "./table.js";
 import { paintTalk, paintTargets } from "./talk.js";
+import { bootTextSize } from "./textsize.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -2651,6 +2652,7 @@ function onKey(event) {
 }
 
 function boot() {
+  bootTextSize(document.getElementById("text-size"));
   bootSeat();
   resumeRoster();
   fillSelects();
