@@ -285,7 +285,7 @@ function joinSeat(form) {
   document.body.classList.remove("seat-editing");
   seatError = "";
   paintSeatStatus();
-  persist(`${name} joined the table.`);
+  persist("Joined the table.");
   openTableGate();
 }
 
@@ -365,10 +365,10 @@ function paintGate() {
   if (gateMode === "create") {
     title.textContent = "Create a character";
     lede.textContent = "Six steps. Jump back whenever you want, then sit down.";
-    actions.replaceChildren(
+    actions.replaceChildren(...present([
       h("button", { type: "button", class: "btn primary", "data-action": "save-character" }, "Save this character"),
       list.length ? h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back") : null,
-    );
+    ]));
     mount.replaceChildren();
     paintCreator();
     return;
@@ -578,7 +578,7 @@ function saveNewCharacter() {
   setGateStatus("");
   showPlay();
   renderCharacter();
-  persist(`${name} sits down.`);
+  persist(`Sits down as ${name}.`);
 }
 
 function loadCharacter(id) {
@@ -593,7 +593,7 @@ function loadCharacter(id) {
   subclassKey = "";
   showPlay();
   renderCharacter();
-  persist(`${entry.sheet.name || "A character"} sits down.`);
+  persist(`Sits down as ${entry.sheet.name || "an unnamed hero"}.`);
 }
 
 function viewCharacter(id) {
