@@ -148,6 +148,7 @@ class Table:
         target = clean_target(payload.get("to"))
         if target == name:
             raise TableError("Whisper someone else.")
+        ask = clean_ask(payload.get("ask"), name)
         with self._lock:
             room = self._rooms.get(code)
             if room is None:
@@ -160,6 +161,8 @@ class Table:
                 "to": target,
                 "text": text,
             }
+            if ask:
+                message["ask"] = ask
             messages.append(message)
             if len(messages) > MESSAGE_CAP:
                 room["messages"] = messages[-MESSAGE_CAP:]
@@ -277,6 +280,17 @@ def clean_target(value):
         raise TableError("Whisper a name, or leave it open to the table.")
     target = " ".join(value.split())[:NAME_LENGTH]
     return target
+
+
+def clean_ask(value, name):
+    """A roll the DM asks for, like "Perception". Only the DM can ask."""
+    if value is None or value == "":
+        return ""
+    if not isinstance(value, str):
+        raise TableError("Ask for a roll by name.")
+    if name != DM_NAME:
+        raise TableError("Only the DM asks for rolls.")
+    return " ".join(value.split())[:INTENT_LENGTH]
 
 
 def clean_name(value):

@@ -71,6 +71,13 @@
   </section>
 
   <div class="sticky-tools" role="region" aria-label="Tools and lights">
+    <div id="ask-banner" class="ask-banner" hidden role="alert">
+      <p id="ask-text"></p>
+      <div class="ask-actions">
+        <button type="button" class="btn primary" data-action="answer-ask">Roll it</button>
+        <button type="button" class="text-btn" data-action="skip-ask">Not now</button>
+      </div>
+    </div>
     <nav class="tabs" role="tablist" aria-label="Tools">
       <button type="button" role="tab" id="tab-dice" data-action="tab" data-tab="dice" aria-controls="panel-dice" aria-selected="true">Dice</button>
       <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-controls="panel-order" aria-selected="false" tabindex="-1">Order</button>
