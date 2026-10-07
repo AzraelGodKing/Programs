@@ -95,6 +95,30 @@ class TalkTests(unittest.TestCase):
         with self.assertRaises(TableError):
             table.talk(code, {"name": "Mara", "text": "Hello", "to": "Mara"})
 
+    def test_a_stall_keeps_only_the_lines_on_the_counter(self):
+        table = Table()
+        code = table.create()
+        self.assertIs(table.view(code)["shop"], True)
+        shop = table.set_shop(code, {
+            "open": True,
+            "stall": "apothecary",
+            "name": "  Vials  ",
+            "goods": [
+                {"id": "potion-healing", "name": "Potion of healing", "cp": 4000, "service": False},
+                {"id": "upgrade-plus-1", "name": "Bring a weapon or armor from +0 to +1", "cp": 50000, "service": True},
+                {"id": "nope", "name": "", "cp": 1},
+                {"id": "Longsword", "name": "Longsword", "cp": 1500},
+            ],
+        })
+        self.assertEqual(shop["name"], "Vials")
+        self.assertEqual(shop["stall"], "apothecary")
+        self.assertEqual([item["id"] for item in shop["goods"]], ["potion-healing", "upgrade-plus-1"])
+        self.assertIs(shop["goods"][1]["service"], True)
+        self.assertEqual(table.view(code)["shop"]["name"], "Vials")
+        closed = table.set_shop(code, {"open": False, "name": "Vials", "stall": "apothecary", "goods": shop["goods"]})
+        self.assertIs(closed["open"], False)
+        self.assertEqual(table.view(code)["shop"]["goods"][0]["cp"], 4000)
+
 
 class ServerTests(unittest.TestCase):
     def test_http_round_trip(self):

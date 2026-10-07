@@ -45,8 +45,7 @@ class Handler(SimpleHTTPRequestHandler):
             code = path.removeprefix("/api/rooms/").removesuffix("/shop").strip("/")
             try:
                 payload = self.read_json()
-                open_ = payload.get("open")
-                updated = TABLE.set_shop(code, open_)
+                updated = TABLE.set_shop(code, payload)
             except TableError as error:
                 self.send_json(400, {"error": str(error)})
                 return
@@ -56,7 +55,7 @@ class Handler(SimpleHTTPRequestHandler):
             if updated is None:
                 self.send_json(404, {"error": "No table with that code."})
                 return
-            self.send_json(200, {"ok": True, "shop": open_ is True})
+            self.send_json(200, {"ok": True, "shop": updated})
             return
         if path.startswith("/api/rooms/") and path.endswith("/talk"):
             code = path.removeprefix("/api/rooms/").removesuffix("/talk").strip("/")
@@ -89,7 +88,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_json(404, {"error": "No table with that code."})
                 return
             view = TABLE.view(code)
-            self.send_json(200, {"ok": True, "shop": bool(view and view["shop"])})
+            self.send_json(200, {"ok": True, "shop": view["shop"] if view else False})
             return
         self.send_json(404, {"error": "Not found."})
 

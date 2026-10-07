@@ -59,15 +59,33 @@
         </div>
         <div class="dm-command-side">
           <p id="dm-count" class="hint"></p>
-          <label class="shop-switch">
-            <input id="dm-shop" type="checkbox" checked>
-            Shop popup
-          </label>
-          <p class="hint">On, a player can open the shop. Off, that popup closes.</p>
+          <p id="shop-live" class="hint">Players see the market.</p>
           <p id="dm-status" class="hint" role="status"></p>
           <p class="hint">C copies the code. [ and ] move between seats.</p>
         </div>
       </div>
+
+      <section id="dm-shop-panel" class="dm-shop">
+        <div class="shop-head">
+          <h2>Shop</h2>
+          <label class="shop-switch">
+            <input id="dm-shop" type="checkbox" checked>
+            Open
+          </label>
+          <button type="button" class="btn primary" id="shop-open">Open this shop</button>
+        </div>
+        <p id="shop-hint" class="hint"></p>
+        <div class="shop-fields">
+          <label>Stall
+            <select id="shop-stall" aria-label="Stall"></select>
+          </label>
+          <label>Sign
+            <input id="shop-name" maxlength="40" spellcheck="false" aria-label="Shop sign">
+          </label>
+        </div>
+        <p class="hint">Uncheck a line to take it off this counter. A bare number in the price is gold.</p>
+        <div id="shop-goods" class="shop-goods"></div>
+      </section>
 
       <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
       <div id="party-strip" class="party-strip" aria-label="The party"></div>
