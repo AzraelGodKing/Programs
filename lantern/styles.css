@@ -245,7 +245,17 @@ button { cursor: pointer; }
   border-bottom-color: var(--ember);
 }
 
-.wick { padding: 0.7rem 0 0.8rem; display: grid; gap: 0.45rem; }
+.wick { padding: 0.35rem 0 0.45rem; display: grid; gap: 0.35rem; }
+
+.wick-add summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.88rem;
+  padding: 0.15rem 0;
+}
+
+.wick-add[open] summary { margin-bottom: 0.4rem; }
 
 .wick-form, .form, .dice-setup, .seat-form, .turn-actions, .spark-actions, .card-head, .history-head, .list-head {
   display: flex;

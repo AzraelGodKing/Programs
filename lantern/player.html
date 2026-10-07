@@ -81,13 +81,16 @@
     <section class="wick" aria-label="Light sources">
       <p id="flame-live" class="sr-only" aria-live="polite"></p>
       <div id="flames" class="flames"></div>
-      <form id="light-form" data-form="light" class="wick-form" autocomplete="off">
-        <label>Light
-          <select name="kind" aria-label="Light source"></select>
-        </label>
-        <button type="submit" class="btn">Strike</button>
-      </form>
-      <p class="form-error" data-error-for="light"></p>
+      <details class="wick-add">
+        <summary>Light a flame</summary>
+        <form id="light-form" data-form="light" class="wick-form" autocomplete="off">
+          <label>Light
+            <select name="kind" aria-label="Light source"></select>
+          </label>
+          <button type="submit" class="btn">Strike</button>
+        </form>
+        <p class="form-error" data-error-for="light"></p>
+      </details>
     </section>
   </div>
 
