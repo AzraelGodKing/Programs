@@ -28,10 +28,10 @@
     <div class="head-actions">
       <button type="button" class="text-btn" id="open-roster" data-action="open-roster" hidden>Characters</button>
       <a class="text-btn" href="/">Change seat</a>
-      <button type="button" class="text-btn" data-action="reset">Clear this browser</button>
     </div>
   </header>
 
+  <div class="seat-wrap">
   <section class="seat">
     <form id="seat-form" class="seat-form" autocomplete="off">
       <label>Your name
@@ -42,18 +42,23 @@
       </label>
       <button class="btn" type="submit">Join</button>
     </form>
-    <p id="seat-status" class="hint" role="status"></p>
+    <div class="seat-line">
+      <p id="seat-status" class="hint" role="status"></p>
+      <button type="button" class="text-btn" id="edit-seat" data-action="edit-seat" hidden>Change table</button>
+    </div>
   </section>
 
   <section class="save-bar" aria-label="Saved night">
-    <p class="hint">This browser holds the game, including the characters at each table. Clearing Lantern's stored data here, or in the browser, deletes it. A saved copy is a file you keep.</p>
+    <p class="hint save-explain">This browser holds the game, including the characters at each table. Clearing Lantern's stored data here, or in the browser, deletes it. A saved copy is a file you keep.</p>
     <div class="save-actions">
       <button type="button" class="btn" data-action="export-night">Save a copy</button>
       <button type="button" class="btn" data-action="import-night">Restore</button>
       <input id="import-file" type="file" accept="application/json,.json" hidden aria-label="Lantern save file">
+      <button type="button" class="text-btn danger" data-action="reset">Clear this browser</button>
     </div>
     <p id="save-status" class="hint" role="status"></p>
   </section>
+  </div>
 
   <section id="character-gate" class="character-gate" hidden>
     <h2 id="character-gate-title">Who sits down?</h2>
