@@ -5,9 +5,13 @@
   "description": "A shelf for small, finished programs.",
   "scripts": {
     "start": "python3 lantern/server.py",
-    "test": "node --test && python3 -m unittest discover -s lantern/test -p 'test_*.py'"
+    "test": "node --test && python3 -m unittest discover -s lantern/test -p 'test_*.py'",
+    "deploy": "wrangler deploy --config lantern/wrangler.jsonc"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "wrangler": "^4.148.0"
   }
 }
