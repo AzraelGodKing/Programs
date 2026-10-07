@@ -903,6 +903,11 @@ function boot() {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const tag = event.target?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || event.target?.isContentEditable) return;
+    if (event.key === "?") {
+      event.preventDefault();
+      document.getElementById("keys-dialog")?.showModal();
+      return;
+    }
     if (!code) return;
     if (event.key === "c" || event.key === "C") {
       event.preventDefault();
@@ -910,6 +915,8 @@ function boot() {
     } else if (event.key === "[") cycleSeat(-1);
     else if (event.key === "]") cycleSeat(1);
   });
+  document.getElementById("open-keys")?.addEventListener("click", () => document.getElementById("keys-dialog").showModal());
+  document.getElementById("close-keys")?.addEventListener("click", () => document.getElementById("keys-dialog").close());
   const initial = normalizeCode(new URLSearchParams(location.search).get("room"));
   if (initial.length === 4) showTable(initial);
   bootTools();

@@ -26,7 +26,10 @@
           <p class="role-chip">Dungeon Master</p>
         </div>
       </div>
-      <a class="text-btn" href="/">Change seat</a>
+      <div class="head-actions">
+        <button type="button" class="text-btn" id="open-keys" aria-keyshortcuts="?">Keys</button>
+        <a class="text-btn" href="/">Change seat</a>
+      </div>
     </header>
 
     <section id="gate" class="gate">
@@ -163,6 +166,17 @@
       </details>
     </main>
   </div>
+  <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
+    <h2 id="keys-title">Keys</h2>
+    <p class="lede">These work while you are not typing in a box.</p>
+    <dl class="keys-list">
+      <dt><kbd>C</kbd></dt><dd>Copy the table code</dd>
+      <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous or next seat</dd>
+      <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
+    </dl>
+    <button type="button" class="btn" id="close-keys">Close</button>
+  </dialog>
   <script type="module" src="src/dm.js"></script>
 </body>
 </html>
