@@ -68,7 +68,7 @@ import {
 } from "./roster.js";
 import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
 import { DM_NAME, fetchRoom, loadSeat, normalizeCode, postBuyback, postTalk, pushTable, rollSummary, saveSeat } from "./table.js";
-import { paintTalk, paintTargets } from "./talk.js";
+import { paintHere, paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 
 const WORDS = {
@@ -1777,6 +1777,7 @@ async function watchShop() {
   const seat = loadSeat();
   if (!seat.name || !seat.room) {
     applyShop(true, []);
+    paintHere(document.getElementById("table-here"), [], "");
     return;
   }
   let room;
@@ -1788,6 +1789,7 @@ async function watchShop() {
   if (!room) return;
   applyShop(room.shop, room.buybacks);
   paintTalk(document.getElementById("talk-log"), room.messages || []);
+  paintHere(document.getElementById("table-here"), room.players || [], seat.name);
   paintTargets(
     document.getElementById("talk-to"),
     (room.players || []).map((player) => player.name),

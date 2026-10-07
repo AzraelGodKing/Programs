@@ -467,6 +467,20 @@ body.creating #panel-character > [data-step].is-on.form {
   border-left: 2px solid var(--ember, #c4552a);
 }
 
+.here-list { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-top: 0.5rem; }
+
+.here-label { color: var(--muted); font-size: 0.85rem; margin-right: 0.2rem; }
+
+.here-chip {
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--moss);
+  color: var(--cream);
+  font-size: 0.85rem;
+}
+
+.here-chip.is-away { border-color: var(--line); color: var(--faint); }
+
 .talk-form {
   display: grid;
   gap: 0.55rem;

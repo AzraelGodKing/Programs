@@ -55,3 +55,25 @@ export function paintTargets(select, names, selfName) {
   }));
   if ([...select.options].some((option) => option.value === current)) select.value = current;
 }
+
+const AWAY_MS = 20000;
+
+export function paintHere(node, players, selfName, now = Date.now()) {
+  if (!node) return;
+  const list = (Array.isArray(players) ? players : []).filter((player) => player && player.name);
+  if (!list.length) {
+    node.replaceChildren();
+    return;
+  }
+  const chips = list.map((player) => {
+    const away = !(now - player.seen <= AWAY_MS);
+    const chip = document.createElement("span");
+    chip.className = away ? "here-chip is-away" : "here-chip";
+    chip.textContent = `${player.name}${player.name === selfName ? " (you)" : ""} · ${away ? "away" : "here"}`;
+    return chip;
+  });
+  const label = document.createElement("span");
+  label.className = "here-label";
+  label.textContent = "At the table";
+  node.replaceChildren(label, ...chips);
+}
