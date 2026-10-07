@@ -3,11 +3,9 @@ import test from "node:test";
 import { blankCharacter, cleanCharacter } from "../src/character.js";
 import {
   buyItem,
-  claimItem,
   equipNewCharacter,
   formatCoin,
   startingPurse,
-  unclaimed,
   useItem,
 } from "../src/gear.js";
 
@@ -41,24 +39,22 @@ test("buying subtracts the price and refuses a short purse", () => {
   assert.equal(again.character.purse, 1050);
 });
 
-test("starting gear can be claimed once, and a use spends a consumable", () => {
-  const bare = { ...blankCharacter(), classId: "wizard", touched: true, purse: 0, items: [] };
-  assert.ok(unclaimed(bare).some((item) => item.id === "spellbook"));
-  const claimed = claimItem(bare, "spellbook");
-  assert.equal(claimed.ok, true);
-  assert.equal(claimed.character.purse, 0);
-  assert.equal(claimItem(claimed.character, "spellbook").ok, false);
-  const packed = buyItem(claimed.character, "torch");
-  assert.equal(packed.ok, false);
-  const withCoin = { ...claimed.character, purse: 5 };
+test("a short purse cannot buy, and a use spends a consumable", () => {
+  const wizard = equipNewCharacter({ ...blankCharacter(), classId: "wizard", touched: true });
+  assert.ok(wizard.items.some((item) => item.id === "spellbook"));
+  const broke = { ...wizard, purse: 0 };
+  assert.equal(buyItem(broke, "torch").ok, false);
+  const withCoin = { ...broke, purse: 5 };
   const torches = buyItem(withCoin, "torch");
   assert.equal(torches.character.purse, 4);
   const used = useItem(torches.character, "torch");
   assert.equal(used.spent, true);
   assert.equal(used.left, 0);
   assert.equal(used.character.items.some((item) => item.id === "torch"), false);
-  const staff = useItem(claimed.character, "quarterstaff");
-  assert.equal(staff.ok, false);
+  const staff = useItem(wizard, "quarterstaff");
+  assert.equal(staff.ok, true);
+  assert.equal(staff.spent, false);
+  assert.equal(useItem(wizard, "missing").ok, false);
 });
 
 test("a saved sheet keeps known gear and drops the rest", () => {
