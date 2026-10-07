@@ -38,6 +38,7 @@ let lastRoom = null;
 let seenEvent = "";
 let freshTimer = 0;
 let shopFormCode = "";
+let codeBig = false;
 
 function h(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -587,8 +588,19 @@ function renderRoom(room) {
   feed.scrollTop = scroll;
   paintLatest(room.events);
   paintPartyLevels(room.players);
+  paintCodeSize(room.players.length);
   if (focusSeat) document.querySelector(`[data-seat="${CSS.escape(focusSeat)}"]`)?.focus({ preventScroll: true });
   tickTimes();
+}
+
+function paintCodeSize(seated) {
+  const box = document.getElementById("dm-command");
+  const toggle = document.getElementById("toggle-code");
+  if (!box || !toggle) return;
+  const compact = seated > 0 && !codeBig;
+  box.classList.toggle("is-compact", compact);
+  toggle.hidden = seated === 0;
+  toggle.textContent = compact ? "Show the code big" : "Shrink the code";
 }
 
 function tickTimes() {
@@ -802,6 +814,10 @@ function showTable(next) {
 }
 
 function boot() {
+  document.getElementById("toggle-code")?.addEventListener("click", () => {
+    codeBig = !codeBig;
+    paintCodeSize(lastRoom?.players.length || 0);
+  });
   document.getElementById("open-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const status = document.getElementById("gate-status");
