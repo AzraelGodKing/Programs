@@ -1,6 +1,7 @@
 """In-memory table shared by players and the DM screen."""
 
 import json
+import re
 import secrets
 import threading
 import time
@@ -58,7 +59,7 @@ class Table:
                 "code": code,
                 "events": events,
                 "players": players,
-                "shop": room.get("shop", True) is not False,
+                "shop": room.get("shop", True),
                 "messages": messages,
             }
 
@@ -97,15 +98,14 @@ class Table:
                 room["events"] = room["events"][-EVENT_CAP:]
             return True
 
-    def set_shop(self, code, open_):
-        if not isinstance(open_, bool):
-            raise TableError("The shop switch has to be on or off.")
+    def set_shop(self, code, payload):
+        shop = clean_shop(payload)
         with self._lock:
             room = self._rooms.get(code)
             if room is None:
                 return None
-            room["shop"] = open_
-            return True
+            room["shop"] = shop
+            return shop
 
     def talk(self, code, payload):
         if not isinstance(payload, dict):
@@ -138,6 +138,57 @@ class Table:
             if code not in self._rooms:
                 return code
         raise TableError("Could not open a table.")
+
+
+def clean_shop(payload):
+    if not isinstance(payload, dict):
+        raise TableError("Expected an object.")
+    open_ = payload.get("open")
+    if not isinstance(open_, bool):
+        raise TableError("The shop switch has to be on or off.")
+    if "goods" not in payload and "name" not in payload and "stall" not in payload:
+        return open_
+    name = payload.get("name", "")
+    if not isinstance(name, str):
+        raise TableError("The shop needs a name.")
+    name = " ".join(name.split())[:40]
+    stall = payload.get("stall", "")
+    if not isinstance(stall, str) or re.fullmatch(r"[a-z0-9-]{0,20}", stall.strip() or "") is None:
+        stall = ""
+    else:
+        stall = stall.strip()
+    goods_raw = payload.get("goods", [])
+    if not isinstance(goods_raw, list):
+        raise TableError("The counter has to be a list.")
+    goods = []
+    seen = set()
+    for raw in goods_raw:
+        if len(goods) == 60:
+            break
+        if not isinstance(raw, dict):
+            continue
+        item_id = raw.get("id")
+        if not isinstance(item_id, str) or re.fullmatch(r"[a-z0-9-]{1,40}", item_id) is None:
+            continue
+        if item_id in seen:
+            continue
+        label = raw.get("name")
+        if not isinstance(label, str):
+            continue
+        label = " ".join(label.split())[:60]
+        if not label:
+            continue
+        price = raw.get("cp")
+        if isinstance(price, bool) or not isinstance(price, int) or price < 0 or price > 10_000_000:
+            continue
+        goods.append({
+            "id": item_id,
+            "name": label,
+            "cp": price,
+            "service": raw.get("service") is True,
+        })
+        seen.add(item_id)
+    return {"open": open_, "name": name or "Shop", "stall": stall, "goods": goods}
 
 
 def clean_viewer(value):

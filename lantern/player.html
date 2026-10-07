@@ -227,7 +227,7 @@
         <p id="kit-hp"></p>
         <p id="kit-purse" class="sheet-title"></p>
         <p class="lede">The sheet was finished before you sat down. Tap a skill to roll it, or tap something in the pack to use it.</p>
-        <button type="button" class="btn primary" data-action="open-gear">Shop</button>
+        <button type="button" class="btn primary" data-action="open-gear">Market</button>
         <p id="shop-note" class="hint" hidden>The DM closed the shop.</p>
         <h3>Skills</h3>
         <div id="kit-skills" class="kit-actions"></div>
@@ -413,9 +413,9 @@
   </footer>
   <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
   <dialog id="gear-dialog" class="gear-dialog">
-    <h2>Pack and shop</h2>
+    <h2 id="gear-title">Market</h2>
     <p id="gear-purse" class="sheet-title"></p>
-    <p class="lede">Claim any starting gear that is not already in the pack. Buying takes the price out of the purse.</p>
+    <p id="gear-lede" class="lede">Claim any starting gear that is not already in the pack. Buying takes the price out of the purse.</p>
     <p id="gear-error" class="form-error" role="status"></p>
     <h3>Claim</h3>
     <div id="gear-claim" class="stack"></div>

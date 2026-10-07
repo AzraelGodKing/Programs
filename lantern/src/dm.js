@@ -12,6 +12,7 @@ import {
   passiveSummary,
   skilledSummary,
 } from "./screen.js";
+import { counterFor, findOffer, formatCoin, parseCoin, stallById, STALLS } from "./gear.js";
 import { normalize } from "./store.js";
 import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postTalk, setShop } from "./table.js";
 import { paintTalk, paintTargets } from "./talk.js";
@@ -36,6 +37,7 @@ let openName = "";
 let lastRoom = null;
 let seenEvent = "";
 let freshTimer = 0;
+let shopFormCode = "";
 
 function h(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -640,6 +642,101 @@ async function copyText(text, button) {
   setTimeout(() => { button.textContent = previous; }, 1200);
 }
 
+function paintGoods(goods) {
+  const mount = document.getElementById("shop-goods");
+  mount.replaceChildren(...goods.map((good) => h("div", { class: "shop-good" }, [
+    h("label", {}, [
+      h("input", { type: "checkbox", "data-good": good.id, checked: good.on !== false }),
+      h("span", {}, good.name),
+    ]),
+    h("input", {
+      type: "text",
+      "data-price": good.id,
+      value: formatCoin(good.cp),
+      "aria-label": `Price for ${good.name}`,
+      spellcheck: "false",
+    }),
+  ])));
+}
+
+function fillShopForm(shop) {
+  const select = document.getElementById("shop-stall");
+  select.replaceChildren(...STALLS.map((stall) => h("option", { value: stall.id }, stall.name)));
+  const published = shop && typeof shop === "object" ? shop : null;
+  const stallId = published?.stall && stallById(published.stall) ? published.stall : "market";
+  select.value = stallId;
+  const base = counterFor(stallId);
+  const priced = new Map((published?.goods || []).map((good) => [good.id, good]));
+  const usePublished = Boolean(published && Array.isArray(published.goods));
+  document.getElementById("shop-name").value = published?.name || base.name;
+  document.getElementById("shop-hint").textContent = stallById(stallId).hint;
+  paintGoods(base.goods.map((good) => {
+    const saved = priced.get(good.id);
+    return {
+      ...good,
+      cp: saved ? saved.cp : good.cp,
+      on: usePublished ? Boolean(saved) : true,
+    };
+  }));
+}
+
+function ensureShopForm(room) {
+  const editing = document.getElementById("dm-shop-panel")?.contains(document.activeElement);
+  if (shopFormCode !== code && !editing) {
+    shopFormCode = code;
+    fillShopForm(room.shop);
+  }
+}
+
+function paintShopLive(room) {
+  const shop = room.shop;
+  const open = shop !== false && (typeof shop !== "object" || shop.open !== false);
+  const name = shop && typeof shop === "object" && shop.name ? shop.name : "the market";
+  const live = document.getElementById("shop-live");
+  if (live) live.textContent = open ? `Players see ${name}.` : "The shop is closed.";
+  const box = document.getElementById("dm-shop");
+  if (box && document.activeElement !== box) box.checked = open;
+}
+
+function readCounter(open) {
+  const stall = document.getElementById("shop-stall").value;
+  const known = stallById(stall);
+  const goods = [];
+  for (const box of document.querySelectorAll("[data-good]")) {
+    if (!box.checked) continue;
+    const offer = findOffer(box.dataset.good);
+    if (!offer) continue;
+    const price = document.querySelector(`[data-price="${CSS.escape(offer.id)}"]`);
+    const cp = parseCoin(price?.value);
+    goods.push({
+      id: offer.id,
+      name: offer.name,
+      cp: cp == null ? offer.cp : cp,
+      service: offer.service === true,
+    });
+  }
+  return {
+    open,
+    stall,
+    name: document.getElementById("shop-name").value.trim() || known?.name || "Shop",
+    goods,
+  };
+}
+
+async function publishCounter(open) {
+  if (!code) return;
+  try {
+    await setShop(code, readCounter(open));
+    signature = "";
+    const box = document.getElementById("dm-shop");
+    if (box) box.checked = open;
+    setStatus(open ? "That shop is open." : "The counter is closed.");
+    await poll();
+  } catch (error) {
+    setStatus(error.message);
+  }
+}
+
 async function poll() {
   if (!code) return;
   let room;
@@ -654,8 +751,8 @@ async function poll() {
     return;
   }
   setStatus("");
-  const shopBox = document.getElementById("dm-shop");
-  if (shopBox && document.activeElement !== shopBox) shopBox.checked = room.shop !== false;
+  paintShopLive(room);
+  ensureShopForm(room);
   const next = JSON.stringify(room);
   if (next === signature) return;
   signature = next;
@@ -687,6 +784,7 @@ function showTable(next) {
   signature = "";
   seenEvent = "";
   openName = "";
+  shopFormCode = "";
   const url = new URL(location.href);
   url.searchParams.set("room", code);
   history.replaceState(null, "", url);
@@ -743,12 +841,24 @@ function boot() {
       setStatus(error.message);
     }
   });
+  document.getElementById("shop-stall").addEventListener("change", (event) => {
+    const counter = counterFor(event.target.value);
+    document.getElementById("shop-name").value = counter.name;
+    document.getElementById("shop-hint").textContent = stallById(counter.stall).hint;
+    paintGoods(counter.goods.map((good) => ({ ...good, on: true })));
+  });
+  document.getElementById("shop-open").addEventListener("click", () => {
+    void publishCounter(true);
+  });
   document.getElementById("dm-shop").addEventListener("change", async (event) => {
     if (!code) return;
     const open = event.target.checked;
+    const published = lastRoom && typeof lastRoom.shop === "object" ? lastRoom.shop : null;
+    const body = published ? { ...published, open } : { open };
     try {
-      await setShop(code, open);
+      await setShop(code, body);
       signature = "";
+      setStatus(open ? "The counter is open." : "The counter is closed.");
     } catch (error) {
       event.target.checked = !open;
       setStatus(error.message);
