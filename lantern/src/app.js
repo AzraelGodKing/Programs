@@ -1646,9 +1646,13 @@ function renderGear() {
   setText(document.getElementById("gear-title"), counter.name || "Shop");
   const lede = document.getElementById("gear-lede");
   if (lede) {
-    lede.textContent = offers.some((offer) => offer.service)
-      ? "Claim any starting gear that is not already in the pack. Buying takes the price out of the purse. This counter buys those goods back at half price. A service is paid, not packed."
-      : "Claim any starting gear that is not already in the pack. Buying takes the price out of the purse. This counter buys those goods back at half price.";
+    const goods = offers.some((offer) => !offer.service);
+    const services = offers.some((offer) => offer.service);
+    const lines = ["Claim any starting gear that is not already in the pack."];
+    if (goods) lines.push("Buying takes the price out of the purse. This counter buys those goods back at half price.");
+    if (services) lines.push("A service is paid, not packed.");
+    if (!goods) lines.push("This counter does not buy gear.");
+    lede.textContent = lines.join(" ");
   }
   shop.replaceChildren(...(offers.length
     ? offers.map((offer) => h("div", { class: "gear-row" }, [

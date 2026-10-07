@@ -1,7 +1,7 @@
 // Common 2014 options: names, ability bonuses, hit dice, saves, and skill lists.
 // The sentences in the sheet are written here. Custom covers anything else.
 
-import { cleanItems, cleanPurse, formatCoin } from "./gear.js";
+import { cleanItems, cleanKitClaimed, cleanPurse, formatCoin } from "./gear.js";
 
 export const ABILITIES = [
   { id: "str", label: "Strength", short: "Str" },
@@ -408,6 +408,7 @@ export function blankCharacter() {
     traits: "",
     items: [],
     purse: null,
+    kitClaimed: [],
   };
 }
 
@@ -484,6 +485,7 @@ export function cleanCharacter(input) {
     traits: typeof input.traits === "string" ? input.traits.slice(0, 1000) : "",
     items: cleanItems(input.items),
     purse: cleanPurse(input.purse),
+    kitClaimed: cleanKitClaimed(input, classId),
   };
 }
 
