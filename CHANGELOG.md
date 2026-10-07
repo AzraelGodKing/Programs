@@ -4,6 +4,7 @@
 
 ### Added
 
+- Lantern publishes from Buildkite. A merge to main tests the table, then deploys the Worker and these pages to lantern.azraelsmods.com.
 - The DM opens a stall, not one general counter. An apothecary sells vials, a smith sells arms and a +1, a scribe sells spellbooks, and a tavern takes a tab or a room for the night. Lines can come off the counter, and the price can change.
 - A stall buys back the goods it sells, at half the price on the sign. An apothecary will not buy a sword. A service, such as a room or a +1, is not sold back.
 - The shop no longer gives away a starter pack. The class kit is packed once, when the character sits down. After that, a line costs the price on the sign. A price of 0 is the DM's choice.

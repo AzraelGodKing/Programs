@@ -1,0 +1,7 @@
+.wrangler/
+worker/
+test/
+__pycache__/
+*.py
+*.md
+wrangler.jsonc

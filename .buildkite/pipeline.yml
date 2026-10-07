@@ -1,0 +1,12 @@
+steps:
+  - label: "Test"
+    key: test
+    agents:
+      queue: site
+    command: bash scripts/lantern-ci-test.sh
+
+  - label: "Queue deploy"
+    depends_on: test
+    agents:
+      queue: site
+    command: bash scripts/lantern-ci-queue-deploy.sh

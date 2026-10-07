@@ -1,0 +1,5 @@
+steps:
+  - label: "Deploy lantern.azraelsmods.com"
+    agents:
+      queue: deploy
+    command: bash scripts/lantern-ci-deploy.sh
