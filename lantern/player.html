@@ -33,7 +33,7 @@
   </header>
 
   <div class="seat-wrap">
-  <section class="seat">
+  <section class="seat" aria-label="Your seat">
     <form id="seat-form" class="seat-form" autocomplete="off">
       <label>Your name
         <input id="seat-name" name="name" maxlength="40" placeholder="Your name" spellcheck="false">
@@ -69,7 +69,7 @@
     <p id="character-gate-status" class="hint" role="status"></p>
   </section>
 
-  <div class="sticky-tools">
+  <div class="sticky-tools" role="region" aria-label="Tools and lights">
     <nav class="tabs" role="tablist" aria-label="Tools">
       <button type="button" role="tab" id="tab-dice" data-action="tab" data-tab="dice" aria-controls="panel-dice" aria-selected="true">Dice</button>
       <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-controls="panel-order" aria-selected="false" tabindex="-1">Order</button>
