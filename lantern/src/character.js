@@ -663,6 +663,30 @@ export function skillBonus(character, skillId) {
   return mod + (proficient ? proficiencyBonus(clean.level) : 0);
 }
 
+/**
+ * The bonus for a roll the DM asked for by name: a skill ("Perception"),
+ * an ability check or save ("Dexterity save"), or "Initiative".
+ * Returns null when the name is not one Lantern knows.
+ */
+export function askBonus(character, ask) {
+  const name = String(ask || "").trim().toLowerCase();
+  if (!name) return null;
+  const clean = cleanCharacter(character);
+  const skill = SKILLS.find((item) => item.label.toLowerCase() === name || item.id === name);
+  if (skill) return { label: skill.label, bonus: skillBonus(clean, skill.id), skillId: skill.id };
+  const totals = abilityTotals(clean);
+  if (name === "initiative") return { label: "Initiative", bonus: abilityMod(totals.dex) };
+  const match = name.match(/^(\w+)\s+(check|save|saving throw)$/);
+  if (!match) return null;
+  const ability = ABILITIES.find((item) => item.label.toLowerCase() === match[1] || item.id === match[1] || item.short.toLowerCase() === match[1]);
+  if (!ability) return null;
+  const mod = abilityMod(totals[ability.id]);
+  if (match[2] === "check") return { label: `${ability.label} check`, bonus: mod };
+  const saves = classInfo(clean)?.saves || [];
+  const proficient = saves.includes(ability.id);
+  return { label: `${ability.label} save`, bonus: mod + (proficient ? proficiencyBonus(clean.level) : 0) };
+}
+
 export function passiveScore(character, skillId) {
   return 10 + skillBonus(character, skillId);
 }

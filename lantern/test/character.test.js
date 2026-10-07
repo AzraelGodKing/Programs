@@ -171,3 +171,15 @@ test("background skills are added without dropping the ones already taken", () =
   }));
   assert.deepEqual(skills, ["perception", "athletics", "intimidation"]);
 });
+
+test("askBonus matches skills, checks, saves, and initiative", async () => {
+  const { askBonus, blankCharacter, skillBonus } = await import("../src/character.js");
+  const hero = { ...blankCharacter(), classId: "fighter", level: 1, scores: { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 } };
+  assert.equal(askBonus(hero, "Perception").bonus, skillBonus(hero, "perception"));
+  assert.equal(askBonus(hero, "initiative").bonus, askBonus(hero, "Dexterity check").bonus);
+  const strSave = askBonus(hero, "Strength save");
+  const strCheck = askBonus(hero, "Strength check");
+  assert.equal(strSave.bonus - strCheck.bonus, 2);
+  assert.equal(askBonus(hero, "Wisdom save").bonus, askBonus(hero, "Wisdom check").bonus);
+  assert.equal(askBonus(hero, "Arm wrestling"), null);
+});

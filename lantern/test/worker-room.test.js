@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { TableError, TableRoom } from "../worker/room.js";
+import { DM_NAME, TableError, TableRoom, cleanTalk } from "../worker/room.js";
 import { handleRequest } from "../worker/router.js";
 
 function memoryStorage() {
@@ -128,4 +128,16 @@ test("the worker routes shop, buy back, and pages", async () => {
   assert.equal(closed.body.shop, false);
   const after = await call(env, "GET", `/api/rooms/${code}`);
   assert.deepEqual(after.body.buybacks, []);
+});
+
+test("only the DM can ask a seat for a roll", async () => {
+  const room = new TableRoom(memoryStorage());
+  await room.create();
+  const asked = await room.talk(cleanTalk({ name: DM_NAME, text: "Roll Stealth.", to: "Mara", ask: " Stealth " }));
+  assert.equal(asked.ask, "Stealth");
+  const plain = await room.talk(cleanTalk({ name: DM_NAME, text: "Quiet now.", to: "" }));
+  assert.equal("ask" in plain, false);
+  assert.throws(() => cleanTalk({ name: "Mara", text: "Roll.", to: "", ask: "Stealth" }), TableError);
+  const view = await room.view("Mara");
+  assert.equal(view.messages[0].ask, "Stealth");
 });

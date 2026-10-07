@@ -95,6 +95,17 @@ class TalkTests(unittest.TestCase):
         with self.assertRaises(TableError):
             table.talk(code, {"name": "Mara", "text": "Hello", "to": "Mara"})
 
+    def test_only_the_dm_asks_for_a_roll(self):
+        table = Table()
+        code = table.create()
+        asked = table.talk(code, {"name": DM_NAME, "text": "Roll Perception.", "to": "", "ask": "  Perception "})
+        self.assertEqual(asked["ask"], "Perception")
+        plain = table.talk(code, {"name": DM_NAME, "text": "Night falls.", "to": ""})
+        self.assertNotIn("ask", plain)
+        with self.assertRaises(TableError):
+            table.talk(code, {"name": "Mara", "text": "Roll it.", "to": "", "ask": "Stealth"})
+        self.assertEqual(table.view(code, "Mara")["messages"][0]["ask"], "Perception")
+
     def test_a_stall_keeps_only_the_lines_on_the_counter(self):
         table = Table()
         code = table.create()

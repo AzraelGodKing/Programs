@@ -100,6 +100,14 @@
               </label>
               <button class="btn primary" type="submit">Send</button>
             </form>
+            <form id="dm-ask-form" class="ask-form" autocomplete="off">
+              <label>Ask for a roll
+                <input id="dm-ask" list="ask-options" maxlength="60" placeholder="Perception, Dexterity save, Initiative" spellcheck="false">
+              </label>
+              <datalist id="ask-options"></datalist>
+              <button class="btn" type="submit">Ask</button>
+            </form>
+            <p class="hint">The roll goes to whoever is in To. Their screen offers a button that rolls it with their own bonus.</p>
           </section>
           <section class="dm-margin">
             <label>Your notes

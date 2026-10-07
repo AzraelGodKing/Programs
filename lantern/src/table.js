@@ -105,11 +105,11 @@ export async function postBuyback(code, body) {
   return response.json();
 }
 
-export async function postTalk(code, { name, text, to = "" }) {
+export async function postTalk(code, { name, text, to = "", ask = "" }) {
   const response = await fetch(`/api/rooms/${normalizeCode(code)}/talk`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name, text, to }),
+    body: JSON.stringify(ask ? { name, text, to, ask } : { name, text, to }),
   });
   if (response.status === 404) throw new Error("No table with that code.");
   if (!response.ok) {

@@ -1,4 +1,4 @@
-import { ABILITIES, abilityMod, abilityTotals, formatMod, presentCharacter } from "./character.js";
+import { ABILITIES, SKILLS, abilityMod, abilityTotals, formatMod, presentCharacter } from "./character.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
@@ -838,6 +838,36 @@ function boot() {
       return;
     }
     showTable(next);
+  });
+  const askList = document.getElementById("ask-options");
+  if (askList) {
+    const names = [
+      ...SKILLS.map((skill) => skill.label),
+      "Initiative",
+      ...ABILITIES.map((ability) => `${ability.label} save`),
+      ...ABILITIES.map((ability) => `${ability.label} check`),
+    ];
+    askList.replaceChildren(...names.map((name) => h("option", { value: name })));
+  }
+  document.getElementById("dm-ask-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!code) return;
+    const field = document.getElementById("dm-ask");
+    const ask = field.value.trim();
+    if (!ask) {
+      setStatus("Name the roll first, like Perception.");
+      return;
+    }
+    const to = document.getElementById("dm-talk-to").value;
+    try {
+      await postTalk(code, { name: DM_NAME, text: `Roll ${ask}.`, to, ask });
+      field.value = "";
+      setStatus(to ? `Asked ${to} for ${ask}.` : `Asked the table for ${ask}.`);
+      signature = "";
+      await poll();
+    } catch (error) {
+      setStatus(error.message);
+    }
   });
   document.getElementById("dm-talk-form").addEventListener("submit", async (event) => {
     event.preventDefault();
