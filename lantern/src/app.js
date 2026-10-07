@@ -71,6 +71,7 @@ import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState,
 import { DM_NAME, fetchRoom, loadSeat, normalizeCode, postBuyback, postTalk, pushTable, rollSummary, saveSeat } from "./table.js";
 import { paintHere, paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
+import { registerOffline } from "./pwa.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -2729,6 +2730,7 @@ function onKey(event) {
 
 function boot() {
   bootTextSize(document.getElementById("text-size"));
+  registerOffline();
   bootSeat();
   resumeRoster();
   fillSelects();
