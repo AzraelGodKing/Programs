@@ -27,6 +27,7 @@
     </div>
     <div class="head-actions">
       <button type="button" class="text-btn" id="open-roster" data-action="open-roster" hidden>Characters</button>
+      <button type="button" class="text-btn" data-action="open-keys" aria-keyshortcuts="?">Keys</button>
       <a class="text-btn" href="/">Change seat</a>
     </div>
   </header>
@@ -417,9 +418,21 @@
     </section>
   </main>
   <footer>
-    <p>Keys 1–5 switch dice, order, the pack, notes, and the table while you are not typing. R rolls. N advances the round. Prompts and the encounter budget are on the Dungeon Master screen.</p>
+    <p>Press <kbd>?</kbd> for keyboard keys. Prompts and the encounter budget are on the Dungeon Master screen.</p>
   </footer>
   <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
+  <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
+    <h2 id="keys-title">Keys</h2>
+    <p class="lede">These work while you are not typing in a box.</p>
+    <dl class="keys-list">
+      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Dice, Order, Pack, Notes, Table</dd>
+      <dt><kbd>R</kbd></dt><dd>Roll, on the Dice tab</dd>
+      <dt><kbd>N</kbd></dt><dd>Next turn, on the Order tab</dd>
+      <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
+    </dl>
+    <button type="button" class="btn" data-action="close-keys">Close</button>
+  </dialog>
   <dialog id="gear-dialog" class="gear-dialog">
     <h2 id="gear-title">Market</h2>
     <p id="gear-purse" class="sheet-title"></p>

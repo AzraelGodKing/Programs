@@ -497,6 +497,25 @@ dialog.gear-dialog {
 
 dialog.gear-dialog::backdrop { background: rgba(8, 6, 4, 0.62); }
 
+dialog.keys-dialog { width: min(28rem, calc(100% - 1.5rem)); display: none; }
+.keys-dialog[open] { display: grid; gap: 0.7rem; }
+.keys-list { display: grid; grid-template-columns: auto 1fr; gap: 0.45rem 1rem; margin: 0; }
+.keys-list dt { white-space: nowrap; }
+.keys-list dd { margin: 0; color: var(--muted); }
+kbd {
+  display: inline-block;
+  min-width: 1.6rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 0.35rem;
+  background: var(--raise);
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  text-align: center;
+}
+.dm-head .head-actions { display: flex; gap: 0.35rem 0.85rem; align-items: center; }
+
 .shop-switch {
   display: flex;
   align-items: center;

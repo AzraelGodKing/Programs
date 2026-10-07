@@ -2423,6 +2423,8 @@ function onClick(event) {
     renderCharacter();
   } else if (action === "reset") resetAll();
   else if (action === "edit-seat") editSeat();
+  else if (action === "open-keys") document.getElementById("keys-dialog")?.showModal();
+  else if (action === "close-keys") document.getElementById("keys-dialog")?.close();
   else if (action === "export-night") downloadNight();
   else if (action === "import-night") document.getElementById("import-file")?.click();
   else if (action === "open-roster") openRoster();
@@ -2626,9 +2628,15 @@ function onToggle(event) {
 }
 
 function onKey(event) {
-  if (gateMode !== "play") return;
-  if (event.target.closest("input, textarea, select, button")) return;
+  if (event.target.closest("input, textarea, select, dialog")) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.key === "?") {
+    event.preventDefault();
+    document.getElementById("keys-dialog")?.showModal();
+    return;
+  }
+  if (gateMode !== "play") return;
+  if (event.target.closest("button")) return;
   const tabs = { 1: "dice", 2: "order", 3: "character", 4: "notes", 5: "table" };
   if (tabs[event.key]) {
     event.preventDefault();
