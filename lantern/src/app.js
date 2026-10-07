@@ -63,6 +63,7 @@ import {
   loadRoster,
   markDead,
   normalizeRoster,
+  readCharacterFile,
   rosterHasCharacters,
   saveRoster,
   writeSheet,
@@ -368,6 +369,7 @@ function paintGate() {
     actions.replaceChildren(...present([
       h("button", { type: "button", class: "btn primary", "data-action": "save-character" }, "Save this character"),
       list.length ? h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back") : null,
+      h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file"),
     ]));
     mount.replaceChildren();
     paintCreator();
@@ -391,6 +393,7 @@ function paintGate() {
   lede.textContent = "Load a living character, start a new one, or look back at a character who died.";
   actions.replaceChildren(
     h("button", { type: "button", class: "btn primary", "data-action": "create-character" }, "Create a new character"),
+    h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file"),
   );
   mount.replaceChildren(
     ...list.filter((entry) => !entry.dead).map((entry) => rosterRow(entry, "Load", "load-character")),
@@ -579,6 +582,33 @@ function saveNewCharacter() {
   showPlay();
   renderCharacter();
   persist(`Sits down as ${name}.`);
+}
+
+async function importCharacter(file) {
+  const code = seatedCode();
+  if (!code) {
+    setGateStatus("Join a table first. Characters are kept per table.");
+    return;
+  }
+  let sheet;
+  let dead;
+  try {
+    if (file.size > SAVE_BYTES) throw new Error("That file is too large to be a character.");
+    ({ sheet, dead } = readCharacterFile(JSON.parse(await file.text())));
+  } catch (error) {
+    setGateStatus(error instanceof SyntaxError ? "That file is not a Lantern character." : error.message);
+    return;
+  }
+  const made = addCharacter(roster, code, sheet);
+  if (!made) return;
+  roster = dead ? markDead(made.roster, code, made.entry.id) : made.roster;
+  saveRoster(roster);
+  if (dead) {
+    openRoster();
+    setGateStatus(`${sheet.name} came in as a fallen hero. View them from the list.`);
+    return;
+  }
+  loadCharacter(made.entry.id);
 }
 
 function loadCharacter(id) {
@@ -2511,6 +2541,7 @@ function onClick(event) {
   else if (action === "load-character") loadCharacter(button.dataset.id);
   else if (action === "view-character") viewCharacter(button.dataset.id);
   else if (action === "export-character") exportOne(button.dataset.id);
+  else if (action === "import-character") document.getElementById("import-character")?.click();
   else if (action === "mark-dead") markCharacterDead();
   else if (action === "creator-step") {
     const index = CREATOR_STEPS.findIndex((item) => item.id === button.dataset.step);
@@ -2743,6 +2774,11 @@ function boot() {
   applyLoaded();
   paintGate();
   if (state.combat.activeId !== before || (loadSeat().name && loadSeat().room)) persist();
+  document.getElementById("import-character")?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void importCharacter(file);
+  });
   document.getElementById("import-file")?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (file) void restoreNight(file);
