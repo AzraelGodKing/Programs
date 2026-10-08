@@ -3,6 +3,7 @@ import test from "node:test";
 import { blankCharacter } from "../src/character.js";
 import {
   counterFor,
+  formatCoin,
   parseCoin,
   buyBackItem,
   payCounter,
@@ -27,6 +28,11 @@ test("a bare number is gold, and a service is paid not packed", () => {
   assert.equal(parseCoin("50"), 5000);
   assert.equal(parseCoin("4 cp"), 4);
   assert.equal(parseCoin("5 sp"), 50);
+  assert.equal(parseCoin("1 ep"), 50);
+  assert.equal(parseCoin("2 ep"), parseCoin("1 gp"));
+  assert.equal(parseCoin("1 pp"), 1000);
+  assert.equal(parseCoin("1 pp"), parseCoin("10"));
+  assert.equal(parseCoin("1 pp, 2 gp, 1 ep, 3 sp, 4 cp"), 1284);
   assert.equal(parseCoin("500 gp"), 50000);
   const sheet = { ...blankCharacter(), touched: true, purse: 60000, items: [] };
   const smith = counterFor("smith");
@@ -41,6 +47,22 @@ test("a bare number is gold, and a service is paid not packed", () => {
   assert.equal(bought.service, false);
   assert.equal(bought.character.purse, 59700);
   assert.equal(bought.character.items[0].id, "potion-healing");
+});
+
+test("a platinum or electrum piece spends at the usual rate", () => {
+  const rope = counterFor("market").goods.find((good) => good.id === "rope");
+  const room = counterFor("tavern").goods.find((good) => good.id === "room-modest");
+  const holder = { ...blankCharacter(), touched: true, purse: parseCoin("1 pp"), items: [] };
+  const bought = payCounter(holder, rope);
+  assert.equal(bought.ok, true);
+  assert.equal(bought.character.purse, parseCoin("9 gp"));
+  assert.equal(formatCoin(bought.character.purse), "9 gp");
+  const short = payCounter({ ...holder, purse: parseCoin("1 ep") }, rope);
+  assert.equal(short.ok, false);
+  const night = payCounter({ ...holder, purse: parseCoin("1 ep") }, room);
+  assert.equal(night.ok, true);
+  assert.equal(night.character.purse, 0);
+  assert.equal(formatCoin(parseCoin("1 pp, 5 gp")), "1 pp, 5 gp");
 });
 
 test("a stall buys its own goods at half price and leaves the rest", () => {
