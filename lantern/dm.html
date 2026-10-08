@@ -72,6 +72,13 @@
         </div>
       </div>
 
+      <div class="module-bar" role="toolbar" aria-label="Modules">
+        <button type="button" class="btn" data-module="shop" aria-haspopup="dialog" aria-controls="module-shop" aria-expanded="false">Shop <span id="shop-summary" class="summary-note"></span></button>
+        <button type="button" class="btn" data-module="spark" aria-haspopup="dialog" aria-controls="module-spark" aria-expanded="false">Spark</button>
+        <button type="button" class="btn" data-module="threat" aria-haspopup="dialog" aria-controls="module-threat" aria-expanded="false">Threat</button>
+        <button type="button" class="btn" data-module="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false">Notes</button>
+      </div>
+
       <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
       <div id="party-strip" class="party-strip" aria-label="The party"></div>
 
@@ -111,77 +118,80 @@
             </form>
             <p class="hint">The roll goes to whoever is in To. Their screen offers a button that rolls it with their own bonus.</p>
           </section>
-          <section class="dm-margin">
-            <label>Your notes
-              <textarea id="dm-notes" rows="5" maxlength="4000" placeholder="A ruling, a name, the thing you do not want to forget."></textarea>
-            </label>
-            <p class="hint">Players never see this. It stays in this browser, with this table code.</p>
-          </section>
         </div>
       </div>
-
-      <details id="dm-shop-wrap" class="dm-prepare">
-        <summary>Shop <span id="shop-summary" class="summary-note"></span></summary>
-        <section id="dm-shop-panel" class="dm-shop" aria-label="Shop">
-          <div class="shop-head">
-            <label class="shop-switch">
-              <input id="dm-shop" type="checkbox" checked>
-              Open
-            </label>
-            <button type="button" class="btn primary" id="shop-open">Open this shop</button>
-          </div>
-          <p id="shop-hint" class="hint"></p>
-          <div class="shop-fields">
-            <label>Stall
-              <select id="shop-stall" aria-label="Stall"></select>
-            </label>
-            <label>Sign
-              <input id="shop-name" maxlength="40" spellcheck="false" aria-label="Shop sign">
-            </label>
-          </div>
-          <p class="hint">Uncheck a line to take it off this counter. A bare number in the price is gold. Write pp, gp, ep, sp, or cp when you mean those coins: 1 pp is 10 gp, and 1 ep is 5 sp. Players sell these goods back at half that price, and can buy that sale back for the same coin until you close the shop. A service is not bought back.</p>
-          <div id="shop-goods" class="shop-goods"></div>
-          <label class="base-find">Base list
-            <input id="base-find" type="search" placeholder="Plate, rations, lute" spellcheck="false" aria-label="Find a base item">
-          </label>
-          <p class="hint">The 2014 equipment tables. Add a line to this counter. A counter holds 60 lines.</p>
-          <div id="base-list" class="base-list"></div>
-        </section>
-      </details>
-
-      <details id="dm-prepare" class="dm-prepare">
-        <summary>Prepare the next room</summary>
-        <section id="dm-tools" class="dm-tools">
-          <p class="lede">Prompts and the encounter budget stay on this side. Players roll, take their turn, and use what they carry.</p>
-          <div class="dm-tools-grid">
-            <section>
-              <h3>Spark</h3>
-              <div class="kit-actions" role="group" aria-label="Draw a prompt">
-                <button type="button" class="btn" data-dm="draw" data-kind="person">Person</button>
-                <button type="button" class="btn" data-dm="draw" data-kind="place">Place</button>
-                <button type="button" class="btn" data-dm="draw" data-kind="twist">Twist</button>
-                <button type="button" class="btn" data-dm="draw" data-kind="rumor">Rumor</button>
-                <button type="button" class="btn" data-dm="draw" data-kind="trinket">Trinket</button>
-                <button type="button" class="btn primary" data-dm="scene">A whole scene</button>
-              </div>
-              <div id="dm-spark" class="stack"></div>
-            </section>
-            <section>
-              <h3>Threat</h3>
-              <label>Party levels
-                <input id="dm-levels" type="text" maxlength="80" value="1, 1, 1, 1" spellcheck="false">
-              </label>
-              <p id="party-level-hint" class="hint"></p>
-              <button type="button" class="btn" id="use-party" hidden>Use the party</button>
-              <div id="dm-groups" class="stack"></div>
-              <button type="button" class="btn" data-dm="add-group">Add a creature</button>
-              <div id="dm-threat" class="stack"></div>
-            </section>
-          </div>
-        </section>
-      </details>
     </main>
   </div>
+  <dialog id="module-shop" class="gear-dialog module-dialog module-shop" aria-labelledby="shop-title">
+    <div class="module-head">
+      <h2 id="shop-title">Shop</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <section id="dm-shop-panel" class="dm-shop" aria-label="Shop">
+      <div class="shop-head">
+        <label class="shop-switch">
+          <input id="dm-shop" type="checkbox" checked>
+          Open
+        </label>
+        <button type="button" class="btn primary" id="shop-open">Open this shop</button>
+      </div>
+      <p id="shop-hint" class="hint"></p>
+      <div class="shop-fields">
+        <label>Stall
+          <select id="shop-stall" aria-label="Stall"></select>
+        </label>
+        <label>Sign
+          <input id="shop-name" maxlength="40" spellcheck="false" aria-label="Shop sign">
+        </label>
+      </div>
+      <p class="hint">Uncheck a line to take it off this counter. A bare number in the price is gold. Write pp, gp, ep, sp, or cp when you mean those coins: 1 pp is 10 gp, and 1 ep is 5 sp. Players sell these goods back at half that price, and can buy that sale back for the same coin until you close the shop. A service is not bought back.</p>
+      <div id="shop-goods" class="shop-goods"></div>
+      <label class="base-find">Base list
+        <input id="base-find" type="search" placeholder="Plate, rations, lute" spellcheck="false" aria-label="Find a base item">
+      </label>
+      <p class="hint">The 2014 equipment tables. Add a line to this counter. A counter holds 60 lines.</p>
+      <div id="base-list" class="base-list"></div>
+    </section>
+  </dialog>
+  <dialog id="module-spark" class="gear-dialog module-dialog" aria-labelledby="spark-title">
+    <div class="module-head">
+      <h2 id="spark-title">Spark</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">Original prompts for the next ten minutes. Nothing here is from a published table.</p>
+    <div class="kit-actions" role="group" aria-label="Draw a prompt">
+      <button type="button" class="btn" data-dm="draw" data-kind="person">Person</button>
+      <button type="button" class="btn" data-dm="draw" data-kind="place">Place</button>
+      <button type="button" class="btn" data-dm="draw" data-kind="twist">Twist</button>
+      <button type="button" class="btn" data-dm="draw" data-kind="rumor">Rumor</button>
+      <button type="button" class="btn" data-dm="draw" data-kind="trinket">Trinket</button>
+      <button type="button" class="btn primary" data-dm="scene">A whole scene</button>
+    </div>
+    <div id="dm-spark" class="stack"></div>
+  </dialog>
+  <dialog id="module-threat" class="gear-dialog module-dialog" aria-labelledby="threat-title">
+    <div class="module-head">
+      <h2 id="threat-title">Threat</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">A pacing guide from the 2014 encounter budget. It is not a promise.</p>
+    <label>Party levels
+      <input id="dm-levels" type="text" maxlength="80" value="1, 1, 1, 1" spellcheck="false">
+    </label>
+    <p id="party-level-hint" class="hint"></p>
+    <button type="button" class="btn" id="use-party" hidden>Use the party</button>
+    <div id="dm-groups" class="stack"></div>
+    <button type="button" class="btn" data-dm="add-group">Add a creature</button>
+    <div id="dm-threat" class="stack"></div>
+  </dialog>
+  <dialog id="module-notes" class="gear-dialog module-dialog" aria-labelledby="notes-title">
+    <div class="module-head">
+      <h2 id="notes-title">Notes</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <textarea id="dm-notes" rows="8" maxlength="4000" aria-label="Your notes" placeholder="A ruling, a name, the thing you do not want to forget."></textarea>
+    <p class="hint">Players never see this. It stays in this browser, with this table code. Closing this module leaves the note where it is.</p>
+  </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
     <h2 id="keys-title">Keys</h2>
     <p class="lede">These work while you are not typing in a box.</p>
@@ -189,6 +199,7 @@
       <dt><kbd>C</kbd></dt><dd>Copy the table code</dd>
       <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous or next seat</dd>
       <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+      <dt>Shop, Spark, Threat, Notes</dt><dd>Open that module. Esc closes it. The table stays underneath.</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
     </dl>
     <button type="button" class="btn" id="close-keys">Close</button>
