@@ -4,13 +4,13 @@
 
 ### Added
 
+- The purse converts platinum, gold, electrum, silver, and copper. 1 pp is 10 gp, and 1 ep is 5 sp. A price can be written in any of those coins.
 - Once a player joins, the seat folds into one line, and Clear this browser sits with Save and Restore. The light picker opens on demand. On a phone, the dice and Roll stay pinned to the bottom of the screen.
 - The DM screen puts the latest call, the party, and the roll feed first. Table talk moves to the side, the shop folds into its own section, and the code shrinks to a line once someone sits down.
 - A Keys list on both screens, a text size switch, brighter faint text, and named page regions for screen readers.
 - The DM can ask a seat, or the whole table, for a roll. The player's Table tab shows who is here.
 - Lantern can be added to a phone's home screen and opens offline for solo play.
 - One character can be imported from a file at the character step.
-
 - Lantern publishes from Buildkite. A merge to main tests the table, then deploys the Worker and these pages to lantern.azraelsmods.com.
 - The DM opens a stall, not one general counter. An apothecary sells vials, a smith sells arms and a +1, a scribe sells spellbooks, and a tavern takes a tab or a room for the night. Lines can come off the counter, and the price can change.
 - A stall buys back the goods it sells, at half the price on the sign. An apothecary will not buy a sword. A service, such as a room or a +1, is not sold back.
