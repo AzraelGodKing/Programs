@@ -523,6 +523,16 @@ body:not(.sheet-play) #kit { display: none; }
   gap: 0.5rem;
 }
 
+.purse-coins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin: 0.15rem 0 0.45rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-tabs { margin: 0.2rem 0 0.7rem; }
+
 dialog.gear-dialog {
   width: min(40rem, calc(100% - 1.5rem));
   max-height: calc(100% - 2rem);

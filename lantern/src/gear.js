@@ -208,6 +208,77 @@ export function formatCoin(cp) {
   return sign + parts.join(", ");
 }
 
+export function coinCounts(cp) {
+  let left = Math.max(0, Math.trunc(Number(cp) || 0));
+  return COIN_WORTH.map(([name, worth]) => {
+    const count = Math.floor(left / worth);
+    left -= count * worth;
+    return { name, count };
+  });
+}
+
+const AMMO_FOR = {
+  shortbow: "arrows",
+  longbow: "arrows",
+  "light-crossbow": "bolts",
+  "hand-crossbow": "bolts",
+  "heavy-crossbow": "bolts",
+  blowgun: "blowgun-needles",
+  sling: "sling-bullets",
+};
+
+const CASTER_CLASSES = new Set([
+  "bard", "cleric", "druid", "paladin", "ranger", "sorcerer", "warlock", "wizard",
+]);
+
+const FOCUS_IDS = new Set([
+  "component-pouch",
+  "arcane-focus", "crystal", "orb", "rod", "arcane-staff", "wand",
+  "druidic-focus", "mistletoe", "totem", "wooden-staff", "yew-wand",
+  "holy-symbol", "amulet", "emblem", "reliquary",
+]);
+
+function carriedIds(items) {
+  return new Set((items || []).filter((item) => item && item.qty > 0).map((item) => item.id));
+}
+
+export function stapleIds(character) {
+  const carried = carriedIds(character?.items);
+  const wanted = [];
+  const seen = new Set();
+  const want = (id) => {
+    if (seen.has(id) || carried.has(id)) return;
+    seen.add(id);
+    wanted.push(id);
+  };
+  for (const item of character?.items || []) {
+    if (item && item.qty > 0 && AMMO_FOR[item.id]) want(AMMO_FOR[item.id]);
+  }
+  const casts = CASTER_CLASSES.has(character?.classId);
+  const hasFocus = [...FOCUS_IDS].some((id) => carried.has(id));
+  if (casts && !hasFocus) want("component-pouch");
+  return wanted;
+}
+
+export function restockStaples(character, offers) {
+  const byId = new Map((offers || []).filter((offer) => offer && offer.service !== true).map((offer) => [offer.id, offer]));
+  let next = character;
+  const bought = [];
+  const skipped = [];
+  for (const id of stapleIds(character)) {
+    const offer = byId.get(id);
+    if (!offer) continue;
+    const paid = payCounter(next, offer);
+    if (!paid.ok) {
+      skipped.push({ id, name: offer.name, reason: paid.reason });
+      continue;
+    }
+    next = paid.character;
+    bought.push({ id, name: offer.name, cp: offer.cp });
+  }
+  return { character: next, bought, skipped };
+}
+
 export function startingPurse(classId) {
   return STARTING_CP[classId] ?? STARTING_CP.custom;
 }
