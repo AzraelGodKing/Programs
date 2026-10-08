@@ -4,6 +4,7 @@
 
 ### Added
 
+- The DM shop has the 2014 equipment list: weapons, armor, gear, tools, mounts, trade goods, and food and lodging. A stall still opens a short counter. Add from the base list when this shop sells something else.
 - The purse converts platinum, gold, electrum, silver, and copper. 1 pp is 10 gp, and 1 ep is 5 sp. A price can be written in any of those coins.
 - Once a player joins, the seat folds into one line, and Clear this browser sits with Save and Restore. The light picker opens on demand. On a phone, the dice and Roll stay pinned to the bottom of the screen.
 - The DM screen puts the latest call, the party, and the roll feed first. Table talk moves to the side, the shop folds into its own section, and the code shrinks to a line once someone sits down.
