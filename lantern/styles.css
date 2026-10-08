@@ -536,6 +536,42 @@ dialog.gear-dialog {
 
 dialog.gear-dialog::backdrop { background: rgba(8, 6, 4, 0.62); }
 
+.module-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.module-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  position: sticky;
+  top: -1rem;
+  z-index: 1;
+  margin: -0.15rem 0 0;
+  padding: 0.15rem 0 0.45rem;
+  background: var(--bg);
+}
+
+dialog.module-dialog { display: none; }
+
+dialog.module-dialog[open] {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  width: min(42rem, calc(100% - 1.5rem));
+}
+
+dialog.module-shop[open] { width: min(56rem, calc(100% - 1.5rem)); }
+
+dialog .dm-shop {
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 dialog.keys-dialog { width: min(28rem, calc(100% - 1.5rem)); display: none; }
 .keys-dialog[open] { display: grid; gap: 0.7rem; }
 .keys-list { display: grid; grid-template-columns: auto 1fr; gap: 0.45rem 1rem; margin: 0; }

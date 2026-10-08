@@ -331,6 +331,35 @@ function rosterRow(entry, verb, action) {
   ]);
 }
 
+const PLAYER_MODULES = {
+  order: "module-order",
+  character: "module-pack",
+  notes: "module-notes",
+  table: "module-table",
+};
+
+let moduleSync = true;
+
+function closePlayerModules() {
+  moduleSync = false;
+  for (const id of Object.values(PLAYER_MODULES)) {
+    const dialog = document.getElementById(id);
+    if (dialog?.open) dialog.close();
+  }
+  moduleSync = true;
+}
+
+function paintPlayerTabs(tab) {
+  for (const name of ["dice", "order", "threat", "spark", "character", "notes", "table"]) {
+    const button = document.getElementById(`tab-${name}`);
+    if (!button) continue;
+    const on = name === tab;
+    button.setAttribute("aria-selected", on ? "true" : "false");
+    button.tabIndex = on ? 0 : -1;
+    if (button.hasAttribute("aria-expanded")) button.setAttribute("aria-expanded", on && name !== "dice" ? "true" : "false");
+  }
+}
+
 function paintGate() {
   const gate = document.getElementById("character-gate");
   const code = seatedCode();
@@ -339,6 +368,7 @@ function paintGate() {
   document.body.classList.toggle("sheet-focus", gateMode === "create" || gateMode === "view");
   document.body.classList.toggle("sheet-play", gateMode === "play");
   document.body.classList.toggle("creating", gateMode === "create");
+  if (gateMode !== "play") closePlayerModules();
   if (gate) gate.hidden = gateMode === "play";
   const opener = document.getElementById("open-roster");
   if (opener) opener.hidden = !code || gateMode !== "play";
@@ -356,7 +386,8 @@ function paintGate() {
   if (gateMode === "create" || gateMode === "view") {
     document.getElementById("panel-character").hidden = false;
     for (const name of ["dice", "order", "threat", "spark", "notes", "table"]) {
-      document.getElementById(`panel-${name}`).hidden = true;
+      const panel = document.getElementById(`panel-${name}`);
+      if (panel) panel.hidden = true;
     }
   }
   const title = document.getElementById("character-gate-title");
@@ -715,13 +746,29 @@ function ensureActive() {
 function showTab(tab, { save = true } = {}) {
   if (!["dice", "order", "character", "notes", "table"].includes(tab)) tab = "dice";
   state.tab = tab;
-  for (const name of ["dice", "order", "threat", "spark", "character", "notes", "table"]) {
-    const on = name === tab;
-    document.getElementById(`panel-${name}`).hidden = !on;
-    const button = document.getElementById(`tab-${name}`);
-    button.setAttribute("aria-selected", on ? "true" : "false");
-    button.tabIndex = on ? 0 : -1;
+  if (gateMode !== "play") {
+    paintPlayerTabs(tab);
+    if (save) persist();
+    return;
   }
+  const dialog = tab === "dice" ? null : document.getElementById(PLAYER_MODULES[tab]);
+  if (!dialog?.open) {
+    closePlayerModules();
+    const dice = document.getElementById("panel-dice");
+    if (dice) dice.hidden = false;
+    const character = document.getElementById("panel-character");
+    if (character) character.hidden = true;
+    for (const name of ["threat", "spark"]) {
+      const panel = document.getElementById(`panel-${name}`);
+      if (panel) panel.hidden = true;
+    }
+    if (dialog) {
+      const panel = dialog.querySelector("[data-module-panel]");
+      if (panel) panel.hidden = false;
+      dialog.showModal();
+    }
+  }
+  paintPlayerTabs(tab);
   if (save) persist();
 }
 
@@ -2470,7 +2517,11 @@ function onClick(event) {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const { action } = button.dataset;
-  if (action === "tab") showTab(button.dataset.tab);
+  if (action === "tab") {
+    const next = button.dataset.tab;
+    const open = next !== "dice" && document.getElementById(PLAYER_MODULES[next])?.open;
+    showTab(gateMode === "play" && open ? "dice" : next);
+  } else if (action === "close-module") button.closest("dialog")?.close();
   else if (action === "roll-skill") rollSkill(button.dataset.id);
   else if (action === "use-item") spendItem(button.dataset.id);
   else if (action === "open-gear") openGear();
@@ -2735,23 +2786,25 @@ function onToggle(event) {
 }
 
 function onKey(event) {
-  if (event.target.closest("input, textarea, select, dialog")) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.target.closest("input, textarea, select")) return;
   if (event.key === "?") {
     event.preventDefault();
     document.getElementById("keys-dialog")?.showModal();
     return;
   }
   if (gateMode !== "play") return;
-  if (event.target.closest("button")) return;
+  if (event.target.closest("button") && !event.target.closest("dialog")) return;
   const tabs = { 1: "dice", 2: "order", 3: "character", 4: "notes", 5: "table" };
   if (tabs[event.key]) {
     event.preventDefault();
-    showTab(tabs[event.key]);
-  } else if (event.key === "r" && state.tab === "dice") {
+    const next = tabs[event.key];
+    const open = next !== "dice" && document.getElementById(PLAYER_MODULES[next])?.open;
+    showTab(open ? "dice" : next);
+  } else if (event.key === "r" && !document.querySelector("dialog[open]")) {
     event.preventDefault();
     doRoll();
-  } else if (event.key === "n" && state.tab === "order") {
+  } else if (event.key === "n" && document.getElementById("module-order")?.open) {
     event.preventDefault();
     stepTurn(1);
   }
@@ -2781,6 +2834,22 @@ function boot() {
     const file = event.target.files?.[0];
     if (file) void restoreNight(file);
   });
+  for (const dialog of document.querySelectorAll("dialog.module-dialog")) {
+    dialog.addEventListener("close", () => {
+      if (!moduleSync || gateMode !== "play") return;
+      if ([...document.querySelectorAll("dialog.module-dialog")].some((item) => item.open)) return;
+      if (state.tab === "dice") {
+        paintPlayerTabs("dice");
+        return;
+      }
+      state.tab = "dice";
+      paintPlayerTabs("dice");
+      persist();
+    });
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
   document.body.addEventListener("click", onClick);
   document.body.addEventListener("submit", onSubmit);
   document.body.addEventListener("input", onInput);
