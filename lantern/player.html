@@ -83,12 +83,12 @@
     </div>
     <nav class="tabs" role="tablist" aria-label="Tools">
       <button type="button" role="tab" id="tab-dice" data-action="tab" data-tab="dice" aria-controls="panel-dice" aria-selected="true">Dice</button>
-      <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-controls="panel-order" aria-selected="false" tabindex="-1">Order</button>
+      <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-haspopup="dialog" aria-controls="module-order" aria-expanded="false" aria-selected="false" tabindex="-1">Order</button>
       <button type="button" role="tab" id="tab-threat" data-action="tab" data-tab="threat" hidden>Threat</button>
       <button type="button" role="tab" id="tab-spark" data-action="tab" data-tab="spark" hidden>Spark</button>
-      <button type="button" role="tab" id="tab-character" data-action="tab" data-tab="character" aria-controls="panel-character" aria-selected="false" tabindex="-1">Pack</button>
-      <button type="button" role="tab" id="tab-notes" data-action="tab" data-tab="notes" aria-controls="panel-notes" aria-selected="false" tabindex="-1">Notes</button>
-      <button type="button" role="tab" id="tab-table" data-action="tab" data-tab="table" aria-controls="panel-table" aria-selected="false" tabindex="-1">Table</button>
+      <button type="button" role="tab" id="tab-character" data-action="tab" data-tab="character" aria-haspopup="dialog" aria-controls="module-pack" aria-expanded="false" aria-selected="false" tabindex="-1">Pack</button>
+      <button type="button" role="tab" id="tab-notes" data-action="tab" data-tab="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false" aria-selected="false" tabindex="-1">Notes</button>
+      <button type="button" role="tab" id="tab-table" data-action="tab" data-tab="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false" aria-selected="false" tabindex="-1">Table</button>
     </nav>
     <section class="wick" aria-label="Light sources">
       <p id="flame-live" class="sr-only" aria-live="polite"></p>
@@ -149,45 +149,6 @@
       <div id="dice-history" class="history"></div>
     </section>
 
-    <section role="tabpanel" id="panel-order" aria-labelledby="tab-order" hidden>
-      <h2>Order</h2>
-      <p class="lede">The highlighted name goes first. Start begins the round there. Ties keep whoever was added first.</p>
-      <div class="turn">
-        <div>
-          <p id="turn-banner" class="turn-banner">The round has not started</p>
-          <p id="turn-meta" class="hint">Add the people in the fight.</p>
-        </div>
-        <div class="turn-actions">
-          <button type="button" class="btn" id="turn-back" data-action="back">Back</button>
-          <button type="button" class="btn primary" id="turn-next" data-action="next">Next</button>
-        </div>
-      </div>
-      <form id="combatant-form" data-form="combatant" class="form" autocomplete="off">
-        <label>Name
-          <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="Mara, or the third guard">
-        </label>
-        <label>Bonus
-          <input name="bonus" type="number" value="0" inputmode="numeric">
-        </label>
-        <label>HP
-          <input name="hp" type="number" value="10" min="0" inputmode="numeric">
-        </label>
-        <label>AC
-          <input name="ac" type="number" min="0" inputmode="numeric" placeholder="—">
-        </label>
-        <label>Initiative
-          <input name="initiative" type="number" inputmode="numeric" placeholder="Blank rolls">
-        </label>
-        <button type="submit" class="btn primary">Add</button>
-      </form>
-      <p class="form-error" data-error-for="combatant"></p>
-      <div class="list-head">
-        <h3>The order</h3>
-        <button type="button" class="text-btn" id="reroll-all" data-action="reroll-all">Reroll initiative</button>
-      </div>
-      <div id="combat-list" class="stack" aria-label="Initiative order"></div>
-    </section>
-
     <section role="tabpanel" id="panel-threat" aria-labelledby="tab-threat" hidden>
       <h2>Threat</h2>
       <p class="lede">A pacing guide from the 2014 encounter budget. It is not a promise.</p>
@@ -241,19 +202,6 @@
     </section>
 
     <section role="tabpanel" id="panel-character" aria-labelledby="tab-character" hidden>
-      <div id="kit">
-        <h2 id="kit-title">Pack</h2>
-        <p id="kit-meta" class="math"></p>
-        <p id="kit-hp"></p>
-        <p id="kit-purse" class="sheet-title"></p>
-        <p class="lede">The sheet was finished before you sat down. Tap a skill to roll it, or tap something in the pack to use it.</p>
-        <button type="button" class="btn primary" data-action="open-gear">Market</button>
-        <p id="shop-note" class="hint" hidden>The DM closed the shop.</p>
-        <h3>Skills</h3>
-        <div id="kit-skills" class="kit-actions"></div>
-        <h3>Pack</h3>
-        <div id="kit-items" class="kit-actions"></div>
-      </div>
       <nav id="creator-nav" class="creator-nav" hidden aria-label="Character steps">
         <button type="button" data-action="creator-step" data-step="name">Name</button>
         <button type="button" data-action="creator-step" data-step="people">People</button>
@@ -398,11 +346,57 @@
           <button type="button" class="btn primary" id="save-character-bottom" data-action="save-character" hidden>Save this character</button>
         </div>
       </div>
-      <button type="button" class="text-btn" id="mark-dead" data-action="mark-dead" hidden>This character died</button>
     </section>
 
-    <section role="tabpanel" id="panel-notes" aria-labelledby="tab-notes" hidden>
-      <h2>Notes</h2>
+  </main>
+  <footer>
+    <p>Press <kbd>?</kbd> for keyboard keys. Order, the pack, notes, and the table open over the dice. Prompts and the encounter budget are on the Dungeon Master screen.</p>
+  </footer>
+  <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
+  <dialog id="module-order" class="gear-dialog module-dialog" aria-labelledby="order-heading">
+    <section role="tabpanel" id="panel-order" aria-labelledby="tab-order" data-module-panel="order">
+      <h2 id="order-heading">Order</h2>
+      <p class="lede">The highlighted name goes first. Start begins the round there. Ties keep whoever was added first.</p>
+      <div class="turn">
+        <div>
+          <p id="turn-banner" class="turn-banner">The round has not started</p>
+          <p id="turn-meta" class="hint">Add the people in the fight.</p>
+        </div>
+        <div class="turn-actions">
+          <button type="button" class="btn" id="turn-back" data-action="back">Back</button>
+          <button type="button" class="btn primary" id="turn-next" data-action="next">Next</button>
+        </div>
+      </div>
+      <form id="combatant-form" data-form="combatant" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="Mara, or the third guard">
+        </label>
+        <label>Bonus
+          <input name="bonus" type="number" value="0" inputmode="numeric">
+        </label>
+        <label>HP
+          <input name="hp" type="number" value="10" min="0" inputmode="numeric">
+        </label>
+        <label>AC
+          <input name="ac" type="number" min="0" inputmode="numeric" placeholder="—">
+        </label>
+        <label>Initiative
+          <input name="initiative" type="number" inputmode="numeric" placeholder="Blank rolls">
+        </label>
+        <button type="submit" class="btn primary">Add</button>
+      </form>
+      <p class="form-error" data-error-for="combatant"></p>
+      <div class="list-head">
+        <h3>The order</h3>
+        <button type="button" class="text-btn" id="reroll-all" data-action="reroll-all">Reroll initiative</button>
+      </div>
+      <div id="combat-list" class="stack" aria-label="Initiative order"></div>
+    </section>
+    <button type="button" class="btn" data-action="close-module">Close</button>
+  </dialog>
+  <dialog id="module-notes" class="gear-dialog module-dialog" aria-labelledby="notes-heading">
+    <section role="tabpanel" id="panel-notes" aria-labelledby="tab-notes" data-module-panel="notes">
+      <h2 id="notes-heading">Notes</h2>
       <p class="lede">Drafts stay in this browser. The DM does not see them. Scratch is the line the DM can read.</p>
       <label class="trait-label" for="notes">Scratch the DM can read</label>
       <textarea id="notes" maxlength="4000" rows="3" placeholder="Names, promises, the thing the rogue palmed."></textarea>
@@ -411,9 +405,11 @@
       </div>
       <div id="draft-list" class="stack"></div>
     </section>
-
-    <section role="tabpanel" id="panel-table" aria-labelledby="tab-table" hidden>
-      <h2>Table</h2>
+    <button type="button" class="btn" data-action="close-module">Close</button>
+  </dialog>
+  <dialog id="module-table" class="gear-dialog module-dialog" aria-labelledby="table-heading">
+    <section role="tabpanel" id="panel-table" aria-labelledby="tab-table" data-module-panel="table">
+      <h2 id="table-heading">Table</h2>
       <p class="lede">Say it to everyone, or whisper one person. A whisper shows only for the two of you. The DM can whisper you back.</p>
       <div id="table-here" class="here-list" aria-label="Who is at the table"></div>
       <div id="talk-log" class="talk-log" aria-live="polite"></div>
@@ -428,18 +424,32 @@
       </form>
       <p id="talk-status" class="hint" role="status"></p>
     </section>
-  </main>
-  <footer>
-    <p>Press <kbd>?</kbd> for keyboard keys. Prompts and the encounter budget are on the Dungeon Master screen.</p>
-  </footer>
-  <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
+    <button type="button" class="btn" data-action="close-module">Close</button>
+  </dialog>
+  <dialog id="module-pack" class="gear-dialog module-dialog" aria-labelledby="kit-title">
+    <div id="kit">
+      <h2 id="kit-title">Pack</h2>
+      <p id="kit-meta" class="math"></p>
+      <p id="kit-hp"></p>
+      <p id="kit-purse" class="sheet-title"></p>
+      <p class="lede">The sheet was finished before you sat down. Tap a skill to roll it, or tap something in the pack to use it.</p>
+      <button type="button" class="btn primary" data-action="open-gear">Market</button>
+      <p id="shop-note" class="hint" hidden>The DM closed the shop.</p>
+      <h3>Skills</h3>
+      <div id="kit-skills" class="kit-actions"></div>
+      <h3>Pack</h3>
+      <div id="kit-items" class="kit-actions"></div>
+      <button type="button" class="text-btn" id="mark-dead" data-action="mark-dead" hidden>This character died</button>
+    </div>
+    <button type="button" class="btn" data-action="close-module">Close</button>
+  </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
     <h2 id="keys-title">Keys</h2>
     <p class="lede">These work while you are not typing in a box.</p>
     <dl class="keys-list">
-      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Dice, Order, Pack, Notes, Table</dd>
-      <dt><kbd>R</kbd></dt><dd>Roll, on the Dice tab</dd>
-      <dt><kbd>N</kbd></dt><dd>Next turn, on the Order tab</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Dice, or the Order, Pack, Notes, and Table modules</dd>
+      <dt><kbd>R</kbd></dt><dd>Roll, while a module is closed</dd>
+      <dt><kbd>N</kbd></dt><dd>Next turn, in the Order module</dd>
       <dt><kbd>?</kbd></dt><dd>Show this list</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
     </dl>

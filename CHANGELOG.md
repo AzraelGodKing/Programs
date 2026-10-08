@@ -4,6 +4,7 @@
 
 ### Added
 
+- Shop, Spark, Threat, and Notes on the DM screen open as modules. On the player seat, Order, Pack, Notes, and Table open over the dice. Closing a module leaves the table where it was.
 - The shop switches between Buy and Sell. The coin purse shows platinum, gold, electrum, silver, and copper. Opening it buys missing ammunition for a bow or crossbow in the pack, and a component pouch for a spellcaster who has no focus, when this counter sells them.
 - The DM shop has the 2014 equipment list: weapons, armor, gear, tools, mounts, trade goods, and food and lodging. A stall still opens a short counter. Add from the base list when this shop sells something else.
 - The purse converts platinum, gold, electrum, silver, and copper. 1 pp is 10 gp, and 1 ep is 5 sp. A price can be written in any of those coins.

@@ -495,16 +495,49 @@ function onDmInput(event) {
   renderDmThreat();
 }
 
+function paintDmModules() {
+  for (const button of document.querySelectorAll("[data-module]")) {
+    const dialog = document.getElementById(`module-${button.dataset.module}`);
+    button.setAttribute("aria-expanded", dialog?.open ? "true" : "false");
+  }
+}
+
+function openDmModule(name) {
+  const dialog = document.getElementById(`module-${name}`);
+  if (!dialog) return;
+  if (dialog.open) {
+    dialog.close();
+    return;
+  }
+  for (const other of document.querySelectorAll("dialog.module-dialog")) {
+    if (other !== dialog && other.open) other.close();
+  }
+  dialog.showModal();
+  paintDmModules();
+}
+
 function bootTools() {
-  const root = document.getElementById("dm-tools");
-  if (!root) return;
-  root.addEventListener("click", onDmClick);
-  root.addEventListener("input", onDmInput);
-  root.addEventListener("change", onDmInput);
-  document.getElementById("dm-prepare")?.addEventListener("toggle", () => {
-    tools.prepareOpen = document.getElementById("dm-prepare").open;
-    saveTools();
+  for (const id of ["module-spark", "module-threat"]) {
+    const root = document.getElementById(id);
+    if (!root) continue;
+    root.addEventListener("click", onDmClick);
+    root.addEventListener("input", onDmInput);
+    root.addEventListener("change", onDmInput);
+  }
+  document.querySelector(".module-bar")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-module]");
+    if (button) openDmModule(button.dataset.module);
   });
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-close-module]");
+    if (button) button.closest("dialog")?.close();
+  });
+  for (const dialog of document.querySelectorAll("dialog.module-dialog")) {
+    dialog.addEventListener("close", paintDmModules);
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
   document.getElementById("use-party")?.addEventListener("click", () => {
     const text = document.getElementById("use-party").dataset.levels || "";
     if (!text) return;
