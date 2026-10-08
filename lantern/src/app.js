@@ -35,12 +35,14 @@ import {
 } from "./character.js";
 import { facesLabel, formula, roll, STANDARD_SIDES } from "./dice.js";
 import {
+  coinCounts,
   counterFor,
   equipNewCharacter,
   findOffer,
   formatCoin,
   buyBackItem,
   payCounter,
+  restockStaples,
   sellOffers,
   sellPrice,
   sellToCounter,
@@ -1669,9 +1671,32 @@ function renderKit() {
     : [h("p", { class: "empty" }, "The pack is empty.")]));
 }
 
+function paintPurse(node, cp) {
+  if (!node) return;
+  if (cp == null) {
+    node.replaceChildren(h("span", {}, "No purse yet."));
+    return;
+  }
+  node.replaceChildren(...coinCounts(cp).map((coin) => h("span", {}, `${coin.count} ${coin.name}`)));
+}
+
+let shopPane = "buy";
+
+function showShopPane(pane) {
+  shopPane = pane === "sell" ? "sell" : "buy";
+  const buy = document.getElementById("shop-buy");
+  const sell = document.getElementById("shop-sell");
+  const buyTab = document.getElementById("shop-tab-buy");
+  const sellTab = document.getElementById("shop-tab-sell");
+  if (buy) buy.hidden = shopPane !== "buy";
+  if (sell) sell.hidden = shopPane !== "sell";
+  if (buyTab) buyTab.setAttribute("aria-selected", shopPane === "buy" ? "true" : "false");
+  if (sellTab) sellTab.setAttribute("aria-selected", shopPane === "sell" ? "true" : "false");
+}
+
 function renderGear() {
   const character = state.character;
-  setText(document.getElementById("gear-purse"), character.purse == null ? "No purse yet." : formatCoin(character.purse));
+  paintPurse(document.getElementById("gear-purse"), character.purse);
   const shop = document.getElementById("gear-shop");
   const purse = character.purse ?? 0;
   const offers = counterOffers();
@@ -1831,7 +1856,20 @@ async function watchShop() {
 function openGear() {
   if (!shopOpen) return;
   const error = document.getElementById("gear-error");
+  const note = document.getElementById("gear-restock");
   if (error) error.textContent = "";
+  const restock = restockStaples(state.character, counterOffers());
+  if (restock.bought.length) {
+    state.character = restock.character;
+    const line = restock.bought.map((item) => `${item.name} for ${formatCoin(item.cp)}`).join(", ");
+    if (note) note.textContent = `Bought ${line}.`;
+    persist(`Bought ${line} on the way in.`);
+    renderCharacter();
+  } else if (note) note.textContent = "";
+  if (error && restock.skipped.length) {
+    error.textContent = `Not enough coin for ${restock.skipped.map((item) => item.name).join(", ")}.`;
+  }
+  showShopPane("buy");
   renderGear();
   document.getElementById("gear-dialog").showModal();
 }
@@ -2475,6 +2513,7 @@ function onClick(event) {
   else if (action === "use-item") spendItem(button.dataset.id);
   else if (action === "open-gear") openGear();
   else if (action === "close-gear") document.getElementById("gear-dialog").close();
+  else if (action === "shop-tab") showShopPane(button.dataset.shop);
   else if (action === "buy-item") purchase(button.dataset.id);
   else if (action === "sell-item") sellPiece(button.dataset.id);
   else if (action === "buy-back") buyBackPiece(button.dataset.id, button.dataset.cp);

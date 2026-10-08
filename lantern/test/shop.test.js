@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { blankCharacter } from "../src/character.js";
 import {
+  coinCounts,
   counterFor,
   formatCoin,
   parseCoin,
   buyBackItem,
   payCounter,
+  restockStaples,
   sellOffers,
   sellToCounter,
   stallById,
@@ -97,6 +99,46 @@ test("a stall buys its own goods at half price and leaves the rest", () => {
   assert.equal(sellToCounter(vials.character, upgrade).ok, false);
   assert.equal(sellOffers(counterFor("tavern").goods, vials.character.items).length, 0);
   assert.equal(sellToCounter(vials.character, { id: "rope", name: "Rope", cp: 100, service: false }).ok, false);
+});
+
+test("opening a shop restocks missing arrows and a component pouch", () => {
+  assert.deepEqual(coinCounts(parseCoin("1 pp, 2 gp, 1 ep, 3 sp, 4 cp")), [
+    { name: "pp", count: 1 },
+    { name: "gp", count: 2 },
+    { name: "ep", count: 1 },
+    { name: "sp", count: 3 },
+    { name: "cp", count: 4 },
+  ]);
+  const market = counterFor("market").goods;
+  const archer = {
+    ...blankCharacter(),
+    classId: "ranger",
+    touched: true,
+    purse: parseCoin("30 gp"),
+    items: [{ id: "shortbow", name: "Shortbow", qty: 1 }],
+  };
+  const stocked = restockStaples(archer, market);
+  assert.deepEqual(stocked.bought.map((item) => item.id), ["arrows", "component-pouch"]);
+  assert.equal(stocked.character.purse, parseCoin("30 gp") - 100 - 2500);
+  assert.equal(stocked.skipped.length, 0);
+  const again = restockStaples(stocked.character, market);
+  assert.deepEqual(again.bought, []);
+
+  const broke = restockStaples({ ...archer, purse: parseCoin("5 sp") }, market);
+  assert.deepEqual(broke.bought, []);
+  assert.equal(broke.skipped[0].id, "arrows");
+  assert.equal(broke.character.purse, parseCoin("5 sp"));
+
+  const cleric = {
+    ...blankCharacter(),
+    classId: "cleric",
+    touched: true,
+    purse: parseCoin("40 gp"),
+    items: [{ id: "holy-symbol", name: "Holy symbol", qty: 1 }],
+  };
+  assert.deepEqual(restockStaples(cleric, market).bought, []);
+  const vials = restockStaples(archer, counterFor("apothecary").goods);
+  assert.deepEqual(vials.bought, []);
 });
 
 test("buying back costs the coin the sale paid", () => {

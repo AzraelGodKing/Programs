@@ -447,16 +447,24 @@
   </dialog>
   <dialog id="gear-dialog" class="gear-dialog">
     <h2 id="gear-title">Market</h2>
-    <p id="gear-purse" class="sheet-title"></p>
+    <p class="hint">Coin purse</p>
+    <div id="gear-purse" class="purse-coins" aria-label="Coin purse"></div>
     <p id="gear-lede" class="lede">Buying takes the price out of the purse. This counter buys those goods back at half price.</p>
+    <p id="gear-restock" class="hint" role="status"></p>
     <p id="gear-error" class="form-error" role="status"></p>
-    <h3>Buy</h3>
-    <div id="gear-shop" class="stack"></div>
-    <h3>Sell</h3>
-    <div id="gear-sell" class="stack"></div>
-    <h3 id="gear-buyback-title" hidden>Buy back</h3>
-    <p id="gear-buyback-hint" class="hint" hidden>Same coin you were paid, until the DM closes the shop.</p>
-    <div id="gear-buyback" class="stack"></div>
+    <div class="tabs shop-tabs" role="tablist" aria-label="Buy or sell">
+      <button type="button" id="shop-tab-buy" role="tab" aria-selected="true" aria-controls="shop-buy" data-action="shop-tab" data-shop="buy">Buy</button>
+      <button type="button" id="shop-tab-sell" role="tab" aria-selected="false" aria-controls="shop-sell" data-action="shop-tab" data-shop="sell">Sell</button>
+    </div>
+    <div id="shop-buy" role="tabpanel" aria-labelledby="shop-tab-buy">
+      <div id="gear-shop" class="stack"></div>
+      <h3 id="gear-buyback-title" hidden>Buy back</h3>
+      <p id="gear-buyback-hint" class="hint" hidden>Same coin you were paid, until the DM closes the shop.</p>
+      <div id="gear-buyback" class="stack"></div>
+    </div>
+    <div id="shop-sell" role="tabpanel" aria-labelledby="shop-tab-sell" hidden>
+      <div id="gear-sell" class="stack"></div>
+    </div>
     <button type="button" class="btn" data-action="close-gear">Close</button>
   </dialog>
   <script type="module" src="src/app.js"></script>
