@@ -1,58 +1,17 @@
 // Prices are copper. 1 pp = 10 gp, 1 gp = 2 ep, 1 ep = 5 sp, 1 sp = 10 cp.
 // Starting purses are the average of the 2014 class wealth tables.
 
-export const GEAR = [
-  { id: "dagger", name: "Dagger", cp: 200 },
-  { id: "handaxe", name: "Handaxe", cp: 500 },
-  { id: "javelin", name: "Javelin", cp: 50 },
-  { id: "mace", name: "Mace", cp: 500 },
-  { id: "quarterstaff", name: "Quarterstaff", cp: 20 },
-  { id: "spear", name: "Spear", cp: 100 },
-  { id: "shortsword", name: "Shortsword", cp: 1000 },
-  { id: "scimitar", name: "Scimitar", cp: 2500 },
-  { id: "longsword", name: "Longsword", cp: 1500 },
-  { id: "rapier", name: "Rapier", cp: 2500 },
-  { id: "greataxe", name: "Greataxe", cp: 3000 },
-  { id: "shortbow", name: "Shortbow", cp: 2500 },
-  { id: "longbow", name: "Longbow", cp: 5000 },
-  { id: "light-crossbow", name: "Light crossbow", cp: 2500 },
-  { id: "dart", name: "Dart", cp: 5 },
-  { id: "shield", name: "Shield", cp: 1000 },
-  { id: "leather", name: "Leather armor", cp: 1000 },
-  { id: "scale-mail", name: "Scale mail", cp: 5000 },
-  { id: "chain-shirt", name: "Chain shirt", cp: 5000 },
-  { id: "chain-mail", name: "Chain mail", cp: 7500 },
-  { id: "holy-symbol", name: "Holy symbol", cp: 500 },
-  { id: "arcane-focus", name: "Arcane focus", cp: 1000 },
-  { id: "druidic-focus", name: "Druidic focus", cp: 100 },
-  { id: "component-pouch", name: "Component pouch", cp: 2500 },
-  { id: "thieves-tools", name: "Thieves' tools", cp: 2500 },
-  { id: "healers-kit", name: "Healer's kit", cp: 500 },
-  { id: "spellbook", name: "Spellbook", cp: 5000 },
-  { id: "book", name: "Book", cp: 2500 },
-  { id: "ink", name: "Ink (1 ounce)", cp: 1000 },
-  { id: "paper", name: "Paper (one sheet)", cp: 20 },
-  { id: "parchment", name: "Parchment (one sheet)", cp: 10 },
-  { id: "antitoxin", name: "Antitoxin", cp: 5000 },
-  { id: "acid", name: "Acid (vial)", cp: 2500 },
-  { id: "alchemists-fire", name: "Alchemist's fire", cp: 5000 },
-  { id: "holy-water", name: "Holy water", cp: 2500 },
-  { id: "lute", name: "Lute", cp: 3500 },
-  { id: "explorers-pack", name: "Explorer's pack", cp: 1000 },
-  { id: "dungeoneers-pack", name: "Dungeoneer's pack", cp: 1200 },
-  { id: "scholars-pack", name: "Scholar's pack", cp: 4000 },
-  { id: "priests-pack", name: "Priest's pack", cp: 1900 },
-  { id: "burglars-pack", name: "Burglar's pack", cp: 1600 },
-  { id: "diplomats-pack", name: "Diplomat's pack", cp: 3900 },
-  { id: "entertainers-pack", name: "Entertainer's pack", cp: 4000 },
-  { id: "clothes", name: "Common clothes", cp: 50 },
-  { id: "rope", name: "Hempen rope, 50 feet", cp: 100 },
-  { id: "torch", name: "Torch", cp: 1, consumable: true },
-  { id: "rations", name: "Rations (1 day)", cp: 50, consumable: true },
-  { id: "potion-healing", name: "Potion of healing", cp: 5000, consumable: true },
-  { id: "arrows", name: "Arrows (20)", cp: 100 },
-  { id: "bolts", name: "Crossbow bolts (20)", cp: 100 },
-];
+import { BASE_LIST, COUNTER_CAP } from "./catalog.js";
+
+export { BASE_LIST, COUNTER_CAP };
+
+const CATALOG = BASE_LIST.flatMap((group) => group.items);
+
+export const GEAR = CATALOG.filter((item) => item.service !== true).map((item) => {
+  const gear = { id: item.id, name: item.name, cp: item.cp };
+  if (item.consumable) gear.consumable = true;
+  return gear;
+});
 
 const KITS = {
   barbarian: [["greataxe", 1], ["javelin", 4], ["explorers-pack", 1]],
@@ -88,18 +47,41 @@ const STARTING_CP = {
 
 const SERVICES = [
   { id: "upgrade-plus-1", name: "Bring a weapon or armor from +0 to +1", cp: 50000, service: true },
-  { id: "ale-mug", name: "Ale, mug", cp: 4, service: true },
-  { id: "meal-modest", name: "Meal, modest", cp: 30, service: true },
-  { id: "room-modest", name: "Room for the night, modest", cp: 50, service: true },
-  { id: "wine-fine", name: "Wine, fine (bottle)", cp: 1000, service: true },
+  ...CATALOG.filter((item) => item.service === true).map((item) => ({
+    id: item.id,
+    name: item.name,
+    cp: item.cp,
+    service: true,
+  })),
 ];
 
+function groupIds(id) {
+  const group = BASE_LIST.find((entry) => entry.id === id);
+  return group ? group.items.map((item) => item.id) : [];
+}
+
 const SMITH = [
+  ...groupIds("weapons"),
+  ...groupIds("armor"),
+  ...groupIds("ammunition"),
+  "smiths-tools",
+  "whetstone",
+  "upgrade-plus-1",
+];
+
+const MARKET = [
   "dagger", "handaxe", "javelin", "mace", "quarterstaff", "spear",
   "shortsword", "scimitar", "longsword", "rapier", "greataxe",
   "shortbow", "longbow", "light-crossbow", "dart", "shield",
-  "leather", "scale-mail", "chain-shirt", "chain-mail", "arrows", "bolts",
-  "upgrade-plus-1",
+  "leather", "scale-mail", "chain-shirt", "chain-mail",
+  "holy-symbol", "arcane-focus", "druidic-focus", "component-pouch",
+  "thieves-tools", "healers-kit", "spellbook", "lute",
+  "explorers-pack", "dungeoneers-pack", "scholars-pack", "priests-pack",
+  "burglars-pack", "diplomats-pack", "entertainers-pack",
+  "clothes", "rope", "torch", "rations", "potion-healing", "arrows", "bolts",
+  "backpack", "bedroll", "tinderbox", "waterskin", "pouch", "candle",
+  "lantern-hooded", "oil", "piton", "grappling-hook", "crowbar", "hammer",
+  "blanket", "mess-kit",
 ];
 
 export const STALLS = [
@@ -107,23 +89,16 @@ export const STALLS = [
     id: "market",
     name: "Market",
     hint: "The general counter: rope, rations, weapons, and the rest.",
-    goods: [
-      "dagger", "handaxe", "javelin", "mace", "quarterstaff", "spear",
-      "shortsword", "scimitar", "longsword", "rapier", "greataxe",
-      "shortbow", "longbow", "light-crossbow", "dart", "shield",
-      "leather", "scale-mail", "chain-shirt", "chain-mail",
-      "holy-symbol", "arcane-focus", "druidic-focus", "component-pouch",
-      "thieves-tools", "healers-kit", "spellbook", "lute",
-      "explorers-pack", "dungeoneers-pack", "scholars-pack", "priests-pack",
-      "burglars-pack", "diplomats-pack", "entertainers-pack",
-      "clothes", "rope", "torch", "rations", "potion-healing", "arrows", "bolts",
-    ],
+    goods: MARKET,
   },
   {
     id: "apothecary",
     name: "Apothecary",
     hint: "Vials and kits. A potions counter does not sell swords.",
-    goods: ["potion-healing", "antitoxin", "acid", "alchemists-fire", "holy-water", "healers-kit"],
+    goods: [
+      "potion-healing", "antitoxin", "acid", "alchemists-fire", "holy-water",
+      "healers-kit", "herbalism-kit", "poison-basic", "vial", "perfume",
+    ],
   },
   {
     id: "smith",
@@ -135,13 +110,22 @@ export const STALLS = [
     id: "scribe",
     name: "Scribe",
     hint: "Spellbooks, ink, and paper.",
-    goods: ["spellbook", "book", "ink", "paper", "parchment", "component-pouch"],
+    goods: [
+      "spellbook", "book", "ink", "ink-pen", "paper", "parchment",
+      "sealing-wax", "component-pouch", "scroll-case", "calligraphers-supplies",
+    ],
   },
   {
     id: "tavern",
     name: "Tavern",
     hint: "A tab at the bar, or a room for the night. Paying does not put the room in the pack.",
-    goods: ["ale-mug", "meal-modest", "room-modest", "wine-fine"],
+    goods: groupIds("tavern"),
+  },
+  {
+    id: "stable",
+    name: "Stable",
+    hint: "Mounts, tack, and wagons. A ship is here if this harbor sells one.",
+    goods: groupIds("mounts"),
   },
 ];
 

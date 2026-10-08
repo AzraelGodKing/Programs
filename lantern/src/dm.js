@@ -12,7 +12,7 @@ import {
   passiveSummary,
   skilledSummary,
 } from "./screen.js";
-import { counterFor, findOffer, formatCoin, parseCoin, stallById, STALLS } from "./gear.js";
+import { BASE_LIST, COUNTER_CAP, counterFor, findOffer, formatCoin, parseCoin, stallById, STALLS } from "./gear.js";
 import { normalize } from "./store.js";
 import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postTalk, setShop } from "./table.js";
 import { paintTalk, paintTargets } from "./talk.js";
@@ -656,9 +656,8 @@ async function copyText(text, button) {
   setTimeout(() => { button.textContent = previous; }, 1200);
 }
 
-function paintGoods(goods) {
-  const mount = document.getElementById("shop-goods");
-  mount.replaceChildren(...goods.map((good) => h("div", { class: "shop-good" }, [
+function goodRow(good) {
+  return h("div", { class: "shop-good" }, [
     h("label", {}, [
       h("input", { type: "checkbox", "data-good": good.id, checked: good.on !== false }),
       h("span", {}, good.name),
@@ -670,7 +669,58 @@ function paintGoods(goods) {
       "aria-label": `Price for ${good.name}`,
       spellcheck: "false",
     }),
-  ])));
+  ]);
+}
+
+function paintGoods(goods) {
+  document.getElementById("shop-goods").replaceChildren(...goods.map(goodRow));
+  paintBaseList();
+}
+
+function counterIds() {
+  return new Set([...document.querySelectorAll("[data-good]")].map((box) => box.dataset.good));
+}
+
+function paintBaseList() {
+  const mount = document.getElementById("base-list");
+  if (!mount) return;
+  const query = (document.getElementById("base-find")?.value || "").trim().toLowerCase();
+  const onCounter = counterIds();
+  const blocks = [];
+  for (const group of BASE_LIST) {
+    const items = group.items.filter((item) => !query || item.name.toLowerCase().includes(query));
+    if (!items.length) continue;
+    blocks.push(h("h3", { class: "base-group" }, group.name));
+    for (const item of items) {
+      const added = onCounter.has(item.id);
+      blocks.push(h("div", { class: "base-row" }, [
+        h("span", {}, item.name),
+        h("span", { class: "hint" }, formatCoin(item.cp)),
+        added
+          ? h("span", { class: "hint" }, "On the counter")
+          : h("button", { type: "button", class: "btn", "data-add-base": item.id }, "Add"),
+      ]));
+    }
+  }
+  mount.replaceChildren(...(blocks.length
+    ? blocks
+    : [h("p", { class: "hint" }, "Nothing in the base list matches.")]));
+}
+
+function addBaseItem(id) {
+  if (counterIds().has(id)) return;
+  const checked = document.querySelectorAll("[data-good]:checked").length;
+  if (checked >= COUNTER_CAP) {
+    setStatus(`This counter holds ${COUNTER_CAP} lines.`);
+    return;
+  }
+  const offer = findOffer(id);
+  if (!offer) return;
+  const row = goodRow({ ...offer, on: true });
+  document.getElementById("shop-goods").append(row);
+  row.scrollIntoView({ block: "nearest" });
+  paintBaseList();
+  setStatus(`${offer.name} is on this counter.`);
 }
 
 function fillShopForm(shop) {
@@ -684,14 +734,31 @@ function fillShopForm(shop) {
   const usePublished = Boolean(published && Array.isArray(published.goods));
   document.getElementById("shop-name").value = published?.name || base.name;
   document.getElementById("shop-hint").textContent = stallById(stallId).hint;
-  paintGoods(base.goods.map((good) => {
+  const rows = base.goods.map((good) => {
     const saved = priced.get(good.id);
     return {
       ...good,
       cp: saved ? saved.cp : good.cp,
       on: usePublished ? Boolean(saved) : true,
     };
-  }));
+  });
+  const have = new Set(rows.map((good) => good.id));
+  if (usePublished) {
+    for (const good of published.goods) {
+      if (!good || have.has(good.id)) continue;
+      const offer = findOffer(good.id);
+      if (!offer) continue;
+      rows.push({
+        id: offer.id,
+        name: offer.name,
+        cp: Number.isInteger(good.cp) ? good.cp : offer.cp,
+        service: offer.service === true,
+        on: true,
+      });
+      have.add(offer.id);
+    }
+  }
+  paintGoods(rows);
 }
 
 function ensureShopForm(room) {
@@ -898,6 +965,12 @@ function boot() {
     document.getElementById("shop-name").value = counter.name;
     document.getElementById("shop-hint").textContent = stallById(counter.stall).hint;
     paintGoods(counter.goods.map((good) => ({ ...good, on: true })));
+  });
+  document.getElementById("base-find")?.addEventListener("input", paintBaseList);
+  document.getElementById("base-list")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-add-base]");
+    if (!button) return;
+    addBaseItem(button.dataset.addBase);
   });
   document.getElementById("shop-open").addEventListener("click", () => {
     void publishCounter(true);

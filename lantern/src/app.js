@@ -35,7 +35,7 @@ import {
 } from "./character.js";
 import { facesLabel, formula, roll, STANDARD_SIDES } from "./dice.js";
 import {
-  GEAR,
+  counterFor,
   equipNewCharacter,
   findOffer,
   formatCoin,
@@ -1772,9 +1772,7 @@ function normalizeShop(shop) {
 }
 
 function counterOffers() {
-  if (!Array.isArray(counter.goods)) {
-    return GEAR.map((gear) => ({ id: gear.id, name: gear.name, cp: gear.cp, service: false }));
-  }
+  if (!Array.isArray(counter.goods)) return counterFor("market").goods;
   return counter.goods.flatMap((good) => {
     if (!good || typeof good.id !== "string" || !Number.isInteger(good.cp) || good.cp < 0) return [];
     const known = findOffer(good.id);

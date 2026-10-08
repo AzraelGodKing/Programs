@@ -2,12 +2,43 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { blankCharacter, cleanCharacter } from "../src/character.js";
 import {
+  BASE_LIST,
+  COUNTER_CAP,
+  STALLS,
   buyItem,
   equipNewCharacter,
+  findOffer,
   formatCoin,
   startingPurse,
   useItem,
 } from "../src/gear.js";
+
+test("the base list is the 2014 equipment tables", () => {
+  const items = BASE_LIST.flatMap((group) => group.items);
+  const ids = items.map((item) => item.id);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const item of items) {
+    assert.match(item.id, /^[a-z0-9-]{1,40}$/);
+    assert.ok(item.name.length > 0 && item.name.length <= 60);
+    assert.equal(Number.isInteger(item.cp) && item.cp > 0, true);
+    assert.equal(findOffer(item.id).cp, item.cp);
+  }
+  assert.equal(findOffer("club").cp, 10);
+  assert.equal(findOffer("plate-armor").cp, 150000);
+  assert.equal(findOffer("potion-healing").cp, 5000);
+  assert.equal(findOffer("saffron").cp, 1500);
+  assert.equal(findOffer("ale-mug").service, true);
+  assert.equal(findOffer("longsword").name, "Longsword");
+  for (const stall of STALLS) {
+    assert.ok(stall.goods.length > 0 && stall.goods.length <= COUNTER_CAP, stall.id);
+    assert.equal(new Set(stall.goods).size, stall.goods.length);
+    for (const id of stall.goods) assert.ok(findOffer(id), `${stall.id} ${id}`);
+  }
+  assert.equal(STALLS.find((stall) => stall.id === "smith").goods.includes("plate-armor"), true);
+  assert.equal(STALLS.find((stall) => stall.id === "apothecary").goods.includes("longsword"), false);
+  assert.equal(STALLS.find((stall) => stall.id === "stable").goods.includes("warhorse"), true);
+  assert.equal(STALLS.find((stall) => stall.id === "tavern").goods.includes("room-modest"), true);
+});
 
 test("coin reads in platinum, gold, electrum, silver, and copper", () => {
   assert.equal(formatCoin(12500), "12 pp, 5 gp");
