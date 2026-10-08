@@ -602,6 +602,32 @@ kbd {
 
 .shop-good input[type="text"] { width: 100%; }
 
+.base-find {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.8rem;
+}
+
+.base-list {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 22rem;
+  overflow: auto;
+  margin-top: 0.4rem;
+}
+
+.base-group {
+  margin: 0.45rem 0 0;
+  font-size: 0.95rem;
+}
+
+.base-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
 .dm-tools { margin: 1.25rem 0; }
 
 .dm-tools-grid { display: grid; gap: 1rem; }
