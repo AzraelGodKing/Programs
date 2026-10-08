@@ -9,10 +9,12 @@ import {
   useItem,
 } from "../src/gear.js";
 
-test("coin reads in gold, silver, and copper", () => {
-  assert.equal(formatCoin(12500), "125 gp");
-  assert.equal(formatCoin(1250), "12 gp, 5 sp");
+test("coin reads in platinum, gold, electrum, silver, and copper", () => {
+  assert.equal(formatCoin(12500), "12 pp, 5 gp");
+  assert.equal(formatCoin(1250), "1 pp, 2 gp, 1 ep");
   assert.equal(formatCoin(101), "1 gp, 1 cp");
+  assert.equal(formatCoin(1000), "1 pp");
+  assert.equal(formatCoin(50), "1 ep");
   assert.equal(formatCoin(0), "0 cp");
 });
 

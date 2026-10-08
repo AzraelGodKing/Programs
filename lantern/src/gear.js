@@ -1,4 +1,4 @@
-// Prices are copper. 1 gp = 100 cp, 1 sp = 10 cp.
+// Prices are copper. 1 pp = 10 gp, 1 gp = 2 ep, 1 ep = 5 sp, 1 sp = 10 cp.
 // Starting purses are the average of the 2014 class wealth tables.
 
 export const GEAR = [
@@ -181,16 +181,25 @@ export function counterFor(stallId) {
   };
 }
 
+const COIN_WORTH = [
+  ["pp", 1000],
+  ["gp", 100],
+  ["ep", 50],
+  ["sp", 10],
+  ["cp", 1],
+];
+
+const COIN_RATE = Object.fromEntries(COIN_WORTH);
+
 export function parseCoin(value) {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return null;
   if (/^\d{1,7}$/.test(raw)) return Math.min(10_000_000, Number(raw) * 100);
   let total = 0;
   let any = false;
-  for (const match of raw.matchAll(/(\d+)\s*(gp|sp|cp)/g)) {
+  for (const match of raw.matchAll(/(\d+)\s*(pp|gp|ep|sp|cp)\b/g)) {
     any = true;
-    const count = Number(match[1]);
-    total += match[2] === "gp" ? count * 100 : match[2] === "sp" ? count * 10 : count;
+    total += Number(match[1]) * COIN_RATE[match[2]];
   }
   if (!any) return null;
   return Math.min(10_000_000, total);
@@ -201,14 +210,17 @@ export function formatCoin(cp) {
   if (!Number.isFinite(n)) return "0 cp";
   const sign = n < 0 ? "−" : "";
   let left = Math.abs(Math.trunc(n));
-  const gp = Math.floor(left / 100);
-  left %= 100;
-  const sp = Math.floor(left / 10);
-  const copper = left % 10;
   const parts = [];
-  if (gp) parts.push(`${gp} gp`);
-  if (sp) parts.push(`${sp} sp`);
-  if (copper || !parts.length) parts.push(`${copper} cp`);
+  for (const [name, worth] of COIN_WORTH) {
+    if (name === "cp") {
+      if (left || !parts.length) parts.push(`${left} cp`);
+      break;
+    }
+    const count = Math.floor(left / worth);
+    if (!count) continue;
+    parts.push(`${count} ${name}`);
+    left -= count * worth;
+  }
   return sign + parts.join(", ");
 }
 
