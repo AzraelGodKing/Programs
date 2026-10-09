@@ -14,6 +14,7 @@ const SHELL = [
   "/manifest.webmanifest",
   "/icons/lantern-192.png",
   "/src/app.js",
+  "/src/catalog.js",
   "/src/character.js",
   "/src/dice.js",
   "/src/dm.js",
