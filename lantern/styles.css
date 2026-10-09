@@ -1498,3 +1498,80 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 }
+
+.hp-line, .rest-actions, .death-line, .gear-restock, .code-row, .turn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.7rem;
+}
+
+.mark-picks { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+button.mark-chip {
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.mark-chip.is-on,
+.mark-chip.is-on {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.tab-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.2rem;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--ember-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.roll-strip {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0.35rem 0.2rem;
+  background: var(--bg);
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.code-row { align-items: center; }
+
+.room-qr {
+  width: 7.5rem;
+  height: 7.5rem;
+  flex: 0 0 auto;
+  background: #f4efe6;
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.room-qr svg { display: block; width: 100%; height: 100%; }
+
+.table-order {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--raise);
+}
+
+.dm-command.is-compact .room-qr { width: 4.5rem; height: 4.5rem; }
+
+.seat-card .hp-line { margin-top: 0.15rem; }
+
+@media (max-width: 640px) {
+  .room-qr, .dm-command.is-compact .room-qr { width: 6.5rem; height: 6.5rem; }
+}

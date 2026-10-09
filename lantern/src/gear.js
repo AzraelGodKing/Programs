@@ -279,6 +279,23 @@ export function restockStaples(character, offers) {
   return { character: next, bought, skipped };
 }
 
+export function stapleQuote(character, offers) {
+  const byId = new Map((offers || []).filter((offer) => offer && offer.service !== true).map((offer) => [offer.id, offer]));
+  let purse = Number.isInteger(character?.purse) ? character.purse : 0;
+  const lines = [];
+  const short = [];
+  for (const id of stapleIds(character)) {
+    const offer = byId.get(id);
+    if (!offer) continue;
+    if (purse < offer.cp) short.push({ id, name: offer.name, cp: offer.cp });
+    else {
+      purse -= offer.cp;
+      lines.push({ id, name: offer.name, cp: offer.cp });
+    }
+  }
+  return { lines, short, total: lines.reduce((sum, line) => sum + line.cp, 0) };
+}
+
 export function startingPurse(classId) {
   return STARTING_CP[classId] ?? STARTING_CP.custom;
 }

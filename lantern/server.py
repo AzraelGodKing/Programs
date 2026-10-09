@@ -73,6 +73,22 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             self.send_json(200, {"ok": True, "buybacks": buybacks})
             return
+        if path.startswith("/api/rooms/") and path.endswith("/order"):
+            code = path.removeprefix("/api/rooms/").removesuffix("/order").strip("/")
+            try:
+                payload = self.read_json()
+                order = TABLE.set_order(code, payload)
+            except TableError as error:
+                self.send_json(400, {"error": str(error)})
+                return
+            except json.JSONDecodeError:
+                self.send_json(400, {"error": "That was not JSON."})
+                return
+            if order is None:
+                self.send_json(404, {"error": "No table with that code."})
+                return
+            self.send_json(200, {"ok": True, "order": order})
+            return
         if path.startswith("/api/rooms/") and path.endswith("/talk"):
             code = path.removeprefix("/api/rooms/").removesuffix("/talk").strip("/")
             try:

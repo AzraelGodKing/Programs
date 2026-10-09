@@ -55,8 +55,11 @@
     <main id="dm-main" hidden>
       <div class="dm-command" id="dm-command">
         <div>
-          <p class="hint">Say this code, or send the link.</p>
-          <p id="room-code" class="room-code"></p>
+          <p class="hint">Say this code, or send the link. The square opens the player seat.</p>
+          <div class="code-row">
+            <p id="room-code" class="room-code"></p>
+            <div id="room-qr" class="room-qr" role="img" aria-label="QR code for the player link"></div>
+          </div>
           <div class="dm-actions">
             <button type="button" class="btn" id="copy-code">Copy code</button>
             <button type="button" class="btn" id="copy-link">Copy the player link</button>
@@ -78,6 +81,39 @@
         <button type="button" class="btn" data-module="threat" aria-haspopup="dialog" aria-controls="module-threat" aria-expanded="false">Threat</button>
         <button type="button" class="btn" data-module="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false">Notes</button>
       </div>
+
+      <section id="table-order" class="table-order" aria-label="Turn order">
+        <div class="turn">
+          <div>
+            <p id="order-banner" class="turn-banner">The round has not started</p>
+            <p id="order-meta" class="hint">Players roll initiative from their seat. Add a creature here.</p>
+          </div>
+          <div class="turn-actions">
+            <button type="button" class="btn" id="order-back">Back</button>
+            <button type="button" class="btn primary" id="order-next">Next</button>
+          </div>
+        </div>
+        <div id="order-list" class="stack"></div>
+        <form id="order-add" class="form" autocomplete="off">
+          <label>Creature
+            <input name="name" maxlength="80" placeholder="Third guard" spellcheck="false">
+          </label>
+          <label>HP
+            <input name="hp" type="number" value="10" min="0" inputmode="numeric">
+          </label>
+          <label>AC
+            <input name="ac" type="number" min="0" inputmode="numeric" placeholder="—">
+          </label>
+          <label>Bonus
+            <input name="bonus" type="number" value="0" inputmode="numeric">
+          </label>
+          <label>Initiative
+            <input name="initiative" type="number" inputmode="numeric" placeholder="Blank rolls">
+          </label>
+          <button type="submit" class="btn">Add</button>
+        </form>
+        <p id="order-error" class="form-error" role="status"></p>
+      </section>
 
       <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
       <div id="party-strip" class="party-strip" aria-label="The party"></div>
@@ -197,6 +233,7 @@
     <p class="lede">These work while you are not typing in a box.</p>
     <dl class="keys-list">
       <dt><kbd>C</kbd></dt><dd>Copy the table code</dd>
+      <dt><kbd>N</kbd></dt><dd>Next turn</dd>
       <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous or next seat</dd>
       <dt><kbd>?</kbd></dt><dd>Show this list</dd>
       <dt>Shop, Spark, Threat, Notes</dt><dd>Open that module. Esc closes it. The table stays underneath.</dd>
