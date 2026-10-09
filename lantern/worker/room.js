@@ -1,5 +1,7 @@
 /** Shared table rules used by the Durable Object. Matches lantern/room.py. */
 
+import { applyOrder, blankOrder, cleanOrder } from "../src/order.js";
+
 export const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const EVENT_CAP = 500;
 export const SUMMARY_CAP = 20;
@@ -197,6 +199,7 @@ export class TableRoom {
       shop: true,
       messages: [],
       buybacks: [],
+      order: blankOrder(),
     });
     await this.storage.setAlarm(now + IDLE_MS);
     return true;
@@ -218,6 +221,7 @@ export class TableRoom {
       shop,
       buybacks: buybacks.map((line) => ({ ...line })),
       messages,
+      order: cleanOrder(await this.storage.get("order")),
     };
   }
 
@@ -276,6 +280,22 @@ export class TableRoom {
     await this.storage.put("buybacks", lines);
     await this.storage.setAlarm(Date.now() + IDLE_MS);
     return lines.map((line) => ({ ...line }));
+  }
+
+  async setOrder(payload) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new TableError("Expected an object.");
+    }
+    const name = cleanName(payload.name);
+    if (!await this.storage.get("meta")) return null;
+    const result = applyOrder(cleanOrder(await this.storage.get("order")), payload, {
+      name,
+      dm: name === DM_NAME,
+    });
+    if (!result.ok) throw new TableError(result.reason);
+    await this.storage.put("order", result.order);
+    await this.storage.setAlarm(Date.now() + IDLE_MS);
+    return result.order;
   }
 
   async talk(message) {

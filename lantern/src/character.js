@@ -2,6 +2,7 @@
 // The sentences in the sheet are written here. Custom covers anything else.
 
 import { cleanItems, cleanPurse, formatCoin } from "./gear.js";
+import { MARKS } from "./marks.js";
 
 export const ABILITIES = [
   { id: "str", label: "Strength", short: "Str" },
@@ -405,6 +406,11 @@ export function blankCharacter() {
     scores: defaultScores(),
     skills: [],
     hp: null,
+    maxHp: null,
+    marks: [],
+    hitDice: null,
+    deathSuccess: 0,
+    deathFail: 0,
     traits: "",
     items: [],
     purse: null,
@@ -453,6 +459,8 @@ export function cleanCharacter(input) {
     if (!SKILL_IDS.has(id) || skills.includes(id)) continue;
     skills.push(id);
   }
+  const level = int(input.level, 1, 1, 20);
+  const marks = MARKS.filter((mark) => Array.isArray(input.marks) && input.marks.includes(mark));
   return {
     touched: input.touched === true,
     name: text(input.name, 80),
@@ -476,11 +484,16 @@ export function cleanCharacter(input) {
     customBackground: text(input.customBackground, 40),
     alignment: ALIGNMENT_IDS.has(input.alignment) ? input.alignment : "",
     customAlignment: text(input.customAlignment, 40),
-    level: int(input.level, 1, 1, 20),
+    level,
     method: METHODS.has(input.method) ? input.method : "standard",
     scores,
     skills,
     hp: input.hp == null || input.hp === "" ? null : int(input.hp, null, 0, 999),
+    maxHp: input.maxHp == null || input.maxHp === "" ? null : int(input.maxHp, null, 0, 999),
+    marks,
+    hitDice: input.hitDice == null || input.hitDice === "" ? level : int(input.hitDice, level, 0, 20),
+    deathSuccess: int(input.deathSuccess, 0, 0, 3),
+    deathFail: int(input.deathFail, 0, 0, 3),
     traits: typeof input.traits === "string" ? input.traits.slice(0, 1000) : "",
     items: cleanItems(input.items),
     purse: cleanPurse(input.purse),
@@ -582,6 +595,100 @@ export function suggestedHp(character) {
 export function effectiveHp(character) {
   if (Number.isInteger(character.hp)) return character.hp;
   return suggestedHp(character);
+}
+
+export function maxHpOf(character) {
+  if (Number.isInteger(character.maxHp) && character.maxHp > 0) return character.maxHp;
+  const suggested = suggestedHp(character);
+  const current = Number.isInteger(character.hp) ? character.hp : 0;
+  const base = Number.isInteger(suggested) && suggested > 0 ? suggested : 1;
+  return Math.max(base, current, 1);
+}
+
+export function currentHp(character) {
+  if (Number.isInteger(character.hp)) return character.hp;
+  const effective = effectiveHp(character);
+  if (Number.isInteger(effective)) return effective;
+  return maxHpOf(character);
+}
+
+export function stepHp(character, delta) {
+  const maxHp = maxHpOf(character);
+  const step = Number.isInteger(delta) ? delta : 0;
+  const hp = Math.min(maxHp, Math.max(0, currentHp(character) + step));
+  return {
+    ...character,
+    maxHp,
+    hp,
+    deathSuccess: hp > 0 ? 0 : int(character.deathSuccess, 0, 0, 3),
+    deathFail: hp > 0 ? 0 : int(character.deathFail, 0, 0, 3),
+  };
+}
+
+export function toggleMark(character, mark) {
+  if (!MARKS.includes(mark)) return character;
+  const current = Array.isArray(character.marks) ? character.marks : [];
+  const had = current.includes(mark);
+  return { ...character, marks: MARKS.filter((item) => (item === mark ? !had : current.includes(item))) };
+}
+
+export function shortRest(character, face) {
+  const info = classInfo(character);
+  if (!info) return { ok: false, reason: "Choose a class before a short rest." };
+  const dice = Number.isInteger(character.hitDice) ? character.hitDice : character.level;
+  if (dice < 1) return { ok: false, reason: "No hit dice left." };
+  const maxHp = maxHpOf(character);
+  const current = currentHp(character);
+  if (current >= maxHp) return { ok: false, reason: "Already at full hit points." };
+  const rolled = Number(face);
+  if (!Number.isInteger(rolled) || rolled < 1 || rolled > info.hitDie) {
+    return { ok: false, reason: `Roll a d${info.hitDie}.` };
+  }
+  const gain = Math.max(0, rolled + abilityMod(abilityTotals(character).con));
+  const hp = Math.min(maxHp, current + gain);
+  return {
+    ok: true,
+    gain,
+    spent: 1,
+    character: {
+      ...character,
+      maxHp,
+      hp,
+      hitDice: dice - 1,
+      deathSuccess: hp > 0 ? 0 : int(character.deathSuccess, 0, 0, 3),
+      deathFail: hp > 0 ? 0 : int(character.deathFail, 0, 0, 3),
+    },
+  };
+}
+
+export function longRest(character) {
+  const info = classInfo(character);
+  if (!info) return { ok: false, reason: "Choose a class before a long rest." };
+  const maxHp = maxHpOf(character);
+  const dice = Number.isInteger(character.hitDice) ? character.hitDice : character.level;
+  const recover = Math.max(1, Math.floor(character.level / 2));
+  return {
+    ok: true,
+    character: {
+      ...character,
+      maxHp,
+      hp: maxHp,
+      hitDice: Math.min(character.level, dice + recover),
+      deathSuccess: 0,
+      deathFail: 0,
+      marks: (character.marks || []).filter((mark) => mark !== "concentrating"),
+    },
+  };
+}
+
+export function markDeath(character, kind) {
+  if (kind === "success") {
+    return { ...character, deathSuccess: Math.min(3, int(character.deathSuccess, 0, 0, 3) + 1) };
+  }
+  if (kind === "fail") {
+    return { ...character, deathFail: Math.min(3, int(character.deathFail, 0, 0, 3) + 1) };
+  }
+  return character;
 }
 
 function raceLabel(character) {
@@ -723,7 +830,9 @@ export function presentCharacter(input) {
       return `${ability.short} ${total} (${formatMod(abilityMod(total))})`;
     }).join(" · "),
     saves: saves.length ? saves.join(" and ") : "",
-    hp: hp == null ? "" : character.hp == null ? `${hp} hit points, from the hit die` : `${hp} hit points`,
+    hp: hp == null ? "" : character.hp == null
+      ? `${hp} hit points, from the hit die`
+      : `${hp}${Number.isInteger(character.maxHp) ? ` / ${character.maxHp}` : ""} hit points`,
     suggested,
     skills: character.skills.map((id) => findSkill(id)?.label).filter(Boolean).join(", "),
     languages: languages || "",

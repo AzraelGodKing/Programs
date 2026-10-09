@@ -16,3 +16,5 @@ export const MARKS = [
   "unconscious",
   "concentrating",
 ];
+
+export const PACK_MARKS = ["concentrating", "prone", "poisoned", "frightened", "unconscious"];

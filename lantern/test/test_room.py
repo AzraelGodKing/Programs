@@ -67,6 +67,37 @@ class TableTests(unittest.TestCase):
         self.assertEqual(view["events"][0]["summary"], "Action 519")
 
 
+class OrderTests(unittest.TestCase):
+    def test_one_order_for_the_table(self):
+        table = Table()
+        code = table.create()
+        self.assertEqual(table.view(code)["order"]["rows"], [])
+        added = table.set_order(code, {
+            "name": DM_NAME,
+            "op": "add",
+            "label": "Guard",
+            "init": 8,
+            "hp": 11,
+        })
+        self.assertEqual(added["rows"][0]["name"], "Guard")
+        with self.assertRaises(TableError):
+            table.set_order(code, {"name": "Mara", "op": "next"})
+        rolled = table.set_order(code, {
+            "name": "Mara",
+            "op": "initiative",
+            "label": "Mara",
+            "init": 16,
+            "hp": 9,
+            "maxHp": 9,
+        })
+        self.assertEqual(len(rolled["rows"]), 2)
+        stepped = table.set_order(code, {"name": DM_NAME, "op": "next"})
+        self.assertTrue(stepped["started"])
+        active = next(row for row in stepped["rows"] if row["id"] == stepped["activeId"])
+        self.assertEqual(active["name"], "Mara")
+        self.assertEqual(table.view(code)["order"]["rev"], stepped["rev"])
+
+
 class TalkTests(unittest.TestCase):
     def test_whispers_stay_between_the_two_seats(self):
         table = Table()
@@ -184,6 +215,15 @@ class ServerTests(unittest.TestCase):
             self.assertIn("Guard", view["events"][0]["summary"])
             self.assertEqual(view["players"][0]["snapshot"]["combat"]["combatants"][0]["hp"], 8)
             self.assertIs(view["shop"], True)
+            ordered = request(port, "POST", f"/api/rooms/{code}/order", {
+                "name": DM_NAME,
+                "op": "add",
+                "label": "Guard",
+                "init": 14,
+                "hp": 8,
+            })
+            self.assertEqual(ordered.status, 200)
+            self.assertEqual(json.loads(ordered.body)["order"]["rows"][0]["name"], "Guard")
             closed = request(port, "POST", f"/api/rooms/{code}/shop", {"open": False})
             self.assertEqual(closed.status, 200)
             self.assertIs(json.loads(closed.body)["shop"], False)
