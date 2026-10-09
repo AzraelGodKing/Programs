@@ -75,6 +75,17 @@ export async function handleRequest(request, env) {
       return rejected(error);
     }
   }
+  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/order\/?$/i.test(path)) {
+    const code = roomCode(path, /\/order\/?$/i);
+    if (!validCode(code)) return json(404, { error: "No table with that code." });
+    try {
+      const order = await stubFor(env, code).setOrder(await readJson(request));
+      if (order === null) return json(404, { error: "No table with that code." });
+      return json(200, { ok: true, order });
+    } catch (error) {
+      return rejected(error);
+    }
+  }
   if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/talk\/?$/i.test(path)) {
     const code = roomCode(path, /\/talk\/?$/i);
     if (!validCode(code)) return json(404, { error: "No table with that code." });

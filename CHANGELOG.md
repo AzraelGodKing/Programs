@@ -4,8 +4,13 @@
 
 ### Added
 
+- One turn order for the table. The DM adds a creature and advances the round. A player rolls initiative into that list, and every screen shows whose turn it is. Hit points and a few conditions can change from the pack or the DM's party card. Solo play keeps its own order.
+- The pack has current hit points, concentration and four conditions, a short rest, and a long rest. At 0 hit points it keeps death saves. A short rest spends one hit die. A long rest fills hit points, recovers hit dice, and ends concentration.
+- A whisper, a light in its last minutes, and your turn show on the dice page. The Table tab keeps a count until that module is opened. A chime for those is off until the player turns it on.
+- The last roll stays on a line above an open module. A QR code beside the table code opens the player seat with the room filled in.
+- The shop asks before it buys missing arrows, bolts, or a component pouch. Buying them still takes the price from the purse.
 - Shop, Spark, Threat, and Notes on the DM screen open as modules. On the player seat, Order, Pack, Notes, and Table open over the dice. Closing a module leaves the table where it was.
-- The shop switches between Buy and Sell. The coin purse shows platinum, gold, electrum, silver, and copper. Opening it buys missing ammunition for a bow or crossbow in the pack, and a component pouch for a spellcaster who has no focus, when this counter sells them.
+- The shop switches between Buy and Sell. The coin purse shows platinum, gold, electrum, silver, and copper. Missing ammunition or a component pouch is listed with a price, and nothing is spent until the player buys it.
 - The DM shop has the 2014 equipment list: weapons, armor, gear, tools, mounts, trade goods, and food and lodging. A stall still opens a short counter. Add from the base list when this shop sells something else.
 - The purse converts platinum, gold, electrum, silver, and copper. 1 pp is 10 gp, and 1 ep is 5 sp. A price can be written in any of those coins.
 - Once a player joins, the seat folds into one line, and Clear this browser sits with Save and Restore. The light picker opens on demand. On a phone, the dice and Roll stay pinned to the bottom of the screen.

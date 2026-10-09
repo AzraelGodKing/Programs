@@ -141,3 +141,43 @@ test("only the DM can ask a seat for a roll", async () => {
   const view = await room.view("Mara");
   assert.equal(view.messages[0].ask, "Stealth");
 });
+
+test("the DM advances one order and a player rolls into it", async () => {
+  const env = envFor(new TableRoom(memoryStorage()));
+  const opened = await call(env, "POST", "/api/rooms");
+  const code = opened.body.code;
+  const added = await call(env, "POST", `/api/rooms/${code}/order`, {
+    name: DM_NAME,
+    op: "add",
+    label: "Guard",
+    init: 8,
+    hp: 11,
+  });
+  assert.equal(added.status, 200);
+  assert.equal(added.body.order.rows[0].name, "Guard");
+  const denied = await call(env, "POST", `/api/rooms/${code}/order`, {
+    name: "Mara",
+    op: "remove",
+    id: added.body.order.rows[0].id,
+  });
+  assert.equal(denied.status, 400);
+  const rolled = await call(env, "POST", `/api/rooms/${code}/order`, {
+    name: "Mara",
+    op: "initiative",
+    label: "Mara",
+    init: 16,
+    hp: 9,
+    maxHp: 9,
+  });
+  assert.equal(rolled.status, 200);
+  const stepped = await call(env, "POST", `/api/rooms/${code}/order`, {
+    name: DM_NAME,
+    op: "next",
+  });
+  assert.equal(stepped.status, 200);
+  assert.equal(stepped.body.order.started, true);
+  const view = await call(env, "GET", `/api/rooms/${code}`);
+  assert.equal(view.body.order.rows.length, 2);
+  const active = view.body.order.rows.find((row) => row.id === view.body.order.activeId);
+  assert.equal(active.name, "Mara");
+});

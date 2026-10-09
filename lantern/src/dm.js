@@ -1,11 +1,14 @@
-import { ABILITIES, SKILLS, abilityMod, abilityTotals, formatMod, presentCharacter } from "./character.js";
+import { ABILITIES, SKILLS, abilityMod, abilityTotals, currentHp, formatMod, maxHpOf, presentCharacter } from "./character.js";
+import { roll } from "./dice.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
+import { PACK_MARKS } from "./marks.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
+import { activeRow, cleanOrder, turnRows } from "./order.js";
+import { qrSvg } from "./qr.js";
 import {
   featuredEvent,
   feedKind,
-  heroInOrder,
   lightTone,
   naturalTag,
   partyLevels,
@@ -14,7 +17,7 @@ import {
 } from "./screen.js";
 import { BASE_LIST, COUNTER_CAP, counterFor, findOffer, formatCoin, parseCoin, stallById, STALLS } from "./gear.js";
 import { normalize } from "./store.js";
-import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postTalk, setShop } from "./table.js";
+import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postOrder, postTalk, setShop } from "./table.js";
 import { paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { registerOffline } from "./pwa.js";
@@ -190,13 +193,18 @@ function characterBlock(character) {
   ]);
 }
 
-function seatCard(player) {
+function orderRowFor(order, playerName) {
+  return (order?.rows || []).find((row) => row.seat === playerName) || null;
+}
+
+function seatCard(player, order) {
   const snapshot = normalize(player.snapshot);
   const view = presentCharacter(snapshot.character);
-  const hero = heroInOrder(snapshot.combat.combatants, [snapshot.character.name, player.name]);
-  const started = snapshot.combat.started || snapshot.combat.round > 1;
-  const active = Boolean(hero && started && hero.id === snapshot.combat.activeId);
-  const down = Boolean(hero && hero.hp <= 0);
+  const row = orderRowFor(order, player.name);
+  const active = Boolean(row && order.started && row.id === order.activeId);
+  const hp = row ? row.hp : (view ? currentHp(snapshot.character) : null);
+  const max = row ? row.maxHp : (view ? maxHpOf(snapshot.character) : null);
+  const down = hp === 0;
   const open = player.name === openName;
   const now = Date.now();
   const light = soonestLight(snapshot.lights);
@@ -204,13 +212,13 @@ function seatCard(player) {
   if (open) classes.push("is-open");
   if (active) classes.push("is-active");
   if (down) classes.push("is-down");
-  const vitals = hero
-    ? `${hero.hp}/${hero.maxHp} · ${hero.ac == null ? "AC —" : `AC ${hero.ac}`} · Init ${hero.init}`
-    : "";
-  return h("button", {
-    type: "button",
+  const marks = row ? row.marks : (snapshot.character.marks || []);
+  const ac = row && row.ac != null ? ` · AC ${row.ac}` : "";
+  const init = row ? ` · Init ${row.init}` : "";
+  return h("article", {
     class: classes.join(" "),
     "data-seat": player.name,
+    tabindex: "0",
     "aria-pressed": open ? "true" : "false",
   }, [
     h("span", { class: "seat-top" }, [
@@ -218,11 +226,39 @@ function seatCard(player) {
       presence(player, "span"),
     ]),
     h("span", { class: "hint" }, view ? view.title : "No character yet."),
-    vitals ? h("span", { class: "vitals" }, vitals) : null,
+    hp == null ? null : h("span", { class: "hp-line" }, [
+      h("button", {
+        type: "button",
+        class: "step",
+        "data-order-step": row ? row.id : "",
+        "data-order-seat": player.name,
+        "data-delta": "-1",
+        "aria-label": `Decrease hit points for ${player.name}`,
+      }, "−"),
+      h("span", { class: "vitals" }, `${hp}/${max}${ac}${init}`),
+      h("button", {
+        type: "button",
+        class: "step",
+        "data-order-step": row ? row.id : "",
+        "data-order-seat": player.name,
+        "data-delta": "1",
+        "aria-label": `Increase hit points for ${player.name}`,
+      }, "+"),
+    ]),
     active ? h("span", { class: "their-turn" }, "Their turn") : null,
     down ? h("span", { class: "down-flag" }, "Down") : null,
     passiveSummary(snapshot.character) ? h("span", {}, passiveSummary(snapshot.character)) : null,
-    hero ? markChips(hero.marks, "span") : null,
+    h("span", { class: "mark-picks" }, PACK_MARKS.map((mark) => {
+      const on = marks.includes(mark);
+      return h("button", {
+        type: "button",
+        class: on ? "mark-chip is-on" : "mark-chip",
+        "data-order-mark": row ? row.id : "",
+        "data-order-seat": player.name,
+        "data-mark": mark,
+        "aria-pressed": on ? "true" : "false",
+      }, mark);
+    })),
     light ? lightLine(light, now, "span") : null,
     h("span", { class: "hint" }, `Set for ${describeSetup(snapshot.dice, player.intent)}`),
   ]);
@@ -609,10 +645,12 @@ function renderRoom(room) {
     ...(shown.length ? shown.map(feedRow) : [h("p", { class: "hint" }, emptyFeed())]),
   );
   paintFeedFilter(counts);
+  const order = cleanOrder(room.order);
   const strip = document.getElementById("party-strip");
   strip.replaceChildren(...(room.players.length
-    ? room.players.map(seatCard)
+    ? room.players.map((player) => seatCard(player, order))
     : [h("p", { class: "empty" }, "No one has joined. Read them the code.")]));
+  paintTableOrder(order);
   const chosen = room.players.find((player) => player.name === openName);
   const dossierMount = document.getElementById("dm-dossier");
   if (!chosen) dossierMount.hidden = true;
@@ -626,6 +664,103 @@ function renderRoom(room) {
   paintCodeSize(room.players.length);
   if (focusSeat) document.querySelector(`[data-seat="${CSS.escape(focusSeat)}"]`)?.focus({ preventScroll: true });
   tickTimes();
+}
+
+function paintTableOrder(order) {
+  const clean = cleanOrder(order);
+  const list = turnRows(clean);
+  const active = activeRow(clean);
+  const banner = document.getElementById("order-banner");
+  const meta = document.getElementById("order-meta");
+  if (banner) {
+    banner.textContent = active
+      ? `Round ${clean.round} · ${active.name}`
+      : (list.length ? "Initiative is in" : "The round has not started");
+  }
+  if (meta) {
+    meta.textContent = active
+      ? `${list.indexOf(active) + 1} of ${list.length}`
+      : "Players roll initiative from their seat. Add a creature here.";
+  }
+  const next = document.getElementById("order-next");
+  const back = document.getElementById("order-back");
+  if (next) {
+    next.disabled = list.length === 0;
+    next.textContent = clean.started ? "Next" : "Start";
+  }
+  if (back) back.disabled = !clean.started;
+  const mount = document.getElementById("order-list");
+  if (!mount) return;
+  mount.replaceChildren(...(list.length
+    ? list.map((row) => {
+      const on = Boolean(active && row.id === active.id);
+      const ac = row.ac == null ? "" : ` · AC ${row.ac}`;
+      const marks = row.marks.length ? ` · ${row.marks.join(", ")}` : "";
+      return h("article", { class: on ? "combatant is-active" : "combatant" }, [
+        h("p", {}, `${row.init}  ${row.name}${row.seat ? "" : " · creature"}`),
+        h("p", { class: "hint" }, `${row.hp}/${row.maxHp}${ac}${marks}`),
+        h("button", { type: "button", class: "text-btn", "data-order-remove": row.id }, "Remove"),
+      ]);
+    })
+    : [h("p", { class: "empty" }, "The order is empty.")]));
+}
+
+async function sendOrder(action) {
+  if (!code) return null;
+  const error = document.getElementById("order-error");
+  try {
+    const saved = await postOrder(code, { name: DM_NAME, ...action });
+    if (error) error.textContent = "";
+    signature = "";
+    await poll();
+    return saved.order;
+  } catch (err) {
+    if (error) error.textContent = err.message;
+    return null;
+  }
+}
+
+async function orderFromCard(button) {
+  if (!lastRoom) return;
+  const seat = button.dataset.orderSeat;
+  const player = lastRoom.players.find((item) => item.name === seat);
+  if (!player) return;
+  const order = cleanOrder(lastRoom.order);
+  const row = orderRowFor(order, seat);
+  const character = normalize(player.snapshot).character;
+  if (button.hasAttribute("data-order-mark")) {
+    const current = row ? row.marks : (character.marks || []);
+    const mark = button.dataset.mark;
+    const marks = current.includes(mark) ? current.filter((item) => item !== mark) : [...current, mark];
+    if (row) await sendOrder({ op: "vitals", id: row.id, marks });
+    else {
+      await sendOrder({
+        op: "vitals",
+        seat,
+        label: character.name || seat,
+        hp: currentHp(character),
+        maxHp: maxHpOf(character),
+        marks,
+      });
+    }
+    return;
+  }
+  const delta = Number(button.dataset.delta);
+  if (!Number.isInteger(delta)) return;
+  if (row) {
+    await sendOrder({ op: "step", id: row.id, delta });
+    return;
+  }
+  const max = maxHpOf(character);
+  const hp = Math.min(max, Math.max(0, currentHp(character) + delta));
+  await sendOrder({
+    op: "vitals",
+    seat,
+    label: character.name || seat,
+    hp,
+    maxHp: max,
+    marks: character.marks || [],
+  });
 }
 
 function paintCodeSize(seated) {
@@ -911,6 +1046,11 @@ function showTable(next) {
   playerUrl = `${location.origin}/player.html?room=${code}`;
   link.href = playerUrl;
   link.textContent = playerUrl;
+  const qr = document.getElementById("room-qr");
+  if (qr) {
+    qr.replaceChildren();
+    try { qr.append(qrSvg(playerUrl)); } catch { /* the link under the code still joins the table */ }
+  }
   paintNotes();
   void poll();
 }
@@ -1036,8 +1176,62 @@ function boot() {
     if (lastRoom) renderRoom(lastRoom);
   });
   document.getElementById("party-strip").addEventListener("click", (event) => {
+    const control = event.target.closest("[data-order-step], [data-order-mark]");
+    if (control) {
+      void orderFromCard(control);
+      return;
+    }
     const card = event.target.closest("[data-seat]");
     if (card) chooseSeat(card.dataset.seat);
+  });
+  document.getElementById("party-strip").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.target.closest("button")) return;
+    const card = event.target.closest("[data-seat]");
+    if (!card) return;
+    event.preventDefault();
+    chooseSeat(card.dataset.seat);
+  });
+  document.getElementById("order-list")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-order-remove]");
+    if (button) void sendOrder({ op: "remove", id: button.dataset.orderRemove });
+  });
+  document.getElementById("order-next")?.addEventListener("click", () => { void sendOrder({ op: "next" }); });
+  document.getElementById("order-back")?.addEventListener("click", () => { void sendOrder({ op: "back" }); });
+  document.getElementById("order-add")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const label = form.elements.name.value.trim().slice(0, 80);
+    const error = document.getElementById("order-error");
+    if (!label) {
+      if (error) error.textContent = "Give them a name.";
+      return;
+    }
+    const bonusRaw = Number(form.elements.bonus.value);
+    const bonus = Number.isInteger(bonusRaw) ? Math.min(30, Math.max(-30, bonusRaw)) : 0;
+    const hpRaw = Number(form.elements.hp.value);
+    const hp = Number.isInteger(hpRaw) ? Math.min(999, Math.max(0, hpRaw)) : 10;
+    const manual = form.elements.initiative.value.trim();
+    const manualInit = Number(manual);
+    const init = manual === ""
+      ? roll({ count: 1, sides: 20, modifier: bonus }).total
+      : Math.min(200, Math.max(-100, Number.isInteger(manualInit) ? manualInit : 0));
+    const acText = form.elements.ac.value.trim();
+    const acNumber = Number(acText);
+    const ac = acText === "" || !Number.isInteger(acNumber) ? null : Math.min(40, Math.max(0, acNumber));
+    void sendOrder({
+      op: "add",
+      label,
+      init,
+      bonus,
+      hp,
+      maxHp: Math.max(hp, 1),
+      ac,
+    }).then((saved) => {
+      if (!saved) return;
+      form.elements.name.value = "";
+      form.elements.initiative.value = "";
+    });
   });
   document.addEventListener("keydown", (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -1054,6 +1248,10 @@ function boot() {
       void copyText(code, document.getElementById("copy-code"));
     } else if (event.key === "[") cycleSeat(-1);
     else if (event.key === "]") cycleSeat(1);
+    else if (event.key === "n" || event.key === "N") {
+      event.preventDefault();
+      void sendOrder({ op: "next" });
+    }
   });
   document.getElementById("open-keys")?.addEventListener("click", () => document.getElementById("keys-dialog").showModal());
   document.getElementById("close-keys")?.addEventListener("click", () => document.getElementById("keys-dialog").close());
