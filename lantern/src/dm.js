@@ -304,7 +304,6 @@ function blankTools() {
     sparks: [],
     levels: "1, 1, 1, 1",
     groups: [{ id: crypto.randomUUID(), name: "", count: 1, cr: "1/4" }],
-    prepareOpen: false,
     feed: "all",
     notes: {},
   };
@@ -344,7 +343,6 @@ function loadTools() {
       sparks: Array.isArray(raw.sparks) ? raw.sparks.slice(0, 8) : [],
       levels: typeof raw.levels === "string" ? raw.levels.slice(0, 80) : "1, 1, 1, 1",
       groups: groups.length ? groups : blankTools().groups,
-      prepareOpen: raw.prepareOpen === true,
       feed,
       notes: cleanNotes(raw.notes),
     };
@@ -482,8 +480,6 @@ function paintNotes() {
 function paintTools() {
   const levels = document.getElementById("dm-levels");
   if (levels && document.activeElement !== levels) levels.value = tools.levels;
-  const prepare = document.getElementById("dm-prepare");
-  if (prepare) prepare.open = tools.prepareOpen;
   renderDmSpark();
   renderDmGroups();
   renderDmThreat();

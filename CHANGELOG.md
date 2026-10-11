@@ -38,6 +38,10 @@
 - A DM screen. Players join a table code, and the DM sees every roll (who, and what it was for), the order, hit points, lights, the encounter budget, prompts, and scratch notes.
 - A character sheet. The common 2014 races, classes, subclasses, and backgrounds are listed, and Custom is there for anything else. Ability scores can be the standard array, point buy, 4d6, or typed in. The DM sees the sheet.
 
+### Removed
+
+- Unused lantern leftovers from when Shop and Notes became modules: the prepare-drawer save field, and CSS for markup that is no longer on the page. Old saves that still have that field still load.
+
 ### Fixed
 
 - Dice buttons render their labels. Rolls and the encounter verdict no longer print an empty "null". A combatant at 0 hit points is marked Down, and adding a creature brings the verdict into view.
