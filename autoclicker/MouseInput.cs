@@ -19,12 +19,6 @@ internal static class MouseInput
     private const uint MouseEventfMiddleDown = 0x0020;
     private const uint MouseEventfMiddleUp = 0x0040;
 
-    internal static void SendClick(ClickMouseButton button)
-    {
-        SendButtonDown(button);
-        SendButtonUp(button);
-    }
-
     internal static void SendButtonDown(ClickMouseButton button)
     {
         SendInput(1, new[] { MakeMouseInput(FlagsForDown(button)) }, Marshal.SizeOf<INPUT>());

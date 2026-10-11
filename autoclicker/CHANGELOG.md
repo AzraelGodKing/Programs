@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- Unused leftovers: `SettingsStore`, `ProfilesStore`, `GlobalHotkey`, `PositionPicker`, `NativeMethods`, and `MouseInput.SendClick`. Live settings, hotkeys, and clicks stay on `AppSettingsStore`, `MainForm`, and `MouseInput`.
+
 ### Changed
 
 - Moved into the [Programs](https://github.com/AzraelGodKing/Programs) monorepo as `autoclicker/`. The GitHub Actions build now lives at `.github/workflows/autoclicker-build.yml` and runs from that folder.
