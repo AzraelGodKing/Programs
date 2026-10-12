@@ -672,14 +672,6 @@ kbd {
   align-items: center;
 }
 
-.dm-tools { margin: 1.25rem 0; }
-
-.dm-tools-grid { display: grid; gap: 1rem; }
-
-@media (min-width: 800px) {
-  .dm-tools-grid { grid-template-columns: 1fr 1fr; }
-}
-
 .seat-form input#seat-room {
   width: 6.5rem;
   text-transform: uppercase;
@@ -783,8 +775,6 @@ body.dm-page textarea {
 .feed-row.natural-1 .feed-name,
 .feed-row.natural-1 .feed-summary { color: var(--ash); }
 
-.player-list { display: grid; gap: 0.8rem; }
-
 .player-board { display: grid; gap: 0.7rem; }
 
 .player-head { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; }
@@ -802,10 +792,6 @@ body.dm-page textarea {
   margin: 0;
   font-family: var(--sans);
 }
-
-.dm-row.is-active { border-left: 3px solid var(--gold); padding-left: 0.45rem; }
-
-.dm-row.is-down { opacity: 0.55; }
 
 .dm-time { font-variant-numeric: tabular-nums; }
 

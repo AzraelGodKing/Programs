@@ -35,7 +35,7 @@
 
 ### Removed
 
-- Unused lantern leftovers from when Shop and Notes became modules: the prepare-drawer save field, and CSS for markup that is no longer on the page. Old saves that still have that field still load.
+- Unused lantern leftovers from when Shop and Notes became modules: the prepare-drawer save field, and CSS for markup that is no longer on the page, including unused DM tools, player list, and row highlight rules. Old saves that still have that field still load.
 
 ### Fixed
 
