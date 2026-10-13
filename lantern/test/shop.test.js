@@ -9,7 +9,6 @@ import {
   buyBackItem,
   payCounter,
   restockStaples,
-  stapleQuote,
   sellOffers,
   sellToCounter,
   stallById,
@@ -140,16 +139,6 @@ test("opening a shop restocks missing arrows and a component pouch", () => {
   assert.deepEqual(restockStaples(cleric, market).bought, []);
   const vials = restockStaples(archer, counterFor("apothecary").goods);
   assert.deepEqual(vials.bought, []);
-
-  const quote = stapleQuote(archer, market);
-  assert.deepEqual(quote.lines.map((item) => item.id), ["arrows", "component-pouch"]);
-  assert.equal(quote.total, 100 + 2500);
-  assert.equal(archer.purse, parseCoin("30 gp"));
-  assert.deepEqual(quote.short, []);
-  const poor = stapleQuote({ ...archer, purse: parseCoin("5 sp") }, market);
-  assert.deepEqual(poor.lines, []);
-  assert.equal(poor.short[0].id, "arrows");
-  assert.equal(archer.purse, parseCoin("30 gp"));
 });
 
 test("buying back costs the coin the sale paid", () => {

@@ -2,7 +2,7 @@
 // The sentences in the sheet are written here. Custom covers anything else.
 
 import { cleanItems, cleanPurse, formatCoin } from "./gear.js";
-import { MARKS } from "./marks.js";
+import { blankDeath, cleanDeath } from "./order.js";
 
 export const ABILITIES = [
   { id: "str", label: "Strength", short: "Str" },
@@ -65,6 +65,7 @@ export const RACES = [
     name: "Dwarf",
     size: "Medium",
     speed: 25,
+    darkvision: 60,
     languages: "Common, Dwarvish",
     bonuses: { con: 2 },
     lineageLabel: "Subrace",
@@ -78,6 +79,7 @@ export const RACES = [
     name: "Elf",
     size: "Medium",
     speed: 30,
+    darkvision: 60,
     languages: "Common, Elvish",
     bonuses: { dex: 2 },
     lineageLabel: "Subrace",
@@ -135,6 +137,7 @@ export const RACES = [
     name: "Gnome",
     size: "Small",
     speed: 25,
+    darkvision: 60,
     languages: "Common, Gnomish",
     bonuses: { int: 2 },
     lineageLabel: "Subrace",
@@ -148,6 +151,7 @@ export const RACES = [
     name: "Half-elf",
     size: "Medium",
     speed: 30,
+    darkvision: 60,
     languages: "Common, Elvish, plus one of your choice",
     bonuses: { cha: 2 },
     picks: 2,
@@ -158,6 +162,7 @@ export const RACES = [
     name: "Half-orc",
     size: "Medium",
     speed: 30,
+    darkvision: 60,
     languages: "Common, Orc",
     bonuses: { str: 2, con: 1 },
     lineages: [],
@@ -167,6 +172,7 @@ export const RACES = [
     name: "Tiefling",
     size: "Medium",
     speed: 30,
+    darkvision: 60,
     languages: "Common, Infernal",
     bonuses: { int: 1, cha: 2 },
     lineages: [],
@@ -406,15 +412,36 @@ export function blankCharacter() {
     scores: defaultScores(),
     skills: [],
     hp: null,
-    maxHp: null,
-    marks: [],
-    hitDice: null,
-    deathSuccess: 0,
-    deathFail: 0,
     traits: "",
     items: [],
     purse: null,
+    kitId: "",
+    customDarkvision: 0,
+    acOverride: null,
+    maxHp: null,
+    inspiration: false,
+    hitDiceUsed: 0,
+    spells: [],
+    death: blankDeath(),
   };
+}
+
+function cleanSpells(value) {
+  if (!Array.isArray(value)) return [];
+  const spells = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const name = text(raw.name, 60);
+    if (!name) continue;
+    spells.push({
+      id: text(raw.id, 80) || `spell-${spells.length}`,
+      name,
+      slot: int(raw.slot, 0, 0, 9),
+      used: raw.used === true,
+    });
+    if (spells.length === 12) break;
+  }
+  return spells;
 }
 
 export function cleanCharacter(input) {
@@ -459,8 +486,6 @@ export function cleanCharacter(input) {
     if (!SKILL_IDS.has(id) || skills.includes(id)) continue;
     skills.push(id);
   }
-  const level = int(input.level, 1, 1, 20);
-  const marks = MARKS.filter((mark) => Array.isArray(input.marks) && input.marks.includes(mark));
   return {
     touched: input.touched === true,
     name: text(input.name, 80),
@@ -484,20 +509,44 @@ export function cleanCharacter(input) {
     customBackground: text(input.customBackground, 40),
     alignment: ALIGNMENT_IDS.has(input.alignment) ? input.alignment : "",
     customAlignment: text(input.customAlignment, 40),
-    level,
+    level: int(input.level, 1, 1, 20),
     method: METHODS.has(input.method) ? input.method : "standard",
     scores,
     skills,
     hp: input.hp == null || input.hp === "" ? null : int(input.hp, null, 0, 999),
-    maxHp: input.maxHp == null || input.maxHp === "" ? null : int(input.maxHp, null, 0, 999),
-    marks,
-    hitDice: input.hitDice == null || input.hitDice === "" ? level : int(input.hitDice, level, 0, 20),
-    deathSuccess: int(input.deathSuccess, 0, 0, 3),
-    deathFail: int(input.deathFail, 0, 0, 3),
     traits: typeof input.traits === "string" ? input.traits.slice(0, 1000) : "",
     items: cleanItems(input.items),
     purse: cleanPurse(input.purse),
+    kitId: text(input.kitId, 40),
+    customDarkvision: int(input.customDarkvision, 0, 0, 120),
+    acOverride: input.acOverride == null || input.acOverride === "" ? null : int(input.acOverride, null, 0, 40),
+    maxHp: input.maxHp == null || input.maxHp === "" ? null : int(input.maxHp, null, 1, 999),
+    inspiration: input.inspiration === true,
+    hitDiceUsed: int(input.hitDiceUsed, 0, 0, 20),
+    spells: cleanSpells(input.spells),
+    death: cleanDeath(input.death),
   };
+}
+
+export function darkvisionRange(character) {
+  if (!character || character.raceId === "custom") return int(character?.customDarkvision, 0, 0, 120);
+  return findRace(character.raceId)?.darkvision || 0;
+}
+
+export function maxHitPoints(character) {
+  if (Number.isInteger(character.maxHp) && character.maxHp > 0) return character.maxHp;
+  const suggested = suggestedHp(character);
+  if (Number.isInteger(character.hp) && suggested != null) return Math.max(character.hp, suggested);
+  return suggested ?? character.hp ?? 1;
+}
+
+export function breathDice(character) {
+  const race = findRace(character.raceId);
+  const lineage = findLineage(race, character.lineageId);
+  if (!lineage?.damage) return null;
+  const level = int(character.level, 1, 1, 20);
+  const count = level >= 16 ? 5 : level >= 11 ? 4 : level >= 6 ? 3 : 2;
+  return { count, sides: 6, damage: lineage.damage };
 }
 
 export function classInfo(character) {
@@ -592,103 +641,161 @@ export function suggestedHp(character) {
   return first + later * (character.level - 1);
 }
 
+const RACE_NOTES = {
+  dwarf: "Advantage on saves against poison, and resistance to poison damage. Stonework is familiar.",
+  "dwarf:hill": "1 extra hit point at each level.",
+  "dwarf:mountain": "Training with light and medium armor.",
+  elf: "A trance of 4 hours stands in for a long sleep. Secret doors are easier to notice.",
+  "elf:high": "One wizard cantrip, and one extra language.",
+  "elf:wood": "You can hide when natural cover only lightly obscures you.",
+  "elf:dark": "Sunlight bothers you.",
+  halfling: "You can move through a larger creature's space. You may reroll a 1 on an attack, check, or save.",
+  "halfling:lightfoot": "You can try to hide behind a creature one size larger than you.",
+  "halfling:stout": "Advantage on saves against poison, and resistance to poison damage.",
+  human: "One extra language is yours to name.",
+  dragonborn: "Resistance matches the ancestry, and so does the breath.",
+  gnome: "Advantage on Intelligence, Wisdom, and Charisma saves against magic.",
+  "gnome:forest": "You know minor illusion.",
+  "gnome:rock": "You can tinker a small clockwork device.",
+  "half-elf": "You trance like an elf. Choose two extra skills on the Story step.",
+  "half-orc": "Once between rests, you can stay at 1 hit point instead of falling to 0. A critical hit adds one damage die.",
+  tiefling: "You know thaumaturgy. Hellish rebuke and darkness come at later levels.",
+};
+
+const CLASS_DETAIL = {
+  barbarian: {
+    armor: "Light and medium armor, and shields.",
+    weapons: "Simple and martial weapons.",
+    features: ["Rage.", "Unarmored defense is 10 + Dexterity + Constitution."],
+  },
+  bard: {
+    armor: "Light armor.",
+    weapons: "Simple weapons, plus hand crossbows, longswords, rapiers, and shortswords.",
+    features: ["Spellcasting uses Charisma.", "Bardic inspiration."],
+  },
+  cleric: {
+    armor: "Light and medium armor, and shields.",
+    weapons: "Simple weapons.",
+    features: ["Spellcasting uses Wisdom."],
+  },
+  druid: {
+    armor: "Light and medium armor that is not metal, and shields.",
+    weapons: "Clubs, daggers, darts, javelins, maces, quarterstaffs, scimitars, sickles, slings, and spears.",
+    features: ["Spellcasting uses Wisdom."],
+  },
+  fighter: {
+    armor: "All armor, and shields.",
+    weapons: "Simple and martial weapons.",
+    features: ["Second Wind."],
+  },
+  monk: {
+    armor: "None.",
+    weapons: "Simple weapons and shortswords.",
+    features: ["Unarmored defense is 10 + Dexterity + Wisdom."],
+  },
+  paladin: {
+    armor: "All armor, and shields.",
+    weapons: "Simple and martial weapons.",
+    features: ["Lay on hands.", "Spellcasting uses Charisma."],
+  },
+  ranger: {
+    armor: "Light and medium armor, and shields.",
+    weapons: "Simple and martial weapons.",
+    features: ["Favored enemy and natural explorer."],
+  },
+  rogue: {
+    armor: "Light armor.",
+    weapons: "Simple weapons, plus hand crossbows, longswords, rapiers, and shortswords.",
+    features: ["Expertise.", "Sneak attack."],
+  },
+  sorcerer: {
+    armor: "None.",
+    weapons: "Daggers, darts, slings, quarterstaffs, and light crossbows.",
+    features: ["Spellcasting uses Charisma."],
+  },
+  warlock: {
+    armor: "Light armor.",
+    weapons: "Simple weapons.",
+    features: ["Spellcasting uses Charisma.", "The pact comes with the patron."],
+  },
+  wizard: {
+    armor: "None.",
+    weapons: "Daggers, darts, slings, quarterstaffs, and light crossbows.",
+    features: ["Spellcasting uses Intelligence.", "A spellbook."],
+  },
+};
+
+function bonusLine(bonuses) {
+  const parts = ABILITY_IDS
+    .filter((id) => bonuses[id])
+    .map((id) => `${findAbility(id).short} ${formatMod(bonuses[id])}`);
+  return parts.length ? `Ability bonuses: ${parts.join(", ")}.` : "";
+}
+
+export function peopleGrant(character) {
+  if (!character?.raceId) return null;
+  if (character.raceId === "custom") {
+    const lines = [
+      `${character.customSize}, speed ${character.customSpeed} ft.`,
+      character.customDarkvision ? `Darkvision ${character.customDarkvision} ft.` : "No darkvision.",
+    ];
+    if (character.customLanguages) lines.push(character.customLanguages);
+    const bonuses = bonusLine(racialBonuses(character));
+    if (bonuses) lines.push(bonuses);
+    return { title: character.customRace || "Custom people", lines };
+  }
+  const race = findRace(character.raceId);
+  if (!race) return null;
+  const lineage = findLineage(race, character.lineageId);
+  const lines = [
+    `${race.size}, speed ${race.speed} ft.`,
+    race.darkvision ? `Darkvision ${race.darkvision} ft.` : "No darkvision.",
+    race.languages,
+  ];
+  const bonuses = bonusLine(racialBonuses(character));
+  if (bonuses) lines.push(bonuses);
+  if (RACE_NOTES[race.id]) lines.push(RACE_NOTES[race.id]);
+  const lineageNote = lineage ? RACE_NOTES[`${race.id}:${lineage.id}`] : "";
+  if (lineageNote) lines.push(lineageNote);
+  if (lineage?.damage) lines.push(`Breath weapon: ${lineage.damage}.`);
+  const title = lineage ? `${lineage.name} ${race.name}` : race.name;
+  return { title, lines };
+}
+
+export function classGrant(character) {
+  const info = classInfo(character);
+  if (!info) return null;
+  const hp = suggestedHp(character);
+  const saves = (info.saves || []).map((id) => findAbility(id)?.label).filter(Boolean);
+  const offer = info.skills
+    ? info.skills.map((id) => findSkill(id).label).join(", ")
+    : "any skill";
+  const lines = [
+    `Hit die d${info.hitDie}. At this level that suggests ${hp} hit points.`,
+    `Proficiency bonus ${formatMod(proficiencyBonus(character.level))}.`,
+  ];
+  if (saves.length) lines.push(`Saving throw proficiencies: ${saves.join(" and ")}.`);
+  else if (info.custom) lines.push("Saving throw proficiencies: choose up to two.");
+  lines.push(`Skill proficiencies: choose ${info.skillCount} from ${offer}.`);
+  const detail = CLASS_DETAIL[info.id];
+  if (detail) {
+    lines.push(`Armor: ${detail.armor}`);
+    lines.push(`Weapons: ${detail.weapons}`);
+    lines.push(...detail.features);
+  }
+  if (!info.custom && info.subclasses?.length) {
+    const only = info.subclasses[0];
+    let line = `One subclass in this subset: ${only.name}, from level ${info.subclassLevel}.`;
+    if (character.subclassId === only.id) line += " It is on this sheet.";
+    else if (character.subclassId === "custom") line += " A custom subclass is written on this sheet instead.";
+    lines.push(line);
+  }
+  return { title: info.name, lines };
+}
+
 export function effectiveHp(character) {
   if (Number.isInteger(character.hp)) return character.hp;
   return suggestedHp(character);
-}
-
-export function maxHpOf(character) {
-  if (Number.isInteger(character.maxHp) && character.maxHp > 0) return character.maxHp;
-  const suggested = suggestedHp(character);
-  const current = Number.isInteger(character.hp) ? character.hp : 0;
-  const base = Number.isInteger(suggested) && suggested > 0 ? suggested : 1;
-  return Math.max(base, current, 1);
-}
-
-export function currentHp(character) {
-  if (Number.isInteger(character.hp)) return character.hp;
-  const effective = effectiveHp(character);
-  if (Number.isInteger(effective)) return effective;
-  return maxHpOf(character);
-}
-
-export function stepHp(character, delta) {
-  const maxHp = maxHpOf(character);
-  const step = Number.isInteger(delta) ? delta : 0;
-  const hp = Math.min(maxHp, Math.max(0, currentHp(character) + step));
-  return {
-    ...character,
-    maxHp,
-    hp,
-    deathSuccess: hp > 0 ? 0 : int(character.deathSuccess, 0, 0, 3),
-    deathFail: hp > 0 ? 0 : int(character.deathFail, 0, 0, 3),
-  };
-}
-
-export function toggleMark(character, mark) {
-  if (!MARKS.includes(mark)) return character;
-  const current = Array.isArray(character.marks) ? character.marks : [];
-  const had = current.includes(mark);
-  return { ...character, marks: MARKS.filter((item) => (item === mark ? !had : current.includes(item))) };
-}
-
-export function shortRest(character, face) {
-  const info = classInfo(character);
-  if (!info) return { ok: false, reason: "Choose a class before a short rest." };
-  const dice = Number.isInteger(character.hitDice) ? character.hitDice : character.level;
-  if (dice < 1) return { ok: false, reason: "No hit dice left." };
-  const maxHp = maxHpOf(character);
-  const current = currentHp(character);
-  if (current >= maxHp) return { ok: false, reason: "Already at full hit points." };
-  const rolled = Number(face);
-  if (!Number.isInteger(rolled) || rolled < 1 || rolled > info.hitDie) {
-    return { ok: false, reason: `Roll a d${info.hitDie}.` };
-  }
-  const gain = Math.max(0, rolled + abilityMod(abilityTotals(character).con));
-  const hp = Math.min(maxHp, current + gain);
-  return {
-    ok: true,
-    gain,
-    spent: 1,
-    character: {
-      ...character,
-      maxHp,
-      hp,
-      hitDice: dice - 1,
-      deathSuccess: hp > 0 ? 0 : int(character.deathSuccess, 0, 0, 3),
-      deathFail: hp > 0 ? 0 : int(character.deathFail, 0, 0, 3),
-    },
-  };
-}
-
-export function longRest(character) {
-  const info = classInfo(character);
-  if (!info) return { ok: false, reason: "Choose a class before a long rest." };
-  const maxHp = maxHpOf(character);
-  const dice = Number.isInteger(character.hitDice) ? character.hitDice : character.level;
-  const recover = Math.max(1, Math.floor(character.level / 2));
-  return {
-    ok: true,
-    character: {
-      ...character,
-      maxHp,
-      hp: maxHp,
-      hitDice: Math.min(character.level, dice + recover),
-      deathSuccess: 0,
-      deathFail: 0,
-      marks: (character.marks || []).filter((mark) => mark !== "concentrating"),
-    },
-  };
-}
-
-export function markDeath(character, kind) {
-  if (kind === "success") {
-    return { ...character, deathSuccess: Math.min(3, int(character.deathSuccess, 0, 0, 3) + 1) };
-  }
-  if (kind === "fail") {
-    return { ...character, deathFail: Math.min(3, int(character.deathFail, 0, 0, 3) + 1) };
-  }
-  return character;
 }
 
 function raceLabel(character) {
@@ -817,6 +924,7 @@ export function presentCharacter(input) {
     `proficiency ${formatMod(proficiencyBonus(character.level))}`,
     speed != null && speed !== "" ? `${speed} ft` : "",
     size || "",
+    darkvisionRange(character) ? `darkvision ${darkvisionRange(character)} ft` : "",
     lineage?.damage ? `${lineage.damage} breath` : "",
   ].filter(Boolean);
   const saves = (info?.saves || [])
@@ -830,9 +938,7 @@ export function presentCharacter(input) {
       return `${ability.short} ${total} (${formatMod(abilityMod(total))})`;
     }).join(" · "),
     saves: saves.length ? saves.join(" and ") : "",
-    hp: hp == null ? "" : character.hp == null
-      ? `${hp} hit points, from the hit die`
-      : `${hp}${Number.isInteger(character.maxHp) ? ` / ${character.maxHp}` : ""} hit points`,
+    hp: hp == null ? "" : character.hp == null ? `${hp} hit points, from the hit die` : `${hp} hit points`,
     suggested,
     skills: character.skills.map((id) => findSkill(id)?.label).filter(Boolean).join(", "),
     languages: languages || "",
@@ -840,6 +946,8 @@ export function presentCharacter(input) {
     hitDie: info ? `d${info.hitDie}` : "",
     coin: character.purse == null ? "" : formatCoin(character.purse),
     carried: character.items.map((item) => (item.qty > 1 ? `${item.name} × ${item.qty}` : item.name)).join(", "),
+    spells: character.spells.map((spell) => `${spell.name} (slot ${spell.slot}${spell.used ? ", used" : ""})`).join(", "),
+    inspiration: character.inspiration === true,
   };
 }
 

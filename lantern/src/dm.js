@@ -1,14 +1,16 @@
-import { ABILITIES, SKILLS, abilityMod, abilityTotals, currentHp, formatMod, maxHpOf, presentCharacter } from "./character.js";
+import { armorClass } from "./armor.js";
+import { ABILITIES, SKILLS, abilityMod, abilityTotals, effectiveHp, formatMod, maxHitPoints, presentCharacter } from "./character.js";
 import { roll } from "./dice.js";
+import { MARKS } from "./marks.js";
+import { blankDeath, blankOrder, cleanDeath, cleanOrder } from "./order.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
-import { PACK_MARKS } from "./marks.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
-import { activeRow, cleanOrder, turnRows } from "./order.js";
 import { qrSvg } from "./qr.js";
 import {
   featuredEvent,
   feedKind,
+  heroInOrder,
   lightTone,
   naturalTag,
   partyLevels,
@@ -36,6 +38,8 @@ const NOTE_CAP = 4000;
 const NOTE_ROOMS = 20;
 
 let code = "";
+let dmToken = "";
+let tableOrder = blankOrder();
 let playerUrl = "";
 let signature = "";
 let openName = "";
@@ -97,14 +101,19 @@ function presence(player, tag = "p") {
   }, away ? "Away" : "Here");
 }
 
-function lightLine(light, now, tag = "p") {
+function lightLine(light, now, tag = "p", { seen = false, pausedAt = null } = {}) {
   const spec = findLight(light.kind);
   if (!spec) return null;
-  const remaining = light.endsAt - now;
+  const clock = pausedAt == null ? now : pausedAt;
+  const remaining = light.endsAt - clock;
   const tone = lightTone(remaining);
   const toneClass = tone === "steady" ? "" : ` is-${tone}`;
-  return h(tag, { class: `light-row${toneClass}`, "data-ends": String(light.endsAt) }, [
-    `${spec.label} · ${lightCaption(spec, light.covered)} · `,
+  return h(tag, {
+    class: `light-row${toneClass}`,
+    "data-ends": String(light.endsAt),
+    "data-paused": pausedAt == null ? "" : String(pausedAt),
+  }, [
+    `${spec.label} · ${lightCaption(spec, light.covered)}${seen ? " You still see." : ""} · `,
     h("span", { class: "dm-time" }, formatRemaining(remaining)),
   ]);
 }
@@ -189,22 +198,19 @@ function characterBlock(character) {
     view.coin ? h("p", {}, view.coin) : null,
     view.carried ? h("p", {}, view.carried) : null,
     view.languages ? h("p", { class: "hint" }, view.languages) : null,
+    view.inspiration ? h("p", {}, "Inspiration") : null,
+    view.spells ? h("p", {}, view.spells) : null,
     view.traits ? h("pre", { class: "dm-note" }, view.traits) : null,
   ]);
 }
 
-function orderRowFor(order, playerName) {
-  return (order?.rows || []).find((row) => row.seat === playerName) || null;
-}
-
-function seatCard(player, order) {
+function seatCard(player) {
   const snapshot = normalize(player.snapshot);
   const view = presentCharacter(snapshot.character);
-  const row = orderRowFor(order, player.name);
-  const active = Boolean(row && order.started && row.id === order.activeId);
-  const hp = row ? row.hp : (view ? currentHp(snapshot.character) : null);
-  const max = row ? row.maxHp : (view ? maxHpOf(snapshot.character) : null);
-  const down = hp === 0;
+  const hero = heroInOrder(tableOrder.combatants, [snapshot.character.name, player.name]);
+  const started = tableOrder.started || tableOrder.round > 1;
+  const active = Boolean(hero && started && hero.id === tableOrder.activeId);
+  const down = Boolean(hero && hero.hp <= 0);
   const open = player.name === openName;
   const now = Date.now();
   const light = soonestLight(snapshot.lights);
@@ -212,13 +218,13 @@ function seatCard(player, order) {
   if (open) classes.push("is-open");
   if (active) classes.push("is-active");
   if (down) classes.push("is-down");
-  const marks = row ? row.marks : (snapshot.character.marks || []);
-  const ac = row && row.ac != null ? ` · AC ${row.ac}` : "";
-  const init = row ? ` · Init ${row.init}` : "";
-  return h("article", {
+  const vitals = hero
+    ? `${hero.hp}/${hero.maxHp} · ${hero.ac == null ? "AC —" : `AC ${hero.ac}`} · Init ${hero.init}`
+    : "";
+  return h("button", {
+    type: "button",
     class: classes.join(" "),
     "data-seat": player.name,
-    tabindex: "0",
     "aria-pressed": open ? "true" : "false",
   }, [
     h("span", { class: "seat-top" }, [
@@ -226,40 +232,16 @@ function seatCard(player, order) {
       presence(player, "span"),
     ]),
     h("span", { class: "hint" }, view ? view.title : "No character yet."),
-    hp == null ? null : h("span", { class: "hp-line" }, [
-      h("button", {
-        type: "button",
-        class: "step",
-        "data-order-step": row ? row.id : "",
-        "data-order-seat": player.name,
-        "data-delta": "-1",
-        "aria-label": `Decrease hit points for ${player.name}`,
-      }, "−"),
-      h("span", { class: "vitals" }, `${hp}/${max}${ac}${init}`),
-      h("button", {
-        type: "button",
-        class: "step",
-        "data-order-step": row ? row.id : "",
-        "data-order-seat": player.name,
-        "data-delta": "1",
-        "aria-label": `Increase hit points for ${player.name}`,
-      }, "+"),
-    ]),
+    vitals ? h("span", { class: "vitals" }, vitals) : null,
     active ? h("span", { class: "their-turn" }, "Their turn") : null,
     down ? h("span", { class: "down-flag" }, "Down") : null,
     passiveSummary(snapshot.character) ? h("span", {}, passiveSummary(snapshot.character)) : null,
-    h("span", { class: "mark-picks" }, PACK_MARKS.map((mark) => {
-      const on = marks.includes(mark);
-      return h("button", {
-        type: "button",
-        class: on ? "mark-chip is-on" : "mark-chip",
-        "data-order-mark": row ? row.id : "",
-        "data-order-seat": player.name,
-        "data-mark": mark,
-        "aria-pressed": on ? "true" : "false",
-      }, mark);
-    })),
-    light ? lightLine(light, now, "span") : null,
+    hero ? markChips(hero.marks, "span") : null,
+    hero?.exhaustion ? h("span", { class: "hint" }, `Exhaustion ${hero.exhaustion}`) : null,
+    light ? lightLine(light, now, "span", {
+      seen: Boolean(view?.meta?.includes("darkvision")),
+      pausedAt: snapshot.lightsPausedAt,
+    }) : null,
     h("span", { class: "hint" }, `Set for ${describeSetup(snapshot.dice, player.intent)}`),
   ]);
 }
@@ -284,7 +266,7 @@ function dossier(player, events) {
     ]),
     h("section", { class: "board-block" }, [
       h("h3", {}, "Order"),
-      orderBlock(snapshot.combat),
+      orderBlock(tableOrder),
     ]),
     h("section", { class: "board-block" }, [
       h("h3", {}, "Light"),
@@ -299,13 +281,23 @@ function dossier(player, events) {
 
 const DM_KEY = "lantern.dm.v1";
 
-function blankTools() {
+function blankPrep() {
   return {
     sparks: [],
     levels: "1, 1, 1, 1",
     groups: [{ id: crypto.randomUUID(), name: "", count: 1, cr: "1/4" }],
+    notes: "",
+  };
+}
+
+function blankTools() {
+  return {
+    prepareOpen: false,
     feed: "all",
-    notes: {},
+    secrets: {},
+    tables: {},
+    legacy: null,
+    legacyUsed: false,
   };
 }
 
@@ -333,18 +325,54 @@ function cleanNotes(raw) {
   return notes;
 }
 
+function cleanPrep(raw) {
+  const prep = blankPrep();
+  if (!raw || typeof raw !== "object") return prep;
+  prep.sparks = Array.isArray(raw.sparks) ? raw.sparks.slice(0, 8) : [];
+  prep.levels = typeof raw.levels === "string" ? raw.levels.slice(0, 80) : prep.levels;
+  const groups = Array.isArray(raw.groups) ? raw.groups.map(cleanGroup).filter(Boolean).slice(0, 12) : [];
+  if (groups.length) prep.groups = groups;
+  prep.notes = typeof raw.notes === "string" ? raw.notes.slice(0, NOTE_CAP) : "";
+  return prep;
+}
+
 function loadTools() {
   try {
     const raw = JSON.parse(localStorage.getItem(DM_KEY) || "null");
     if (!raw || typeof raw !== "object") return blankTools();
-    const groups = Array.isArray(raw.groups) ? raw.groups.map(cleanGroup).filter(Boolean).slice(0, 12) : [];
     const feed = raw.feed === "rolls" || raw.feed === "table" ? raw.feed : "all";
-    return {
+    const secrets = {};
+    if (raw.secrets && typeof raw.secrets === "object") {
+      for (const [room, token] of Object.entries(raw.secrets)) {
+        const key = normalizeCode(room);
+        if (key.length === 4 && typeof token === "string" && /^[a-f0-9]{32}$/.test(token)) secrets[key] = token;
+      }
+    }
+    const tables = {};
+    if (raw.tables && typeof raw.tables === "object") {
+      for (const [room, prep] of Object.entries(raw.tables)) {
+        const key = normalizeCode(room);
+        if (key.length === 4) tables[key] = cleanPrep(prep);
+      }
+    }
+    if (!raw.tables && raw.notes) {
+      for (const [room, text] of Object.entries(cleanNotes(raw.notes))) {
+        tables[room] = { ...blankPrep(), notes: text };
+      }
+    }
+    const legacyGroups = Array.isArray(raw.groups) ? raw.groups.map(cleanGroup).filter(Boolean).slice(0, 12) : [];
+    const legacy = raw.tables ? null : {
       sparks: Array.isArray(raw.sparks) ? raw.sparks.slice(0, 8) : [],
       levels: typeof raw.levels === "string" ? raw.levels.slice(0, 80) : "1, 1, 1, 1",
-      groups: groups.length ? groups : blankTools().groups,
+      groups: legacyGroups,
+    };
+    return {
+      prepareOpen: raw.prepareOpen === true,
       feed,
-      notes: cleanNotes(raw.notes),
+      secrets,
+      tables,
+      legacy,
+      legacyUsed: raw.legacyUsed === true,
     };
   } catch {
     return blankTools();
@@ -357,15 +385,36 @@ function saveTools() {
   localStorage.setItem(DM_KEY, JSON.stringify(tools));
 }
 
+function prep() {
+  if (!code) return blankPrep();
+  if (!tools.tables[code]) {
+    const next = blankPrep();
+    if (tools.legacy && !tools.legacyUsed) {
+      next.sparks = tools.legacy.sparks || [];
+      next.levels = tools.legacy.levels || next.levels;
+      if (tools.legacy.groups?.length) next.groups = tools.legacy.groups;
+      tools.legacyUsed = true;
+      tools.legacy = null;
+    }
+    const tables = { ...tools.tables, [code]: next };
+    const keys = Object.keys(tables);
+    while (keys.length > NOTE_ROOMS) delete tables[keys.shift()];
+    tools.tables = tables;
+    saveTools();
+  }
+  return tools.tables[code];
+}
+
+function rememberPrep() {
+  if (!code) return;
+  tools.tables = { ...tools.tables, [code]: prep() };
+  saveTools();
+}
+
 function rememberNotes(text) {
   if (!code) return;
-  const notes = { ...tools.notes };
-  delete notes[code];
-  notes[code] = text.slice(0, NOTE_CAP);
-  const keys = Object.keys(notes);
-  while (keys.length > NOTE_ROOMS) delete notes[keys.shift()];
-  tools.notes = notes;
-  saveTools();
+  prep().notes = text.slice(0, NOTE_CAP);
+  rememberPrep();
 }
 
 function partyLevelText(players) {
@@ -383,11 +432,11 @@ function creaturePhrase(groups) {
 function renderDmSpark() {
   const mount = document.getElementById("dm-spark");
   if (!mount) return;
-  if (!tools.sparks.length) {
+  if (!prep().sparks.length) {
     mount.replaceChildren(h("p", { class: "empty" }, "Draw a prompt when the room goes quiet."));
     return;
   }
-  mount.replaceChildren(...tools.sparks.map((spark) => h("article", { class: "summary" }, [
+  mount.replaceChildren(...prep().sparks.map((spark) => h("article", { class: "summary" }, [
     h("p", { class: "sheet-title" }, spark.title || KIND_LABEL[spark.kind] || "Prompt"),
     h("p", {}, sparkText(spark)),
   ])));
@@ -396,7 +445,7 @@ function renderDmSpark() {
 function renderDmGroups() {
   const mount = document.getElementById("dm-groups");
   if (!mount) return;
-  mount.replaceChildren(...tools.groups.map((group) => h("div", { class: "gear-row" }, [
+  mount.replaceChildren(...prep().groups.map((group) => h("div", { class: "gear-row" }, [
     h("input", {
       type: "text",
       "data-dm-field": "name",
@@ -425,15 +474,15 @@ function renderDmGroups() {
 function renderDmThreat() {
   const mount = document.getElementById("dm-threat");
   if (!mount) return;
-  const levels = String(tools.levels || "")
+  const levels = String(prep().levels || "")
     .split(/[^0-9]+/)
     .map((part) => Number(part))
     .filter((level) => Number.isInteger(level) && level >= 1 && level <= 30)
     .slice(0, 12);
-  const groups = tools.groups.map((group) => ({ count: group.count, xp: CR_XP.find(([id]) => id === group.cr)?.[1] ?? 10 }));
+  const groups = prep().groups.map((group) => ({ count: group.count, xp: CR_XP.find(([id]) => id === group.cr)?.[1] ?? 10 }));
   const result = rateEncounter({ levels, groups });
   const verdict = result.rating ? WORDS[result.rating] : "Add the party's levels.";
-  const named = creaturePhrase(tools.groups);
+  const named = creaturePhrase(prep().groups);
   const math = result.monsterCount
     ? `${formatXp(result.adjusted)} adjusted XP · ${formatXp(result.raw)} × ${result.multiplier}`
     : "No creatures yet.";
@@ -474,12 +523,14 @@ function paintFeedFilter(counts) {
 function paintNotes() {
   const notes = document.getElementById("dm-notes");
   if (!notes || document.activeElement === notes) return;
-  notes.value = tools.notes[code] || "";
+  notes.value = prep().notes || "";
 }
 
 function paintTools() {
   const levels = document.getElementById("dm-levels");
-  if (levels && document.activeElement !== levels) levels.value = tools.levels;
+  if (levels && document.activeElement !== levels) levels.value = prep().levels;
+  const prepare = document.getElementById("dm-prepare");
+  if (prepare) prepare.open = tools.prepareOpen;
   renderDmSpark();
   renderDmGroups();
   renderDmThreat();
@@ -492,16 +543,16 @@ function onDmClick(event) {
   if (!button) return;
   const kind = button.dataset.dm;
   if (kind === "draw") {
-    tools.sparks.unshift(draw(button.dataset.kind));
-    tools.sparks = tools.sparks.slice(0, 8);
+    prep().sparks.unshift(draw(button.dataset.kind));
+    prep().sparks = prep().sparks.slice(0, 8);
   } else if (kind === "scene") {
-    tools.sparks.unshift(drawScene());
-    tools.sparks = tools.sparks.slice(0, 8);
+    prep().sparks.unshift(drawScene());
+    prep().sparks = prep().sparks.slice(0, 8);
   } else if (kind === "add-group") {
-    tools.groups.push({ id: crypto.randomUUID(), name: "", count: 1, cr: "1/4" });
+    prep().groups.push({ id: crypto.randomUUID(), name: "", count: 1, cr: "1/4" });
   } else if (kind === "remove-group") {
-    tools.groups = tools.groups.filter((group) => group.id !== button.dataset.id);
-    if (!tools.groups.length) tools.groups.push({ id: crypto.randomUUID(), name: "", count: 1, cr: "0" });
+    prep().groups = prep().groups.filter((group) => group.id !== button.dataset.id);
+    if (!prep().groups.length) prep().groups.push({ id: crypto.randomUUID(), name: "", count: 1, cr: "0" });
   } else return;
   saveTools();
   paintTools();
@@ -510,12 +561,12 @@ function onDmClick(event) {
 function onDmInput(event) {
   const target = event.target;
   if (target.id === "dm-levels") {
-    tools.levels = target.value.slice(0, 80);
+    prep().levels = target.value.slice(0, 80);
     saveTools();
     renderDmThreat();
     return;
   }
-  const group = tools.groups.find((item) => item.id === target.dataset.id);
+  const group = prep().groups.find((item) => item.id === target.dataset.id);
   const field = target.dataset.dmField;
   if (!field || !group) return;
   if (field === "name") group.name = target.value.slice(0, 80);
@@ -545,6 +596,7 @@ function openDmModule(name) {
     if (other !== dialog && other.open) other.close();
   }
   dialog.showModal();
+  if (name === "order") renderDmOrder();
   paintDmModules();
 }
 
@@ -573,7 +625,7 @@ function bootTools() {
   document.getElementById("use-party")?.addEventListener("click", () => {
     const text = document.getElementById("use-party").dataset.levels || "";
     if (!text) return;
-    tools.levels = text;
+    prep().levels = text;
     saveTools();
     const levels = document.getElementById("dm-levels");
     if (levels) levels.value = text;
@@ -641,12 +693,10 @@ function renderRoom(room) {
     ...(shown.length ? shown.map(feedRow) : [h("p", { class: "hint" }, emptyFeed())]),
   );
   paintFeedFilter(counts);
-  const order = cleanOrder(room.order);
   const strip = document.getElementById("party-strip");
   strip.replaceChildren(...(room.players.length
-    ? room.players.map((player) => seatCard(player, order))
+    ? room.players.map(seatCard)
     : [h("p", { class: "empty" }, "No one has joined. Read them the code.")]));
-  paintTableOrder(order);
   const chosen = room.players.find((player) => player.name === openName);
   const dossierMount = document.getElementById("dm-dossier");
   if (!chosen) dossierMount.hidden = true;
@@ -662,103 +712,6 @@ function renderRoom(room) {
   tickTimes();
 }
 
-function paintTableOrder(order) {
-  const clean = cleanOrder(order);
-  const list = turnRows(clean);
-  const active = activeRow(clean);
-  const banner = document.getElementById("order-banner");
-  const meta = document.getElementById("order-meta");
-  if (banner) {
-    banner.textContent = active
-      ? `Round ${clean.round} · ${active.name}`
-      : (list.length ? "Initiative is in" : "The round has not started");
-  }
-  if (meta) {
-    meta.textContent = active
-      ? `${list.indexOf(active) + 1} of ${list.length}`
-      : "Players roll initiative from their seat. Add a creature here.";
-  }
-  const next = document.getElementById("order-next");
-  const back = document.getElementById("order-back");
-  if (next) {
-    next.disabled = list.length === 0;
-    next.textContent = clean.started ? "Next" : "Start";
-  }
-  if (back) back.disabled = !clean.started;
-  const mount = document.getElementById("order-list");
-  if (!mount) return;
-  mount.replaceChildren(...(list.length
-    ? list.map((row) => {
-      const on = Boolean(active && row.id === active.id);
-      const ac = row.ac == null ? "" : ` · AC ${row.ac}`;
-      const marks = row.marks.length ? ` · ${row.marks.join(", ")}` : "";
-      return h("article", { class: on ? "combatant is-active" : "combatant" }, [
-        h("p", {}, `${row.init}  ${row.name}${row.seat ? "" : " · creature"}`),
-        h("p", { class: "hint" }, `${row.hp}/${row.maxHp}${ac}${marks}`),
-        h("button", { type: "button", class: "text-btn", "data-order-remove": row.id }, "Remove"),
-      ]);
-    })
-    : [h("p", { class: "empty" }, "The order is empty.")]));
-}
-
-async function sendOrder(action) {
-  if (!code) return null;
-  const error = document.getElementById("order-error");
-  try {
-    const saved = await postOrder(code, { name: DM_NAME, ...action });
-    if (error) error.textContent = "";
-    signature = "";
-    await poll();
-    return saved.order;
-  } catch (err) {
-    if (error) error.textContent = err.message;
-    return null;
-  }
-}
-
-async function orderFromCard(button) {
-  if (!lastRoom) return;
-  const seat = button.dataset.orderSeat;
-  const player = lastRoom.players.find((item) => item.name === seat);
-  if (!player) return;
-  const order = cleanOrder(lastRoom.order);
-  const row = orderRowFor(order, seat);
-  const character = normalize(player.snapshot).character;
-  if (button.hasAttribute("data-order-mark")) {
-    const current = row ? row.marks : (character.marks || []);
-    const mark = button.dataset.mark;
-    const marks = current.includes(mark) ? current.filter((item) => item !== mark) : [...current, mark];
-    if (row) await sendOrder({ op: "vitals", id: row.id, marks });
-    else {
-      await sendOrder({
-        op: "vitals",
-        seat,
-        label: character.name || seat,
-        hp: currentHp(character),
-        maxHp: maxHpOf(character),
-        marks,
-      });
-    }
-    return;
-  }
-  const delta = Number(button.dataset.delta);
-  if (!Number.isInteger(delta)) return;
-  if (row) {
-    await sendOrder({ op: "step", id: row.id, delta });
-    return;
-  }
-  const max = maxHpOf(character);
-  const hp = Math.min(max, Math.max(0, currentHp(character) + delta));
-  await sendOrder({
-    op: "vitals",
-    seat,
-    label: character.name || seat,
-    hp,
-    maxHp: max,
-    marks: character.marks || [],
-  });
-}
-
 function paintCodeSize(seated) {
   const box = document.getElementById("dm-command");
   const toggle = document.getElementById("toggle-code");
@@ -772,7 +725,8 @@ function paintCodeSize(seated) {
 function tickTimes() {
   const now = Date.now();
   for (const node of document.querySelectorAll("[data-ends]")) {
-    const remaining = Number(node.dataset.ends) - now;
+    const clock = node.dataset.paused ? Number(node.dataset.paused) : now;
+    const remaining = Number(node.dataset.ends) - clock;
     const time = node.querySelector(".dm-time");
     if (time) time.textContent = formatRemaining(remaining);
     const tone = lightTone(remaining);
@@ -973,7 +927,7 @@ function readCounter(open) {
 async function publishCounter(open) {
   if (!code) return;
   try {
-    await setShop(code, readCounter(open));
+    await setShop(code, readCounter(open), dmToken);
     signature = "";
     const box = document.getElementById("dm-shop");
     if (box) box.checked = open;
@@ -988,7 +942,7 @@ async function poll() {
   if (!code) return;
   let room;
   try {
-    room = await fetchRoom(code, DM_NAME);
+    room = await fetchRoom(code, dmToken);
   } catch (error) {
     setStatus(error.message);
     return;
@@ -996,6 +950,16 @@ async function poll() {
   if (!room) {
     setStatus("No table with that code.");
     return;
+  }
+  if (room.locked) {
+    setStatus("That secret does not open this table.");
+    return;
+  }
+  tableOrder = cleanOrder(room.order);
+  if (document.getElementById("module-order")?.open && document.activeElement?.closest("#module-order")) {
+    // Keep the row the DM is editing.
+  } else if (document.getElementById("module-order")?.open) {
+    renderDmOrder();
   }
   setStatus("");
   paintShopLive(room);
@@ -1026,12 +990,141 @@ function cycleSeat(step) {
   chooseSeat(names[(index + step + names.length) % names.length]);
 }
 
-function showTable(next) {
+function sortedOrder() {
+  return [...tableOrder.combatants].sort((a, b) => b.init - a.init || a.order - b.order);
+}
+
+function dmOrderRow(person, active) {
+  const death = cleanDeath(person.death);
+  const pip = (kind, index) => {
+    const on = (kind === "success" ? death.success : death.failure) > index;
+    return h("button", {
+      type: "button",
+      class: `pip${on ? " is-on" : ""}${kind === "failure" ? " is-fail" : ""}`,
+      "data-order-pip": kind,
+      "data-id": person.id,
+      "data-index": String(index),
+      "aria-pressed": on ? "true" : "false",
+    });
+  };
+  return h("article", { class: active ? "combatant is-active" : "combatant" }, [
+    h("p", {}, `${person.name} · init ${person.init} · ${person.hp}/${person.maxHp} · AC ${person.ac ?? "—"}`),
+    h("div", { class: "turn-actions" }, [
+      h("button", { type: "button", class: "btn", "data-order-hp": "-1", "data-id": person.id }, "−1"),
+      h("button", { type: "button", class: "btn", "data-order-hp": "1", "data-id": person.id }, "+1"),
+      h("button", { type: "button", class: "text-btn", "data-order-remove": person.id }, "Remove"),
+    ]),
+    h("label", {}, [
+      "Exhaustion",
+      h("input", {
+        type: "number",
+        min: "0",
+        max: "6",
+        value: String(person.exhaustion || 0),
+        "data-order-exhaustion": person.id,
+      }),
+    ]),
+    h("div", { class: "mark-grid" }, MARKS.map((mark) => h("label", {}, [
+      h("input", {
+        type: "checkbox",
+        "data-order-mark": mark,
+        "data-id": person.id,
+        checked: person.marks.includes(mark) ? "checked" : null,
+      }),
+      mark,
+    ]))),
+    person.hp <= 0 ? h("div", { class: "death-pips" }, [
+      death.stable ? h("span", { class: "stable-flag" }, "Stable") : h("span", { class: "down-flag" }, "Down"),
+      ...[0, 1, 2].map((index) => pip("success", index)),
+      ...[0, 1, 2].map((index) => pip("failure", index)),
+    ]) : null,
+  ]);
+}
+
+function renderDmOrder() {
+  const mount = document.getElementById("dm-order-list");
+  if (!mount) return;
+  const list = sortedOrder();
+  const banner = document.getElementById("dm-turn-banner");
+  const active = tableOrder.started ? list.find((person) => person.id === tableOrder.activeId) : null;
+  if (banner) banner.textContent = active ? `${active.name} · round ${tableOrder.round}` : "The round has not started";
+  mount.replaceChildren(...(list.length
+    ? list.map((person) => dmOrderRow(person, person.id === tableOrder.activeId))
+    : [h("p", { class: "empty" }, "No one is in the order.")]));
+}
+
+async function saveOrder() {
+  if (!code || !dmToken) return;
+  tableOrder = cleanOrder(tableOrder);
+  const result = await postOrder(code, tableOrder, dmToken);
+  tableOrder = cleanOrder(result.order || tableOrder);
+  signature = "";
+  renderDmOrder();
+  await poll();
+}
+
+async function seatParty() {
+  if (!lastRoom) return;
+  const existing = new Set(tableOrder.combatants.map((person) => person.name.toLowerCase()));
+  let sequence = tableOrder.combatants.reduce((max, person) => Math.max(max, person.order), 0);
+  for (const player of lastRoom.players) {
+    const character = normalize(player.snapshot).character;
+    const name = (character?.name || player.name || "").trim();
+    if (!name || existing.has(name.toLowerCase())) continue;
+    const bonus = abilityMod(abilityTotals(character).dex);
+    const rolled = roll({ count: 1, sides: 20, modifier: bonus });
+    const hp = effectiveHp(character) ?? 10;
+    sequence += 1;
+    tableOrder.combatants.push({
+      id: crypto.randomUUID(),
+      name,
+      seat: player.name,
+      init: rolled.total,
+      bonus,
+      die: rolled.kept[0],
+      hp,
+      maxHp: maxHitPoints(character) || Math.max(hp, 1),
+      ac: armorClass(character),
+      marks: [],
+      exhaustion: 0,
+      death: blankDeath(),
+      order: sequence,
+    });
+    existing.add(name.toLowerCase());
+  }
+  await saveOrder();
+}
+
+function dmStep(direction) {
+  const list = sortedOrder();
+  if (!list.length) return;
+  if (!tableOrder.started) {
+    if (direction < 0) return;
+    tableOrder.started = true;
+    tableOrder.activeId = list[0].id;
+  } else {
+    const index = Math.max(0, list.findIndex((person) => person.id === tableOrder.activeId));
+    const nextIndex = (index + direction + list.length) % list.length;
+    if (direction > 0 && nextIndex === 0) tableOrder.round += 1;
+    if (direction < 0 && nextIndex === list.length - 1) tableOrder.round = Math.max(1, tableOrder.round - 1);
+    tableOrder.activeId = list[nextIndex].id;
+  }
+  void saveOrder();
+}
+
+function showTable(next, token = "") {
   code = normalizeCode(next);
+  dmToken = token || tools.secrets[code] || "";
+  if (dmToken) {
+    tools.secrets = { ...tools.secrets, [code]: dmToken };
+    saveTools();
+  }
   signature = "";
   seenEvent = "";
   openName = "";
   shopFormCode = "";
+  const secret = document.getElementById("room-secret");
+  if (secret) secret.textContent = dmToken ? `DM secret ${dmToken}` : "This browser does not have the DM secret.";
   const url = new URL(location.href);
   url.searchParams.set("room", code);
   history.replaceState(null, "", url);
@@ -1063,7 +1156,7 @@ function boot() {
     const status = document.getElementById("gate-status");
     try {
       const room = await createRoom();
-      showTable(room.code);
+      showTable(room.code, room.dmToken);
     } catch (error) {
       status.textContent = error.message;
     }
@@ -1071,11 +1164,16 @@ function boot() {
   document.getElementById("watch-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const next = normalizeCode(document.getElementById("watch-code").value);
+    const secret = document.getElementById("watch-secret").value.trim();
     if (next.length < 4) {
       document.getElementById("gate-status").textContent = "Table codes are four characters.";
       return;
     }
-    showTable(next);
+    if (!/^[a-f0-9]{32}$/.test(secret) && !tools.secrets[next]) {
+      document.getElementById("gate-status").textContent = "Paste the DM secret from the screen that opened the table.";
+      return;
+    }
+    showTable(next, /^[a-f0-9]{32}$/.test(secret) ? secret : "");
   });
   const askList = document.getElementById("ask-options");
   if (askList) {
@@ -1098,7 +1196,7 @@ function boot() {
     }
     const to = document.getElementById("dm-talk-to").value;
     try {
-      await postTalk(code, { name: DM_NAME, text: `Roll ${ask}.`, to, ask });
+      await postTalk(code, { text: `Roll ${ask}.`, to, ask }, dmToken);
       field.value = "";
       setStatus(to ? `Asked ${to} for ${ask}.` : `Asked the table for ${ask}.`);
       signature = "";
@@ -1118,10 +1216,9 @@ function boot() {
     }
     try {
       await postTalk(code, {
-        name: DM_NAME,
         text,
         to: document.getElementById("dm-talk-to").value,
-      });
+      }, dmToken);
       field.value = "";
       signature = "";
       await poll();
@@ -1150,7 +1247,7 @@ function boot() {
     const published = lastRoom && typeof lastRoom.shop === "object" ? lastRoom.shop : null;
     const body = published ? { ...published, open } : { open };
     try {
-      await setShop(code, body);
+      await setShop(code, body, dmToken);
       signature = "";
       setStatus(open ? "The counter is open." : "The counter is closed.");
     } catch (error) {
@@ -1160,6 +1257,89 @@ function boot() {
   });
   document.getElementById("copy-code").addEventListener("click", () => {
     if (code) void copyText(code, document.getElementById("copy-code"));
+  });
+  document.getElementById("copy-secret")?.addEventListener("click", () => {
+    if (dmToken) void copyText(dmToken, document.getElementById("copy-secret"));
+  });
+  document.getElementById("dm-turn-next")?.addEventListener("click", () => dmStep(1));
+  document.getElementById("dm-turn-back")?.addEventListener("click", () => dmStep(-1));
+  document.getElementById("dm-seat-party")?.addEventListener("click", () => { void seatParty(); });
+  document.getElementById("dm-combatant-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.target;
+    const name = form.elements.name.value.trim().slice(0, 80);
+    if (!name) return;
+    const bonus = Number(form.elements.bonus.value) || 0;
+    const hp = Number(form.elements.hp.value);
+    const acRaw = form.elements.ac.value.trim();
+    const rolled = roll({ count: 1, sides: 20, modifier: bonus });
+    const sequence = tableOrder.combatants.reduce((max, person) => Math.max(max, person.order), 0) + 1;
+    tableOrder.combatants.push({
+      id: crypto.randomUUID(),
+      name,
+      seat: "",
+      init: rolled.total,
+      bonus,
+      die: rolled.kept[0],
+      hp: Number.isInteger(hp) ? hp : 10,
+      maxHp: Number.isInteger(hp) ? Math.max(hp, 1) : 10,
+      ac: acRaw === "" ? null : Number(acRaw),
+      marks: [],
+      exhaustion: 0,
+      death: blankDeath(),
+      order: sequence,
+    });
+    form.elements.name.value = "";
+    void saveOrder();
+  });
+  document.getElementById("module-order")?.addEventListener("click", (event) => {
+    const hp = event.target.closest("[data-order-hp]");
+    if (hp) {
+      const person = tableOrder.combatants.find((item) => item.id === hp.dataset.id);
+      if (!person) return;
+      person.hp = Math.min(9999, Math.max(0, person.hp + Number(hp.dataset.orderHp)));
+      if (person.hp > 0) person.death = blankDeath();
+      void saveOrder();
+      return;
+    }
+    const remove = event.target.closest("[data-order-remove]");
+    if (remove) {
+      tableOrder.combatants = tableOrder.combatants.filter((item) => item.id !== remove.dataset.orderRemove);
+      if (tableOrder.activeId === remove.dataset.orderRemove) tableOrder.activeId = null;
+      void saveOrder();
+      return;
+    }
+    const pip = event.target.closest("[data-order-pip]");
+    if (pip) {
+      const person = tableOrder.combatants.find((item) => item.id === pip.dataset.id);
+      if (!person) return;
+      const death = cleanDeath(person.death);
+      const index = Number(pip.dataset.index);
+      const current = pip.dataset.orderPip === "failure" ? death.failure : death.success;
+      const next = current === index + 1 ? index : index + 1;
+      if (pip.dataset.orderPip === "failure") death.failure = next;
+      else death.success = next;
+      person.death = cleanDeath(death);
+      void saveOrder();
+    }
+  });
+  document.getElementById("module-order")?.addEventListener("change", (event) => {
+    const target = event.target;
+    if (target.dataset.orderExhaustion) {
+      const person = tableOrder.combatants.find((item) => item.id === target.dataset.orderExhaustion);
+      if (!person) return;
+      const value = Number(target.value);
+      person.exhaustion = Number.isInteger(value) ? Math.min(6, Math.max(0, value)) : 0;
+      void saveOrder();
+      return;
+    }
+    if (target.dataset.orderMark) {
+      const person = tableOrder.combatants.find((item) => item.id === target.dataset.id);
+      if (!person || !MARKS.includes(target.dataset.orderMark)) return;
+      person.marks = person.marks.filter((mark) => mark !== target.dataset.orderMark);
+      if (target.checked) person.marks.push(target.dataset.orderMark);
+      void saveOrder();
+    }
   });
   document.getElementById("copy-link").addEventListener("click", () => {
     if (playerUrl) void copyText(playerUrl, document.getElementById("copy-link"));
@@ -1172,62 +1352,8 @@ function boot() {
     if (lastRoom) renderRoom(lastRoom);
   });
   document.getElementById("party-strip").addEventListener("click", (event) => {
-    const control = event.target.closest("[data-order-step], [data-order-mark]");
-    if (control) {
-      void orderFromCard(control);
-      return;
-    }
     const card = event.target.closest("[data-seat]");
     if (card) chooseSeat(card.dataset.seat);
-  });
-  document.getElementById("party-strip").addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    if (event.target.closest("button")) return;
-    const card = event.target.closest("[data-seat]");
-    if (!card) return;
-    event.preventDefault();
-    chooseSeat(card.dataset.seat);
-  });
-  document.getElementById("order-list")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-order-remove]");
-    if (button) void sendOrder({ op: "remove", id: button.dataset.orderRemove });
-  });
-  document.getElementById("order-next")?.addEventListener("click", () => { void sendOrder({ op: "next" }); });
-  document.getElementById("order-back")?.addEventListener("click", () => { void sendOrder({ op: "back" }); });
-  document.getElementById("order-add")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const label = form.elements.name.value.trim().slice(0, 80);
-    const error = document.getElementById("order-error");
-    if (!label) {
-      if (error) error.textContent = "Give them a name.";
-      return;
-    }
-    const bonusRaw = Number(form.elements.bonus.value);
-    const bonus = Number.isInteger(bonusRaw) ? Math.min(30, Math.max(-30, bonusRaw)) : 0;
-    const hpRaw = Number(form.elements.hp.value);
-    const hp = Number.isInteger(hpRaw) ? Math.min(999, Math.max(0, hpRaw)) : 10;
-    const manual = form.elements.initiative.value.trim();
-    const manualInit = Number(manual);
-    const init = manual === ""
-      ? roll({ count: 1, sides: 20, modifier: bonus }).total
-      : Math.min(200, Math.max(-100, Number.isInteger(manualInit) ? manualInit : 0));
-    const acText = form.elements.ac.value.trim();
-    const acNumber = Number(acText);
-    const ac = acText === "" || !Number.isInteger(acNumber) ? null : Math.min(40, Math.max(0, acNumber));
-    void sendOrder({
-      op: "add",
-      label,
-      init,
-      bonus,
-      hp,
-      maxHp: Math.max(hp, 1),
-      ac,
-    }).then((saved) => {
-      if (!saved) return;
-      form.elements.name.value = "";
-      form.elements.initiative.value = "";
-    });
   });
   document.addEventListener("keydown", (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -1244,10 +1370,6 @@ function boot() {
       void copyText(code, document.getElementById("copy-code"));
     } else if (event.key === "[") cycleSeat(-1);
     else if (event.key === "]") cycleSeat(1);
-    else if (event.key === "n" || event.key === "N") {
-      event.preventDefault();
-      void sendOrder({ op: "next" });
-    }
   });
   document.getElementById("open-keys")?.addEventListener("click", () => document.getElementById("keys-dialog").showModal());
   document.getElementById("close-keys")?.addEventListener("click", () => document.getElementById("keys-dialog").close());

@@ -8,6 +8,7 @@ import {
   buyItem,
   equipNewCharacter,
   findOffer,
+  kitChoices,
   formatCoin,
   startingPurse,
   useItem,
@@ -47,6 +48,15 @@ test("coin reads in platinum, gold, electrum, silver, and copper", () => {
   assert.equal(formatCoin(1000), "1 pp");
   assert.equal(formatCoin(50), "1 ep");
   assert.equal(formatCoin(0), "0 cp");
+});
+
+test("a class offers its usual kits, with the pieces named", () => {
+  const kits = kitChoices("fighter");
+  assert.equal(kits.length, 2);
+  assert.match(kits[0].items.join(", "), /Chain mail/);
+  assert.match(kits[0].items.join(", "), /Longsword/);
+  assert.ok(kits[1].items.length > 1);
+  assert.equal(kitChoices("custom").length, 1);
 });
 
 test("a new fighter receives the kit and the class purse", () => {
