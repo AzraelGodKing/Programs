@@ -11,24 +11,36 @@ export class Table extends DurableObject {
     return this.room().create();
   }
 
-  view(viewer) {
-    return this.room().view(viewer);
+  join(token, payload) {
+    return this.room().join(token, payload);
   }
 
-  update(update) {
-    return this.room().update(update);
+  view(token) {
+    return this.room().view(token);
   }
 
-  setShop(payload) {
-    return this.room().setShop(payload);
+  update(token, update) {
+    return this.room().update(token, update);
   }
 
-  tradeBuyback(payload) {
-    return this.room().tradeBuyback(payload);
+  setShop(token, payload) {
+    return this.room().setShop(token, payload);
   }
 
-  talk(message) {
-    return this.room().talk(message);
+  tradeBuyback(token, payload) {
+    return this.room().tradeBuyback(token, payload);
+  }
+
+  talk(token, payload) {
+    return this.room().talk(token, payload);
+  }
+
+  setOrder(token, order) {
+    return this.room().setOrder(token, order);
+  }
+
+  setVitals(token, payload) {
+    return this.room().setVitals(token, payload);
   }
 
   async alarm() {

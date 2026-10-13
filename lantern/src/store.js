@@ -2,6 +2,7 @@ import { cleanCharacter } from "./character.js";
 import { MARKS } from "./marks.js";
 import { LIGHTS } from "./lights.js";
 import { KINDS } from "./oracle.js";
+import { cleanDeath } from "./order.js";
 
 export const KEY = "lantern.v1";
 export const SAVE_VERSION = 1;
@@ -59,6 +60,9 @@ function cleanCombatant(item, index) {
     maxHp: int(item.maxHp, Math.max(hp, 1), 0, 9999),
     ac: item.ac == null || item.ac === "" ? null : int(item.ac, null, 0, 40),
     marks: asArray(item.marks).filter((mark) => MARKS.includes(mark)),
+    exhaustion: int(item.exhaustion, 0, 0, 6),
+    death: cleanDeath(item.death),
+    seat: text(item.seat, 40),
     order: int(item.order, index, 0, 100000),
   };
 }
@@ -172,6 +176,10 @@ export function normalize(input) {
     monsters: asArray(src.monsters).map(cleanMonster).filter(Boolean).slice(0, 12),
     sparks: asArray(src.sparks).map(cleanSpark).filter(Boolean).slice(0, 8),
     lights: asArray(src.lights).map(cleanLight).filter(Boolean).slice(0, 8),
+    lightsPausedAt: Number.isFinite(Number(src.lightsPausedAt)) && Number(src.lightsPausedAt) >= MIN_TS && Number(src.lightsPausedAt) <= MAX_TS
+      ? Number(src.lightsPausedAt)
+      : null,
+    pauseReason: src.pauseReason === "user" || src.pauseReason === "hidden" ? src.pauseReason : "",
     notes: typeof src.notes === "string" ? src.notes.slice(0, 4000) : "",
     drafts: asArray(src.drafts).map(cleanDraft).filter(Boolean).slice(0, 40),
     character: cleanCharacter(src.character),

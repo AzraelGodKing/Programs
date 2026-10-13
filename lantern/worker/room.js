@@ -1,4 +1,6 @@
-/** Shared table rules used by the Durable Object. Matches lantern/room.py. */
+/** Shared table rules. The local server and the Worker both use this module. */
+
+import { blankDeath, blankOrder, cleanOrder } from "../src/order.js";
 
 export const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const EVENT_CAP = 500;
@@ -68,6 +70,15 @@ export function cleanUpdate(payload) {
 export function randomCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(4));
   return Array.from(bytes, (byte) => ALPHABET[byte % ALPHABET.length]).join("");
+}
+
+export function randomToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function validToken(token) {
+  return typeof token === "string" && /^[a-f0-9]{32}$/.test(token);
 }
 
 export function validCode(code) {
@@ -188,29 +199,88 @@ export class TableRoom {
     this.storage = storage;
   }
 
+  async role(token) {
+    const meta = await this.storage.get("meta");
+    if (!meta) return null;
+    if (validToken(token) && token === meta.dmToken) return { role: "dm", name: DM_NAME };
+    if (!validToken(token)) return null;
+    const seat = await this.storage.get(`seat:${token}`);
+    if (!seat) return null;
+    return { role: "player", name: seat.name, token };
+  }
+
   async create() {
-    if (await this.storage.get("meta")) return false;
+    if (await this.storage.get("meta")) return null;
     const now = Date.now();
+    const dmToken = randomToken();
     await this.storage.put({
-      meta: { created: now },
+      meta: { created: now, dmToken },
       events: [],
       shop: true,
       messages: [],
       buybacks: [],
+      order: blankOrder(),
     });
     await this.storage.setAlarm(now + IDLE_MS);
-    return true;
+    return dmToken;
   }
 
-  async view(viewer = "") {
+  async join(token, payload) {
     if (!await this.storage.get("meta")) return null;
-    const events = (await this.storage.get("events")) || [];
-    const stored = await this.storage.list({ prefix: "p:" });
-    const players = [...stored.values()].sort((a, b) => b.seen - a.seen);
+    if (validToken(token)) {
+      const existing = await this.storage.get(`seat:${token}`);
+      if (existing) return { token, name: existing.name };
+    }
+    const name = cleanName(payload?.name);
+    if (name.toLowerCase() === DM_NAME.toLowerCase()) {
+      throw new TableError("That name is the DM's. Pick another.");
+    }
+    const stored = await this.storage.list({ prefix: "seat:" });
+    for (const seat of stored.values()) {
+      if (seat.name.toLowerCase() === name.toLowerCase()) {
+        throw new TableError("That name is already at the table.");
+      }
+    }
+    const seatToken = randomToken();
+    const now = Date.now();
+    await this.storage.put(`seat:${seatToken}`, {
+      name,
+      seen: now,
+      intent: "",
+      snapshot: {},
+    });
+    await this.storage.setAlarm(now + IDLE_MS);
+    return { token: seatToken, name };
+  }
+
+  async view(token = "") {
+    if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
     const storedShop = await this.storage.get("shop");
     const shop = storedShop === undefined || storedShop === null ? true : storedShop;
-    const who = cleanViewer(viewer);
-    const messages = ((await this.storage.get("messages")) || []).filter((message) => messageVisible(message, who));
+    const order = cleanOrder((await this.storage.get("order")) || blankOrder());
+    if (!who) {
+      return {
+        locked: true,
+        events: [],
+        players: [],
+        shop,
+        buybacks: [],
+        messages: [],
+        order: blankOrder(),
+      };
+    }
+    const events = (await this.storage.get("events")) || [];
+    const stored = await this.storage.list({ prefix: "seat:" });
+    const players = [...stored.values()]
+      .map((seat) => ({
+        name: seat.name,
+        seen: seat.seen,
+        intent: seat.intent || "",
+        snapshot: seat.snapshot || {},
+      }))
+      .sort((a, b) => b.seen - a.seen);
+    const messages = ((await this.storage.get("messages")) || []).filter((message) => messageVisible(message, who.name));
     const buybacks = shopIsOpen(shop) ? ((await this.storage.get("buybacks")) || []) : [];
     return {
       events: [...events].reverse(),
@@ -218,15 +288,20 @@ export class TableRoom {
       shop,
       buybacks: buybacks.map((line) => ({ ...line })),
       messages,
+      order,
+      locked: false,
     };
   }
 
-  async update(update) {
-    if (!await this.storage.get("meta")) return false;
+  async update(token, payload) {
+    if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who || who.role !== "player") throw new TableError("Sit down before you share the night.");
+    const update = cleanUpdate({ ...payload, name: who.name });
     const now = Date.now();
     const writes = {
-      [`p:${update.name}`]: {
-        name: update.name,
+      [`seat:${token}`]: {
+        name: who.name,
         seen: now,
         intent: update.intent,
         snapshot: update.snapshot,
@@ -235,19 +310,22 @@ export class TableRoom {
     if (update.summaries.length) {
       let events = (await this.storage.get("events")) || [];
       for (const summary of update.summaries) {
-        events.push({ id: hexId(), at: now, name: update.name, summary });
+        events.push({ id: hexId(), at: now, name: who.name, summary });
       }
       if (events.length > EVENT_CAP) events = events.slice(-EVENT_CAP);
       writes.events = events;
     }
     await this.storage.put(writes);
     await this.storage.setAlarm(now + IDLE_MS);
-    return true;
+    const view = await this.view(token);
+    return { shop: view.shop, order: view.order };
   }
 
-  async setShop(payload) {
-    const shop = cleanShop(payload);
+  async setShop(token, payload) {
     if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who || who.role !== "dm") throw new TableError("Only the DM sets the shop.");
+    const shop = cleanShop(payload);
     const writes = { shop };
     if (!shopIsOpen(shop)) writes.buybacks = [];
     await this.storage.put(writes);
@@ -255,9 +333,11 @@ export class TableRoom {
     return shop;
   }
 
-  async tradeBuyback(payload) {
-    const trade = cleanBuyback(payload);
+  async tradeBuyback(token, payload) {
     if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who || who.role !== "player") throw new TableError("Sit down before you trade.");
+    const trade = cleanBuyback({ ...payload, name: who.name });
     const storedShop = await this.storage.get("shop");
     const shop = storedShop === undefined || storedShop === null ? true : storedShop;
     if (!shopIsOpen(shop)) throw new TableError("The shop is closed.");
@@ -278,8 +358,11 @@ export class TableRoom {
     return lines.map((line) => ({ ...line }));
   }
 
-  async talk(message) {
+  async talk(token, payload) {
     if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who) throw new TableError("Sit down before you speak.");
+    const message = cleanTalk({ ...payload, name: who.name });
     const now = Date.now();
     let messages = (await this.storage.get("messages")) || [];
     const stored = { id: hexId(), at: now, from: message.name, to: message.to, text: message.text };
@@ -290,4 +373,44 @@ export class TableRoom {
     await this.storage.setAlarm(now + IDLE_MS);
     return { ...stored };
   }
+
+  async setOrder(token, payload) {
+    if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who || who.role !== "dm") throw new TableError("Only the DM moves the order.");
+    const order = cleanOrder(payload);
+    await this.storage.put("order", order);
+    await this.storage.setAlarm(Date.now() + IDLE_MS);
+    return order;
+  }
+
+  async setVitals(token, payload) {
+    if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who || who.role !== "player") throw new TableError("Sit down before you change hit points.");
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new TableError("Expected an object.");
+    }
+    const order = cleanOrder((await this.storage.get("order")) || blankOrder());
+    const person = order.combatants.find((item) => (
+      item.seat.toLowerCase() === who.name.toLowerCase()
+      || item.name.toLowerCase() === who.name.toLowerCase()
+    ));
+    if (!person) throw new TableError("You are not in the order yet.");
+    if (payload.hp != null && payload.hp !== "") person.hp = intField(payload.hp, person.hp, 0, 9999);
+    if (payload.maxHp != null && payload.maxHp !== "") person.maxHp = intField(payload.maxHp, person.maxHp, 1, 9999);
+    if (payload.ac === null || payload.ac === "") person.ac = null;
+    else if (payload.ac != null) person.ac = intField(payload.ac, person.ac ?? 10, 0, 40);
+    if (person.hp > 0) person.death = blankDeath();
+    const next = cleanOrder(order);
+    await this.storage.put("order", next);
+    await this.storage.setAlarm(Date.now() + IDLE_MS);
+    return next;
+  }
+}
+
+function intField(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isInteger(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
 }

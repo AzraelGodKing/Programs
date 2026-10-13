@@ -1230,6 +1230,28 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
   text-transform: uppercase;
 }
 
+.stable-flag {
+  color: var(--gold);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.death-pips { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+
+.pip {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 0;
+}
+
+.pip.is-on { background: var(--gold); border-color: var(--gold); }
+
+.pip.is-fail.is-on { background: var(--blood); border-color: var(--blood); }
+
 .init-block { text-align: center; }
 
 .init-input {

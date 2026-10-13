@@ -37,7 +37,7 @@
 
     <main id="gate" class="gate">
       <h2>Open a table</h2>
-      <p class="lede">The code is the only key. Anyone with it can sit down, and this screen watches every seat.</p>
+      <p class="lede">The code is what you read aloud. The DM secret stays on the screen that opened the table.</p>
       <div class="gate-forms">
         <form id="open-form">
           <button class="btn primary" type="submit">Open a table</button>
@@ -45,6 +45,9 @@
         <form id="watch-form" class="seat-form">
           <label>Already have a code
             <input id="watch-code" maxlength="4" placeholder="Code" autocapitalize="characters" spellcheck="false">
+          </label>
+          <label>DM secret
+            <input id="watch-secret" maxlength="32" placeholder="Secret" spellcheck="false" autocomplete="off">
           </label>
           <button class="btn" type="submit">Watch</button>
         </form>
@@ -55,10 +58,13 @@
     <main id="dm-main" hidden>
       <div class="dm-command" id="dm-command">
         <div>
-          <p class="hint">Say this code, or send the link.</p>
+          <p class="hint">Say this code, or send the link. The secret stays on this screen.</p>
           <p id="room-code" class="room-code"></p>
+          <p id="room-secret" class="hint"></p>
+          <p class="hint">A week of silence clears this shared table. Save a copy on each player's screen is the copy that remains.</p>
           <div class="dm-actions">
             <button type="button" class="btn" id="copy-code">Copy code</button>
+            <button type="button" class="btn" id="copy-secret">Copy the DM secret</button>
             <button type="button" class="btn" id="copy-link">Copy the player link</button>
             <button type="button" class="text-btn" id="toggle-code" hidden>Show the code big</button>
           </div>
@@ -73,6 +79,7 @@
       </div>
 
       <div class="module-bar" role="toolbar" aria-label="Modules">
+        <button type="button" class="btn" data-module="order" aria-haspopup="dialog" aria-controls="module-order" aria-expanded="false">Order</button>
         <button type="button" class="btn" data-module="shop" aria-haspopup="dialog" aria-controls="module-shop" aria-expanded="false">Shop <span id="shop-summary" class="summary-note"></span></button>
         <button type="button" class="btn" data-module="spark" aria-haspopup="dialog" aria-controls="module-spark" aria-expanded="false">Spark</button>
         <button type="button" class="btn" data-module="threat" aria-haspopup="dialog" aria-controls="module-threat" aria-expanded="false">Threat</button>
@@ -122,6 +129,35 @@
       </div>
     </main>
   </div>
+  <dialog id="module-order" class="gear-dialog module-dialog" aria-labelledby="order-title">
+    <div class="module-head">
+      <h2 id="order-title">Order</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">One list for the table. Seat the party copies each hero's name, Dexterity, hit points, and armor class. Next moves the round they see.</p>
+    <div class="turn-actions">
+      <button type="button" class="btn" id="dm-turn-back">Back</button>
+      <button type="button" class="btn primary" id="dm-turn-next">Next</button>
+      <button type="button" class="btn" id="dm-seat-party">Seat the party</button>
+    </div>
+    <p id="dm-turn-banner" class="turn-banner">The round has not started</p>
+    <form id="dm-combatant-form" class="form" autocomplete="off">
+      <label>Name
+        <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="The third guard">
+      </label>
+      <label>Bonus
+        <input name="bonus" type="number" value="0" inputmode="numeric">
+      </label>
+      <label>HP
+        <input name="hp" type="number" value="10" min="0" inputmode="numeric">
+      </label>
+      <label>AC
+        <input name="ac" type="number" min="0" inputmode="numeric" placeholder="—">
+      </label>
+      <button class="btn primary" type="submit">Add</button>
+    </form>
+    <div id="dm-order-list" class="stack"></div>
+  </dialog>
   <dialog id="module-shop" class="gear-dialog module-dialog module-shop" aria-labelledby="shop-title">
     <div class="module-head">
       <h2 id="shop-title">Shop</h2>

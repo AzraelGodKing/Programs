@@ -2,6 +2,7 @@
 // The sentences in the sheet are written here. Custom covers anything else.
 
 import { cleanItems, cleanPurse, formatCoin } from "./gear.js";
+import { blankDeath, cleanDeath } from "./order.js";
 
 export const ABILITIES = [
   { id: "str", label: "Strength", short: "Str" },
@@ -64,6 +65,7 @@ export const RACES = [
     name: "Dwarf",
     size: "Medium",
     speed: 25,
+    darkvision: 60,
     languages: "Common, Dwarvish",
     bonuses: { con: 2 },
     lineageLabel: "Subrace",
@@ -77,6 +79,7 @@ export const RACES = [
     name: "Elf",
     size: "Medium",
     speed: 30,
+    darkvision: 60,
     languages: "Common, Elvish",
     bonuses: { dex: 2 },
     lineageLabel: "Subrace",
@@ -134,6 +137,7 @@ export const RACES = [
     name: "Gnome",
     size: "Small",
     speed: 25,
+    darkvision: 60,
     languages: "Common, Gnomish",
     bonuses: { int: 2 },
     lineageLabel: "Subrace",
@@ -147,6 +151,7 @@ export const RACES = [
     name: "Half-elf",
     size: "Medium",
     speed: 30,
+    darkvision: 60,
     languages: "Common, Elvish, plus one of your choice",
     bonuses: { cha: 2 },
     picks: 2,
@@ -157,6 +162,7 @@ export const RACES = [
     name: "Half-orc",
     size: "Medium",
     speed: 30,
+    darkvision: 60,
     languages: "Common, Orc",
     bonuses: { str: 2, con: 1 },
     lineages: [],
@@ -166,6 +172,7 @@ export const RACES = [
     name: "Tiefling",
     size: "Medium",
     speed: 30,
+    darkvision: 60,
     languages: "Common, Infernal",
     bonuses: { int: 1, cha: 2 },
     lineages: [],
@@ -408,7 +415,33 @@ export function blankCharacter() {
     traits: "",
     items: [],
     purse: null,
+    kitId: "",
+    customDarkvision: 0,
+    acOverride: null,
+    maxHp: null,
+    inspiration: false,
+    hitDiceUsed: 0,
+    spells: [],
+    death: blankDeath(),
   };
+}
+
+function cleanSpells(value) {
+  if (!Array.isArray(value)) return [];
+  const spells = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const name = text(raw.name, 60);
+    if (!name) continue;
+    spells.push({
+      id: text(raw.id, 80) || `spell-${spells.length}`,
+      name,
+      slot: int(raw.slot, 0, 0, 9),
+      used: raw.used === true,
+    });
+    if (spells.length === 12) break;
+  }
+  return spells;
 }
 
 export function cleanCharacter(input) {
@@ -484,7 +517,36 @@ export function cleanCharacter(input) {
     traits: typeof input.traits === "string" ? input.traits.slice(0, 1000) : "",
     items: cleanItems(input.items),
     purse: cleanPurse(input.purse),
+    kitId: text(input.kitId, 40),
+    customDarkvision: int(input.customDarkvision, 0, 0, 120),
+    acOverride: input.acOverride == null || input.acOverride === "" ? null : int(input.acOverride, null, 0, 40),
+    maxHp: input.maxHp == null || input.maxHp === "" ? null : int(input.maxHp, null, 1, 999),
+    inspiration: input.inspiration === true,
+    hitDiceUsed: int(input.hitDiceUsed, 0, 0, 20),
+    spells: cleanSpells(input.spells),
+    death: cleanDeath(input.death),
   };
+}
+
+export function darkvisionRange(character) {
+  if (!character || character.raceId === "custom") return int(character?.customDarkvision, 0, 0, 120);
+  return findRace(character.raceId)?.darkvision || 0;
+}
+
+export function maxHitPoints(character) {
+  if (Number.isInteger(character.maxHp) && character.maxHp > 0) return character.maxHp;
+  const suggested = suggestedHp(character);
+  if (Number.isInteger(character.hp) && suggested != null) return Math.max(character.hp, suggested);
+  return suggested ?? character.hp ?? 1;
+}
+
+export function breathDice(character) {
+  const race = findRace(character.raceId);
+  const lineage = findLineage(race, character.lineageId);
+  if (!lineage?.damage) return null;
+  const level = int(character.level, 1, 1, 20);
+  const count = level >= 16 ? 5 : level >= 11 ? 4 : level >= 6 ? 3 : 2;
+  return { count, sides: 6, damage: lineage.damage };
 }
 
 export function classInfo(character) {
@@ -710,6 +772,7 @@ export function presentCharacter(input) {
     `proficiency ${formatMod(proficiencyBonus(character.level))}`,
     speed != null && speed !== "" ? `${speed} ft` : "",
     size || "",
+    darkvisionRange(character) ? `darkvision ${darkvisionRange(character)} ft` : "",
     lineage?.damage ? `${lineage.damage} breath` : "",
   ].filter(Boolean);
   const saves = (info?.saves || [])
@@ -731,6 +794,8 @@ export function presentCharacter(input) {
     hitDie: info ? `d${info.hitDie}` : "",
     coin: character.purse == null ? "" : formatCoin(character.purse),
     carried: character.items.map((item) => (item.qty > 1 ? `${item.name} × ${item.qty}` : item.name)).join(", "),
+    spells: character.spells.map((spell) => `${spell.name} (slot ${spell.slot}${spell.used ? ", used" : ""})`).join(", "),
+    inspiration: character.inspiration === true,
   };
 }
 

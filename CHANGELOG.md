@@ -2,10 +2,23 @@
 
 ## Unreleased
 
+### Changed
+
+- The Python copy of the table rules is gone. Join, whisper, and shop are checked against the JavaScript room module.
+
 ### Added
 
+- One initiative list for the table. The DM seats the party and moves the round. Players see the same list. At 0 hit points the row has three success pips, three failure pips, and Stable on the third success. Exhaustion is a count from 0 to 6.
+- A seat token for each player, and a DM secret that is not the code read aloud. Whispers, shop changes, and asked rolls are accepted only from the token that owns the seat.
+- The scene froze pauses every flame, including while the page is hidden, and gives that time back when the scene moves. Darkvision is on the sheet and on the flame line.
+- Play alone opens the character steps in this browser. A blank code does the same. Join still wants a four-character code.
+- A skill tap fills the die and waits for Roll. Armor class comes from the armor and shield in the pack, with a typed override. Tonight’s spells, a breath weapon, inspiration, and a short rest live on the pack. Revise reopens the six steps without replacing the gear.
+- The class kit step offers the usual gear choices. The people and class steps call the lists an SRD subset.
+- Missing arrows, bolts, or a component pouch are a question on the shop. The purse changes only after a tap.
+- Sparks, party levels, and creature groups are stored with the notes for that table code.
+- The front door says what the player seat and the DM screen are for. Save a copy stays in the header. The deletion sentence is on Clear. The first time a character sits down, Lantern offers Save a copy once. Next to the table code, a week of silence clears the shared table.
 - Shop, Spark, Threat, and Notes on the DM screen open as modules. On the player seat, Order, Pack, Notes, and Table open over the dice. Closing a module leaves the table where it was.
-- The shop switches between Buy and Sell. The coin purse shows platinum, gold, electrum, silver, and copper. Opening it buys missing ammunition for a bow or crossbow in the pack, and a component pouch for a spellcaster who has no focus, when this counter sells them.
+- The shop switches between Buy and Sell. The coin purse shows platinum, gold, electrum, silver, and copper.
 - The DM shop has the 2014 equipment list: weapons, armor, gear, tools, mounts, trade goods, and food and lodging. A stall still opens a short counter. Add from the base list when this shop sells something else.
 - The purse converts platinum, gold, electrum, silver, and copper. 1 pp is 10 gp, and 1 ep is 5 sp. A price can be written in any of those coins.
 - Once a player joins, the seat folds into one line, and Clear this browser sits with Save and Restore. The light picker opens on demand. On a phone, the dice and Roll stay pinned to the bottom of the screen.

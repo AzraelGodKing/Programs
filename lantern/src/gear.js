@@ -13,20 +13,58 @@ export const GEAR = CATALOG.filter((item) => item.service !== true).map((item) =
   return gear;
 });
 
-const KITS = {
-  barbarian: [["greataxe", 1], ["javelin", 4], ["explorers-pack", 1]],
-  bard: [["rapier", 1], ["leather", 1], ["diplomats-pack", 1], ["lute", 1]],
-  cleric: [["mace", 1], ["scale-mail", 1], ["shield", 1], ["priests-pack", 1], ["holy-symbol", 1]],
-  druid: [["scimitar", 1], ["leather", 1], ["shield", 1], ["explorers-pack", 1], ["druidic-focus", 1]],
-  fighter: [["chain-mail", 1], ["longsword", 1], ["shield", 1], ["light-crossbow", 1], ["bolts", 1], ["dungeoneers-pack", 1]],
-  monk: [["shortsword", 1], ["dart", 10], ["dungeoneers-pack", 1]],
-  paladin: [["longsword", 1], ["shield", 1], ["chain-mail", 1], ["javelin", 5], ["priests-pack", 1], ["holy-symbol", 1]],
-  ranger: [["scale-mail", 1], ["longsword", 1], ["shortbow", 1], ["arrows", 1], ["explorers-pack", 1]],
-  rogue: [["rapier", 1], ["shortbow", 1], ["arrows", 1], ["leather", 1], ["burglars-pack", 1], ["thieves-tools", 1]],
-  sorcerer: [["light-crossbow", 1], ["bolts", 1], ["dagger", 2], ["component-pouch", 1], ["dungeoneers-pack", 1]],
-  warlock: [["light-crossbow", 1], ["bolts", 1], ["dagger", 2], ["leather", 1], ["component-pouch", 1], ["scholars-pack", 1]],
-  wizard: [["quarterstaff", 1], ["component-pouch", 1], ["scholars-pack", 1], ["spellbook", 1]],
-  custom: [["dagger", 1], ["explorers-pack", 1], ["clothes", 1]],
+const KIT_OPTIONS = {
+  barbarian: [
+    { id: "axe", name: "Greataxe and javelins", items: [["greataxe", 1], ["javelin", 4], ["explorers-pack", 1]] },
+    { id: "handaxes", name: "Two handaxes", items: [["handaxe", 2], ["explorers-pack", 1]] },
+  ],
+  bard: [
+    { id: "rapier", name: "Rapier and leather", items: [["rapier", 1], ["leather", 1], ["diplomats-pack", 1], ["lute", 1]] },
+    { id: "light", name: "A lighter blade", items: [["shortsword", 1], ["leather", 1], ["entertainers-pack", 1], ["lute", 1]] },
+  ],
+  cleric: [
+    { id: "mail", name: "Scale mail and a shield", items: [["mace", 1], ["scale-mail", 1], ["shield", 1], ["priests-pack", 1], ["holy-symbol", 1]] },
+    { id: "cloth", name: "Leather and a mace", items: [["mace", 1], ["leather", 1], ["priests-pack", 1], ["holy-symbol", 1]] },
+  ],
+  druid: [
+    { id: "shield", name: "Scimitar and a shield", items: [["scimitar", 1], ["leather", 1], ["shield", 1], ["explorers-pack", 1], ["druidic-focus", 1]] },
+    { id: "staff", name: "Wooden staff", items: [["quarterstaff", 1], ["leather", 1], ["explorers-pack", 1], ["druidic-focus", 1]] },
+  ],
+  fighter: [
+    { id: "mail", name: "Chain mail, sword, and shield", items: [["chain-mail", 1], ["longsword", 1], ["shield", 1], ["light-crossbow", 1], ["bolts", 1], ["dungeoneers-pack", 1]] },
+    { id: "archer", name: "Leather and a longbow", items: [["leather", 1], ["longbow", 1], ["arrows", 1], ["shortsword", 2], ["explorers-pack", 1]] },
+  ],
+  monk: [
+    { id: "shortsword", name: "Shortsword and darts", items: [["shortsword", 1], ["dart", 10], ["dungeoneers-pack", 1]] },
+    { id: "staff", name: "Quarterstaff", items: [["quarterstaff", 1], ["dart", 10], ["explorers-pack", 1]] },
+  ],
+  paladin: [
+    { id: "mail", name: "Chain mail and a shield", items: [["longsword", 1], ["shield", 1], ["chain-mail", 1], ["javelin", 5], ["priests-pack", 1], ["holy-symbol", 1]] },
+    { id: "great", name: "A heavier weapon", items: [["greataxe", 1], ["chain-mail", 1], ["javelin", 5], ["priests-pack", 1], ["holy-symbol", 1]] },
+  ],
+  ranger: [
+    { id: "scale", name: "Scale mail and a bow", items: [["scale-mail", 1], ["longsword", 1], ["shortbow", 1], ["arrows", 1], ["explorers-pack", 1]] },
+    { id: "leather", name: "Leather and two blades", items: [["leather", 1], ["shortsword", 2], ["longbow", 1], ["arrows", 1], ["explorers-pack", 1]] },
+  ],
+  rogue: [
+    { id: "rapier", name: "Rapier and a shortbow", items: [["rapier", 1], ["shortbow", 1], ["arrows", 1], ["leather", 1], ["burglars-pack", 1], ["thieves-tools", 1]] },
+    { id: "short", name: "Shortsword and leather", items: [["shortsword", 1], ["shortbow", 1], ["arrows", 1], ["leather", 1], ["burglars-pack", 1], ["thieves-tools", 1]] },
+  ],
+  sorcerer: [
+    { id: "crossbow", name: "Light crossbow", items: [["light-crossbow", 1], ["bolts", 1], ["dagger", 2], ["component-pouch", 1], ["dungeoneers-pack", 1]] },
+    { id: "staff", name: "Quarterstaff", items: [["quarterstaff", 1], ["dagger", 2], ["component-pouch", 1], ["explorers-pack", 1]] },
+  ],
+  warlock: [
+    { id: "crossbow", name: "Light crossbow and leather", items: [["light-crossbow", 1], ["bolts", 1], ["dagger", 2], ["leather", 1], ["component-pouch", 1], ["scholars-pack", 1]] },
+    { id: "blade", name: "A simple blade", items: [["spear", 1], ["leather", 1], ["dagger", 2], ["component-pouch", 1], ["scholars-pack", 1]] },
+  ],
+  wizard: [
+    { id: "staff", name: "Quarterstaff and a spellbook", items: [["quarterstaff", 1], ["component-pouch", 1], ["scholars-pack", 1], ["spellbook", 1]] },
+    { id: "dagger", name: "Dagger and a spellbook", items: [["dagger", 1], ["component-pouch", 1], ["scholars-pack", 1], ["spellbook", 1]] },
+  ],
+  custom: [
+    { id: "travel", name: "Dagger and traveling clothes", items: [["dagger", 1], ["explorers-pack", 1], ["clothes", 1]] },
+  ],
 };
 
 const STARTING_CP = {
@@ -283,8 +321,14 @@ export function startingPurse(classId) {
   return STARTING_CP[classId] ?? STARTING_CP.custom;
 }
 
-export function kitFor(classId) {
-  return (KITS[classId] || KITS.custom).map(([id, qty]) => ({ id, qty }));
+export function kitOptions(classId) {
+  return (KIT_OPTIONS[classId] || KIT_OPTIONS.custom).map((kit) => ({ id: kit.id, name: kit.name }));
+}
+
+export function kitFor(classId, kitId = "") {
+  const options = KIT_OPTIONS[classId] || KIT_OPTIONS.custom;
+  const chosen = options.find((kit) => kit.id === kitId) || options[0];
+  return chosen.items.map(([id, qty]) => ({ id, qty }));
 }
 
 function piece(id, qty) {
@@ -346,7 +390,7 @@ export function needsStartingGear(character) {
 export function equipNewCharacter(character) {
   if (!needsStartingGear(character)) return character;
   let items = [];
-  for (const entry of kitFor(character.classId)) items = addPiece(items, entry.id, entry.qty);
+  for (const entry of kitFor(character.classId, character.kitId)) items = addPiece(items, entry.id, entry.qty);
   return {
     ...character,
     items,

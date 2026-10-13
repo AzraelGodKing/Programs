@@ -45,6 +45,7 @@
         <input id="seat-room" name="room" maxlength="4" placeholder="Code" autocapitalize="characters" spellcheck="false">
       </label>
       <button class="btn" type="submit">Join</button>
+      <button class="btn" type="button" data-action="play-alone">Play alone</button>
     </form>
     <div class="seat-line">
       <p id="seat-status" class="hint" role="status"></p>
@@ -53,7 +54,6 @@
   </section>
 
   <section class="save-bar" aria-label="Saved night">
-    <p class="hint save-explain">This browser holds the game, including the characters at each table. Clearing Lantern's stored data here, or in the browser, deletes it. A saved copy is a file you keep.</p>
     <div class="save-actions">
       <button type="button" class="btn" data-action="export-night">Save a copy</button>
       <button type="button" class="btn" data-action="import-night">Restore</button>
@@ -84,8 +84,6 @@
     <nav class="tabs" role="tablist" aria-label="Tools">
       <button type="button" role="tab" id="tab-dice" data-action="tab" data-tab="dice" aria-controls="panel-dice" aria-selected="true">Dice</button>
       <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-haspopup="dialog" aria-controls="module-order" aria-expanded="false" aria-selected="false" tabindex="-1">Order</button>
-      <button type="button" role="tab" id="tab-threat" data-action="tab" data-tab="threat" hidden>Threat</button>
-      <button type="button" role="tab" id="tab-spark" data-action="tab" data-tab="spark" hidden>Spark</button>
       <button type="button" role="tab" id="tab-character" data-action="tab" data-tab="character" aria-haspopup="dialog" aria-controls="module-pack" aria-expanded="false" aria-selected="false" tabindex="-1">Pack</button>
       <button type="button" role="tab" id="tab-notes" data-action="tab" data-tab="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false" aria-selected="false" tabindex="-1">Notes</button>
       <button type="button" role="tab" id="tab-table" data-action="tab" data-tab="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false" aria-selected="false" tabindex="-1">Table</button>
@@ -100,6 +98,7 @@
             <select name="kind" aria-label="Light source"></select>
           </label>
           <button type="submit" class="btn">Strike</button>
+          <button type="button" class="btn" id="pause-scene" data-action="toggle-pause">The scene froze</button>
         </form>
         <p class="form-error" data-error-for="light"></p>
       </details>
@@ -149,58 +148,6 @@
       <div id="dice-history" class="history"></div>
     </section>
 
-    <section role="tabpanel" id="panel-threat" aria-labelledby="tab-threat" hidden>
-      <h2>Threat</h2>
-      <p class="lede">A pacing guide from the 2014 encounter budget. It is not a promise.</p>
-      <div id="threat-summary" class="summary" data-rating="none"></div>
-      <h3>Party</h3>
-      <form id="hero-form" data-form="hero" class="form" autocomplete="off">
-        <label>Name
-          <input name="name" type="text" maxlength="80" spellcheck="false" placeholder="Optional">
-        </label>
-        <label>Level
-          <select name="level" aria-label="Level for a new adventurer"></select>
-        </label>
-        <button type="submit" class="btn">Add</button>
-        <button type="button" class="btn" data-action="seat-four">Add four</button>
-      </form>
-      <p class="form-error" data-error-for="hero"></p>
-      <div id="party-list" class="stack"></div>
-      <h3>Creatures</h3>
-      <form id="monster-form" data-form="monster" class="form" autocomplete="off">
-        <label>Name
-          <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="The thing in the door">
-        </label>
-        <label>Count
-          <input name="count" type="number" min="1" max="40" value="1" inputmode="numeric">
-        </label>
-        <label>XP each
-          <input name="xp" type="number" min="0" inputmode="numeric" placeholder="200">
-        </label>
-        <label>Challenge
-          <select name="cr" aria-label="Challenge rating"></select>
-        </label>
-        <button type="submit" class="btn primary">Add creatures</button>
-      </form>
-      <p class="form-error" data-error-for="monster"></p>
-      <div id="monster-list" class="stack"></div>
-    </section>
-
-    <section role="tabpanel" id="panel-spark" aria-labelledby="tab-spark" hidden>
-      <h2>Spark</h2>
-      <p class="lede">Original prompts for the next ten minutes. Nothing here is from a published table.</p>
-      <p id="spark-live" class="sr-only" aria-live="polite"></p>
-      <div class="spark-actions" role="group" aria-label="Draw a prompt">
-        <button type="button" class="btn" data-action="draw" data-kind="person">Person</button>
-        <button type="button" class="btn" data-action="draw" data-kind="place">Place</button>
-        <button type="button" class="btn" data-action="draw" data-kind="twist">Twist</button>
-        <button type="button" class="btn" data-action="draw" data-kind="rumor">Rumor</button>
-        <button type="button" class="btn" data-action="draw" data-kind="trinket">Trinket</button>
-        <button type="button" class="btn primary" data-action="draw-scene">A whole scene</button>
-      </div>
-      <div id="spark-list" class="stack"></div>
-    </section>
-
     <section role="tabpanel" id="panel-character" aria-labelledby="tab-character" hidden>
       <nav id="creator-nav" class="creator-nav" hidden aria-label="Character steps">
         <button type="button" data-action="creator-step" data-step="name">Name</button>
@@ -212,7 +159,7 @@
       </nav>
       <p id="creator-copy" class="lede" hidden></p>
       <h2 id="character-heading">Character</h2>
-      <p id="character-intro" class="lede">One hero from the common 2014 list. Choose Custom wherever the table uses something else.</p>
+      <p id="character-intro" class="lede">An SRD subset of the 2014 list. Choose Custom wherever the table uses something else.</p>
 
       <div data-step="name" class="form">
         <label>Name
@@ -256,6 +203,9 @@
         </label>
         <label>Languages
           <input id="character-custom-languages" data-sheet="custom-languages" type="text" maxlength="80" spellcheck="false" placeholder="Common, and one more">
+        </label>
+        <label>Darkvision, in feet
+          <input id="character-custom-darkvision" data-sheet="custom-darkvision" type="number" min="0" max="120" value="0" inputmode="numeric">
         </label>
       </div>
       <div id="racial-bonus-field" class="form" hidden></div>
@@ -341,6 +291,9 @@
 
       <div data-step="review">
         <div id="character-summary" class="summary" data-rating="none"></div>
+        <h3>Kit</h3>
+        <p class="hint">The usual gear for this class. The first kit is packed if you leave this as it is.</p>
+        <div id="kit-choices" class="kit-actions"></div>
         <p class="lede">When this looks right, sit down. At the table the pack is what you use.</p>
         <div class="save-actions">
           <button type="button" class="btn primary" id="save-character-bottom" data-action="save-character" hidden>Save this character</button>
@@ -357,6 +310,7 @@
     <section role="tabpanel" id="panel-order" aria-labelledby="tab-order" data-module-panel="order">
       <h2 id="order-heading">Order</h2>
       <p class="lede">The highlighted name goes first. Start begins the round there. Ties keep whoever was added first.</p>
+      <p id="order-shared-note" class="hint" hidden>The Dungeon Master moves this round. You see the same list.</p>
       <div class="turn">
         <div>
           <p id="turn-banner" class="turn-banner">The round has not started</p>
@@ -384,6 +338,7 @@
           <input name="initiative" type="number" inputmode="numeric" placeholder="Blank rolls">
         </label>
         <button type="submit" class="btn primary">Add</button>
+        <button type="button" class="btn" data-action="add-self">Add me</button>
       </form>
       <p class="form-error" data-error-for="combatant"></p>
       <div class="list-head">
@@ -432,7 +387,10 @@
       <p id="kit-meta" class="math"></p>
       <p id="kit-hp"></p>
       <p id="kit-purse" class="sheet-title"></p>
-      <p class="lede">The sheet was finished before you sat down. Tap a skill to roll it, or tap something in the pack to use it.</p>
+      <p class="lede">Tap a skill to set the roll, then press Roll. Revise reopens the sheet and leaves the night where it is.</p>
+      <div id="kit-vitals"></div>
+      <div id="kit-tonight"></div>
+      <button type="button" class="text-btn" data-action="revise-character">Revise</button>
       <button type="button" class="btn primary" data-action="open-gear">Market</button>
       <p id="shop-note" class="hint" hidden>The DM closed the shop.</p>
       <h3>Skills</h3>
@@ -461,6 +419,7 @@
     <div id="gear-purse" class="purse-coins" aria-label="Coin purse"></div>
     <p id="gear-lede" class="lede">Buying takes the price out of the purse. This counter buys those goods back at half price.</p>
     <p id="gear-restock" class="hint" role="status"></p>
+    <div id="gear-staples" class="stack"></div>
     <p id="gear-error" class="form-error" role="status"></p>
     <div class="tabs shop-tabs" role="tablist" aria-label="Buy or sell">
       <button type="button" id="shop-tab-buy" role="tab" aria-selected="true" aria-controls="shop-buy" data-action="shop-tab" data-shop="buy">Buy</button>
