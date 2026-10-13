@@ -1950,15 +1950,20 @@ function heroDeath() {
   return local?.death || state.character.death || blankDeath();
 }
 
+function typingInside(mount) {
+  const active = document.activeElement;
+  return Boolean(mount && active && mount.contains(active) && active.matches("input, textarea, select"));
+}
+
 function paintVitals(character) {
   const mount = document.getElementById("kit-vitals");
-  if (!mount || mount.contains(document.activeElement)) return;
+  if (!mount || typingInside(mount)) return;
   const current = character.hp == null ? (suggestedHp(character) ?? 0) : character.hp;
   const max = maxHitPoints(character);
   const ac = armorClass(character);
   const death = cleanDeath(heroDeath());
   const down = current <= 0;
-  mount.replaceChildren(
+  mount.replaceChildren(...present([
     h("p", { class: "sheet-title" }, `Hit points ${current} / ${max}`),
     h("div", { class: "turn-actions" }, [
       h("button", { type: "button", class: "btn", "data-action": "hero-hp", "data-delta": "-1" }, "−1"),
@@ -1989,15 +1994,15 @@ function paintVitals(character) {
       : `Override ${character.acOverride}. Clear it to use the pack again.`),
     down ? h("p", { class: death.stable ? "stable-flag" : "down-flag" }, death.stable ? "Stable" : "Death saves") : null,
     down ? h("p", { class: "hint" }, `${death.success} successes, ${death.failure} failures. The order row keeps the pips.`) : null,
-  );
+  ]));
 }
 
 function paintTonight(character) {
   const mount = document.getElementById("kit-tonight");
-  if (!mount || mount.contains(document.activeElement)) return;
+  if (!mount || typingInside(mount)) return;
   const breath = breathDice(character);
   const spells = character.spells || [];
-  mount.replaceChildren(
+  mount.replaceChildren(...present([
     h("h3", {}, "Tonight"),
     breath ? h("button", { type: "button", class: "btn", "data-action": "stage-breath" }, `${breath.damage} breath · ${breath.count}d6`) : null,
     ...spells.map((spell) => h("div", { class: "gear-row" }, [
@@ -2030,7 +2035,7 @@ function paintTonight(character) {
       h("button", { type: "button", class: "text-btn", "data-action": "remove-spell", "data-id": spell.id }, "Remove"),
     ])),
     h("button", { type: "button", class: "btn", "data-action": "add-spell" }, "Add a spell"),
-  );
+  ]));
 }
 
 function paintKitChoices() {
