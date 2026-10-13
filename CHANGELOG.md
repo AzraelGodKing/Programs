@@ -8,6 +8,7 @@
 
 ### Added
 
+- Each character step shows what the choice gives before you move on: ancestry traits and darkvision, class features, the one subclass in this subset, hit points, and proficiencies. Ability modifiers stay visible as the scores change. A starting kit is chosen on Sit down, and Sit down is what saves.
 - One initiative list for the table. The DM seats the party and moves the round. Players see the same list. At 0 hit points the row has three success pips, three failure pips, and Stable on the third success. Exhaustion is a count from 0 to 6.
 - A seat token for each player, and a DM secret that is not the code read aloud. Whispers, shop changes, and asked rolls are accepted only from the token that owns the seat.
 - The scene froze pauses every flame, including while the page is hidden, and gives that time back when the scene moves. Darkvision is on the sheet and on the flame line.

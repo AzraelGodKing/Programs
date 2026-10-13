@@ -325,6 +325,18 @@ export function kitOptions(classId) {
   return (KIT_OPTIONS[classId] || KIT_OPTIONS.custom).map((kit) => ({ id: kit.id, name: kit.name }));
 }
 
+export function kitChoices(classId) {
+  return (KIT_OPTIONS[classId] || KIT_OPTIONS.custom).map((kit) => ({
+    id: kit.id,
+    name: kit.name,
+    items: kit.items.map(([id, qty]) => {
+      const gear = findGear(id);
+      const name = gear ? gear.name : id;
+      return qty > 1 ? `${name} × ${qty}` : name;
+    }),
+  }));
+}
+
 export function kitFor(classId, kitId = "") {
   const options = KIT_OPTIONS[classId] || KIT_OPTIONS.custom;
   const chosen = options.find((kit) => kit.id === kitId) || options[0];

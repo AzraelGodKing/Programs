@@ -213,6 +213,7 @@
         <p class="hint">Half-elves add +1 to two abilities other than Charisma.</p>
         <div id="heritage-picks" class="skill-grid"></div>
       </div>
+      <div id="people-grant" class="grant"></div>
       </div>
 
       <div data-step="class">
@@ -249,9 +250,11 @@
         <p class="hint">Choose up to two saving throws.</p>
         <div id="save-picks" class="skill-grid"></div>
       </div>
+      <div id="class-grant" class="grant"></div>
       </div>
 
       <div data-step="scores">
+      <p class="lede">The total includes the people bonus. The modifier updates as the score changes.</p>
       <h3>Abilities</h3>
       <div class="modes" id="score-methods" role="group" aria-label="Ability score method">
         <button type="button" data-action="score-method" data-method="standard" aria-pressed="true">Standard array</button>
@@ -291,12 +294,12 @@
 
       <div data-step="review">
         <div id="character-summary" class="summary" data-rating="none"></div>
-        <h3>Kit</h3>
-        <p class="hint">The usual gear for this class. The first kit is packed if you leave this as it is.</p>
-        <div id="kit-choices" class="kit-actions"></div>
+        <h3>Starting gear</h3>
+        <p id="kit-note" class="hint"></p>
+        <div id="kit-choices" class="kit-stack"></div>
         <p class="lede">When this looks right, sit down. At the table the pack is what you use.</p>
         <div class="save-actions">
-          <button type="button" class="btn primary" id="save-character-bottom" data-action="save-character" hidden>Save this character</button>
+          <button type="button" class="btn primary" id="save-character-bottom" data-action="save-character" hidden>Sit down</button>
         </div>
       </div>
     </section>

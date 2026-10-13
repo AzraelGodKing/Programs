@@ -11,6 +11,8 @@ import {
   formatMod,
   passiveScore,
   pointBuySpent,
+  classGrant,
+  peopleGrant,
   presentCharacter,
   proficiencyBonus,
   rollScores,
@@ -128,6 +130,19 @@ test("a blank sheet stays off the DM view until someone edits it", () => {
   assert.match(shown.meta, /proficiency \+2/);
   assert.match(shown.abilities, /Dex 16 \(\+3\)/);
   assert.equal(shown.skills, "Athletics, Perception");
+});
+
+test("a people and a class say what the choice gives", () => {
+  const elf = cleanCharacter({ raceId: "elf", lineageId: "high", classId: "fighter" });
+  const people = peopleGrant(elf);
+  assert.match(people.lines.join(" "), /Darkvision 60 ft/);
+  assert.match(people.title, /High Elf/);
+  const klass = classGrant(elf);
+  const text = klass.lines.join(" ");
+  assert.match(text, /d10/);
+  assert.match(text, /11 hit points/);
+  assert.match(text, /Champion/);
+  assert.match(text, /Saving throw proficiencies/);
 });
 
 test("custom people and classes survive a reload, and unknown ids do not", () => {

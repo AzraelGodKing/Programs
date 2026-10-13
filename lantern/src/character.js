@@ -641,6 +641,158 @@ export function suggestedHp(character) {
   return first + later * (character.level - 1);
 }
 
+const RACE_NOTES = {
+  dwarf: "Advantage on saves against poison, and resistance to poison damage. Stonework is familiar.",
+  "dwarf:hill": "1 extra hit point at each level.",
+  "dwarf:mountain": "Training with light and medium armor.",
+  elf: "A trance of 4 hours stands in for a long sleep. Secret doors are easier to notice.",
+  "elf:high": "One wizard cantrip, and one extra language.",
+  "elf:wood": "You can hide when natural cover only lightly obscures you.",
+  "elf:dark": "Sunlight bothers you.",
+  halfling: "You can move through a larger creature's space. You may reroll a 1 on an attack, check, or save.",
+  "halfling:lightfoot": "You can try to hide behind a creature one size larger than you.",
+  "halfling:stout": "Advantage on saves against poison, and resistance to poison damage.",
+  human: "One extra language is yours to name.",
+  dragonborn: "Resistance matches the ancestry, and so does the breath.",
+  gnome: "Advantage on Intelligence, Wisdom, and Charisma saves against magic.",
+  "gnome:forest": "You know minor illusion.",
+  "gnome:rock": "You can tinker a small clockwork device.",
+  "half-elf": "You trance like an elf. Choose two extra skills on the Story step.",
+  "half-orc": "Once between rests, you can stay at 1 hit point instead of falling to 0. A critical hit adds one damage die.",
+  tiefling: "You know thaumaturgy. Hellish rebuke and darkness come at later levels.",
+};
+
+const CLASS_DETAIL = {
+  barbarian: {
+    armor: "Light and medium armor, and shields.",
+    weapons: "Simple and martial weapons.",
+    features: ["Rage.", "Unarmored defense is 10 + Dexterity + Constitution."],
+  },
+  bard: {
+    armor: "Light armor.",
+    weapons: "Simple weapons, plus hand crossbows, longswords, rapiers, and shortswords.",
+    features: ["Spellcasting uses Charisma.", "Bardic inspiration."],
+  },
+  cleric: {
+    armor: "Light and medium armor, and shields.",
+    weapons: "Simple weapons.",
+    features: ["Spellcasting uses Wisdom."],
+  },
+  druid: {
+    armor: "Light and medium armor that is not metal, and shields.",
+    weapons: "Clubs, daggers, darts, javelins, maces, quarterstaffs, scimitars, sickles, slings, and spears.",
+    features: ["Spellcasting uses Wisdom."],
+  },
+  fighter: {
+    armor: "All armor, and shields.",
+    weapons: "Simple and martial weapons.",
+    features: ["Second Wind."],
+  },
+  monk: {
+    armor: "None.",
+    weapons: "Simple weapons and shortswords.",
+    features: ["Unarmored defense is 10 + Dexterity + Wisdom."],
+  },
+  paladin: {
+    armor: "All armor, and shields.",
+    weapons: "Simple and martial weapons.",
+    features: ["Lay on hands.", "Spellcasting uses Charisma."],
+  },
+  ranger: {
+    armor: "Light and medium armor, and shields.",
+    weapons: "Simple and martial weapons.",
+    features: ["Favored enemy and natural explorer."],
+  },
+  rogue: {
+    armor: "Light armor.",
+    weapons: "Simple weapons, plus hand crossbows, longswords, rapiers, and shortswords.",
+    features: ["Expertise.", "Sneak attack."],
+  },
+  sorcerer: {
+    armor: "None.",
+    weapons: "Daggers, darts, slings, quarterstaffs, and light crossbows.",
+    features: ["Spellcasting uses Charisma."],
+  },
+  warlock: {
+    armor: "Light armor.",
+    weapons: "Simple weapons.",
+    features: ["Spellcasting uses Charisma.", "The pact comes with the patron."],
+  },
+  wizard: {
+    armor: "None.",
+    weapons: "Daggers, darts, slings, quarterstaffs, and light crossbows.",
+    features: ["Spellcasting uses Intelligence.", "A spellbook."],
+  },
+};
+
+function bonusLine(bonuses) {
+  const parts = ABILITY_IDS
+    .filter((id) => bonuses[id])
+    .map((id) => `${findAbility(id).short} ${formatMod(bonuses[id])}`);
+  return parts.length ? `Ability bonuses: ${parts.join(", ")}.` : "";
+}
+
+export function peopleGrant(character) {
+  if (!character?.raceId) return null;
+  if (character.raceId === "custom") {
+    const lines = [
+      `${character.customSize}, speed ${character.customSpeed} ft.`,
+      character.customDarkvision ? `Darkvision ${character.customDarkvision} ft.` : "No darkvision.",
+    ];
+    if (character.customLanguages) lines.push(character.customLanguages);
+    const bonuses = bonusLine(racialBonuses(character));
+    if (bonuses) lines.push(bonuses);
+    return { title: character.customRace || "Custom people", lines };
+  }
+  const race = findRace(character.raceId);
+  if (!race) return null;
+  const lineage = findLineage(race, character.lineageId);
+  const lines = [
+    `${race.size}, speed ${race.speed} ft.`,
+    race.darkvision ? `Darkvision ${race.darkvision} ft.` : "No darkvision.",
+    race.languages,
+  ];
+  const bonuses = bonusLine(racialBonuses(character));
+  if (bonuses) lines.push(bonuses);
+  if (RACE_NOTES[race.id]) lines.push(RACE_NOTES[race.id]);
+  const lineageNote = lineage ? RACE_NOTES[`${race.id}:${lineage.id}`] : "";
+  if (lineageNote) lines.push(lineageNote);
+  if (lineage?.damage) lines.push(`Breath weapon: ${lineage.damage}.`);
+  const title = lineage ? `${lineage.name} ${race.name}` : race.name;
+  return { title, lines };
+}
+
+export function classGrant(character) {
+  const info = classInfo(character);
+  if (!info) return null;
+  const hp = suggestedHp(character);
+  const saves = (info.saves || []).map((id) => findAbility(id)?.label).filter(Boolean);
+  const offer = info.skills
+    ? info.skills.map((id) => findSkill(id).label).join(", ")
+    : "any skill";
+  const lines = [
+    `Hit die d${info.hitDie}. At this level that suggests ${hp} hit points.`,
+    `Proficiency bonus ${formatMod(proficiencyBonus(character.level))}.`,
+  ];
+  if (saves.length) lines.push(`Saving throw proficiencies: ${saves.join(" and ")}.`);
+  else if (info.custom) lines.push("Saving throw proficiencies: choose up to two.");
+  lines.push(`Skill proficiencies: choose ${info.skillCount} from ${offer}.`);
+  const detail = CLASS_DETAIL[info.id];
+  if (detail) {
+    lines.push(`Armor: ${detail.armor}`);
+    lines.push(`Weapons: ${detail.weapons}`);
+    lines.push(...detail.features);
+  }
+  if (!info.custom && info.subclasses?.length) {
+    const only = info.subclasses[0];
+    let line = `One subclass in this subset: ${only.name}, from level ${info.subclassLevel}.`;
+    if (character.subclassId === only.id) line += " It is on this sheet.";
+    else if (character.subclassId === "custom") line += " A custom subclass is written on this sheet instead.";
+    lines.push(line);
+  }
+  return { title: info.name, lines };
+}
+
 export function effectiveHp(character) {
   if (Number.isInteger(character.hp)) return character.hp;
   return suggestedHp(character);

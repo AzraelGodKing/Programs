@@ -26,7 +26,9 @@ import {
   breathDice,
   darkvisionRange,
   maxHitPoints,
+  classGrant,
   offeredSkillIds,
+  peopleGrant,
   pointBuySpent,
   presentCharacter,
   racialBonuses,
@@ -44,6 +46,7 @@ import {
   findOffer,
   formatCoin,
   buyBackItem,
+  kitChoices,
   kitOptions,
   payCounter,
   sellOffers,
@@ -168,11 +171,11 @@ let creatorStep = 0;
 
 const CREATOR_STEPS = [
   { id: "name", copy: "Start with the name the table will use." },
-  { id: "people", copy: "An SRD subset of the 2014 peoples. Custom is there when the list is short." },
-  { id: "class", copy: "An SRD subset of the 2014 classes. Custom is there for anything else." },
-  { id: "scores", copy: "The standard array, point buy, four d6s, or numbers you already rolled." },
+  { id: "people", copy: "Traits, languages, and darkvision appear with the people you choose." },
+  { id: "class", copy: "Features, the one subclass in this subset, hit points, and proficiencies appear with the class." },
+  { id: "scores", copy: "The totals stay visible. The modifier changes as you move a score." },
   { id: "story", copy: "Background, skills, and the hit points they sit down with." },
-  { id: "review", copy: "Read it once. Saving seats them, and the pack is what they use at the table." },
+  { id: "review", copy: "Read the sheet. Choose a kit, then sit down. That is what saves." },
 ];
 
 function sharedSnapshot() {
@@ -452,7 +455,6 @@ function paintGate() {
     title.textContent = "Create a character";
     lede.textContent = "Six steps. Jump back whenever you want, then sit down.";
     actions.replaceChildren(...present([
-      h("button", { type: "button", class: "btn primary", "data-action": "save-character" }, "Save this character"),
       list.length ? h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back") : null,
       h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file"),
     ]));
@@ -506,7 +508,10 @@ function paintCreator() {
     else button.removeAttribute("aria-current");
   });
   const saveBottom = document.getElementById("save-character-bottom");
-  if (saveBottom && creating) saveBottom.hidden = step.id !== "review";
+  if (saveBottom && creating) {
+    saveBottom.hidden = step.id !== "review";
+    saveBottom.textContent = revising ? "Save the revision" : "Sit down";
+  }
 }
 
 function renderDrafts() {
@@ -664,6 +669,12 @@ function saveNewCharacter() {
   const name = state.character.name.trim();
   if (!name) {
     setGateStatus("Give this character a name.");
+    return;
+  }
+  if (!revising && !state.character.kitId) {
+    setGateStatus("Choose a starting kit, then sit down.");
+    const note = document.getElementById("kit-note");
+    if (note) note.textContent = "Choose a starting kit, then sit down.";
     return;
   }
   state.character.touched = true;
@@ -1814,7 +1825,7 @@ function renderAbilities() {
     const total = totals[ability.id];
     const bonus = racial[ability.id];
     const base = state.character.scores[ability.id];
-    setText(card.querySelector(".ability-total"), `${total} (${formatMod(abilityMod(total))})`);
+    setText(card.querySelector(".ability-total"), `Total ${total}, modifier ${formatMod(abilityMod(total))}`);
     setText(card.querySelector(".ability-note"), bonus ? `${base} base, ${formatMod(bonus)} from the people` : `${base} base`);
     const point = card.querySelector("[data-base]");
     if (point) setText(point, String(base));
@@ -2038,18 +2049,48 @@ function paintTonight(character) {
   ]));
 }
 
+function paintGrant(id, grant, empty) {
+  const mount = document.getElementById(id);
+  if (!mount) return;
+  if (!grant) {
+    mount.replaceChildren(h("p", { class: "hint" }, empty));
+    return;
+  }
+  mount.replaceChildren(
+    h("p", { class: "sheet-title" }, grant.title),
+    ...grant.lines.map((line) => h("p", {}, line)),
+  );
+}
+
 function paintKitChoices() {
   const mount = document.getElementById("kit-choices");
+  const note = document.getElementById("kit-note");
   if (!mount) return;
-  const options = kitOptions(state.character.classId || "custom");
-  const selected = options.some((kit) => kit.id === state.character.kitId) ? state.character.kitId : options[0]?.id;
+  if (revising) {
+    if (note) note.textContent = "The pack stays as it is. Revising does not pack a new kit.";
+    const items = state.character.items || [];
+    mount.replaceChildren(items.length
+      ? h("p", { class: "hint" }, items.map((item) => (item.qty > 1 ? `${item.name} × ${item.qty}` : item.name)).join(", "))
+      : h("p", { class: "hint" }, "The pack is empty."));
+    return;
+  }
+  const options = kitChoices(state.character.classId || "custom");
+  const selected = state.character.kitId;
+  if (note) {
+    note.textContent = selected
+      ? "This kit is packed when you sit down."
+      : "Choose one kit. Sitting down packs that gear.";
+  }
   mount.replaceChildren(...options.map((kit) => h("button", {
     type: "button",
-    class: "btn",
+    class: kit.id === selected ? "kit-choice is-on" : "kit-choice",
     "data-action": "choose-kit",
     "data-id": kit.id,
     "aria-pressed": kit.id === selected ? "true" : "false",
-  }, kit.name)));
+  }, [
+    h("span", { class: "sheet-title" }, kit.name),
+    h("span", { class: "hint" }, kit.items.join(", ")),
+  ])));
 }
 
 function paintPurse(node, cp) {
@@ -2513,26 +2554,47 @@ function stageBreath() {
   });
 }
 
+function paintSitSummary() {
+  const summary = document.getElementById("character-summary");
+  if (!summary) return;
+  const character = state.character;
+  const people = peopleGrant(character);
+  const klass = classGrant(character);
+  const totals = abilityTotals(character);
+  const abilities = ABILITIES.map((ability) => {
+    const total = totals[ability.id];
+    return `${ability.short} ${total} (${formatMod(abilityMod(total))})`;
+  }).join(" · ");
+  const background = findBackground(character.backgroundId);
+  const backgroundName = character.backgroundId === "custom"
+    ? (character.customBackground || "Custom background")
+    : (background?.name || "");
+  const skills = character.skills.map((id) => findSkill(id)?.label).filter(Boolean);
+  const hp = character.hp == null ? suggestedHp(character) : character.hp;
+  const kit = kitChoices(character.classId || "custom").find((item) => item.id === character.kitId);
+  summary.replaceChildren(...present([
+    h("p", { class: "sheet-title" }, character.name.trim() || "Unnamed"),
+    h("h3", {}, "People"),
+    people ? h("p", {}, people.title) : h("p", { class: "hint" }, "No people yet."),
+    ...(people ? people.lines.map((line) => h("p", { class: "hint" }, line)) : []),
+    h("h3", {}, "Class"),
+    klass ? h("p", {}, klass.title) : h("p", { class: "hint" }, "No class yet."),
+    ...(klass ? klass.lines.map((line) => h("p", { class: "hint" }, line)) : []),
+    h("h3", {}, "Scores"),
+    h("p", {}, abilities),
+    h("h3", {}, "Story"),
+    backgroundName ? h("p", {}, backgroundName) : h("p", { class: "hint" }, "No background yet."),
+    skills.length ? h("p", { class: "hint" }, skills.join(", ")) : h("p", { class: "hint" }, "No skills yet."),
+    hp == null ? null : h("p", {}, `${hp} hit points`),
+    character.traits.trim() ? h("p", { class: "hint" }, character.traits.trim()) : null,
+    kit ? h("h3", {}, "Chosen kit") : null,
+    kit ? h("p", {}, kit.name) : null,
+    kit ? h("p", { class: "hint" }, kit.items.join(", ")) : null,
+  ]));
+}
+
 function renderCharacter() {
   const character = state.character;
-  const view = presentCharacter(character);
-  const summary = document.getElementById("character-summary");
-  if (!view) {
-    summary.replaceChildren(
-      h("p", { class: "sheet-title" }, "A blank sheet"),
-      h("p", { class: "hint" }, "Choose a people and a class, or write your own."),
-    );
-  } else {
-    summary.replaceChildren(...present([
-      h("p", { class: "sheet-title" }, view.title),
-      h("p", { class: "math" }, view.meta),
-      h("p", {}, view.abilities),
-      view.saves ? h("p", { class: "hint" }, `Saves: ${view.saves}.`) : null,
-      view.hp ? h("p", {}, view.hp) : null,
-      view.languages ? h("p", { class: "hint" }, view.languages) : null,
-      view.skills ? h("p", { class: "hint" }, view.skills) : null,
-    ]));
-  }
 
   setControl("character-name", character.name);
   setControl("character-level", character.level);
@@ -2586,10 +2648,9 @@ function renderCharacter() {
   renderPickGrid(document.getElementById("save-picks"), ABILITIES, character.saves, "save");
   if (!info) setText(document.getElementById("class-hint"), "Saves and the hit die appear with the class.");
   else if (info.custom) setText(document.getElementById("class-hint"), "A custom class chooses its own saves. Any skill can still be ticked.");
-  else {
-    const saves = info.saves.map((id) => findAbility(id).label).join(" and ");
-    setText(document.getElementById("class-hint"), `Hit die d${info.hitDie}. Saves: ${saves}. A subclass usually waits until level ${info.subclassLevel}.`);
-  }
+  else setText(document.getElementById("class-hint"), "");
+  paintGrant("people-grant", peopleGrant(character), "Choose a people and the traits appear here.");
+  paintGrant("class-grant", classGrant(character), "Choose a class and the features appear here.");
 
   setControl("character-background", character.backgroundId);
   showField("custom-background-field", character.backgroundId === "custom");
@@ -2626,6 +2687,7 @@ function renderCharacter() {
   else if (character.hp == null) setText(document.getElementById("hp-hint"), `Suggested ${suggested}, using a d${info.hitDie} and Constitution.`);
   else setText(document.getElementById("hp-hint"), `Set by hand. The die would suggest ${suggested}.`);
   setControl("character-traits", character.traits);
+  paintSitSummary();
   renderKit();
 }
 
@@ -2697,6 +2759,8 @@ function updateSheet(target, { log }) {
     subclassKey = "";
     const klass = findClass(character.classId);
     if (!klass?.subclasses.some((sub) => sub.id === character.subclassId)) character.subclassId = "";
+    const kits = kitOptions(character.classId || "custom");
+    if (!kits.some((kit) => kit.id === character.kitId)) character.kitId = "";
     summary = sheetLine();
   } else if (sheet === "subclass") {
     character.subclassId = target.value;
@@ -3370,7 +3434,7 @@ function removeSpell(id) {
 }
 
 function chooseKit(id) {
-  if (gateMode === "view") return;
+  if (gateMode === "view" || revising) return;
   state.character.kitId = id;
   state.character.touched = true;
   persist("Chose a starting kit.");
