@@ -161,6 +161,116 @@ test("only the DM can ask a seat for a roll", async () => {
   assert.equal(view.messages[0].ask, "Stealth");
 });
 
+test("a player rolls initiative onto the shared order and a second roll updates that seat", async () => {
+  const { table, dmToken, mara } = await openedRoom();
+  const ivo = await table.join("", { name: "Ivo" });
+  await assert.rejects(
+    () => table.rollInitiative(dmToken, { name: "Mara", init: 15, bonus: 2, die: 13, hp: 12, maxHp: 12, ac: 16 }),
+    TableError,
+  );
+  await table.setOrder(dmToken, {
+    round: 2,
+    started: true,
+    activeId: "guard",
+    combatants: [
+      { id: "mara", name: "Mara", seat: "Mara", init: 4, bonus: 2, hp: 12, maxHp: 12, ac: 16, marks: ["concentrating"], order: 1 },
+      { id: "guard", name: "Guard", seat: "", init: 11, bonus: 1, hp: 11, maxHp: 11, ac: 16, order: 2 },
+    ],
+  });
+  const rolled = await table.rollInitiative(mara.token, {
+    name: "Mara",
+    init: 17,
+    bonus: 2,
+    die: 15,
+    hp: 12,
+    maxHp: 12,
+    ac: 16,
+  });
+  assert.equal(rolled.round, 2);
+  assert.equal(rolled.started, true);
+  assert.equal(rolled.activeId, "guard");
+  assert.equal(rolled.combatants.length, 2);
+  const maraRow = rolled.combatants.find((person) => person.id === "mara");
+  assert.equal(maraRow.init, 17);
+  assert.equal(maraRow.die, 15);
+  assert.equal(maraRow.seat, "Mara");
+  assert.deepEqual(maraRow.marks, ["concentrating"]);
+  assert.equal(rolled.combatants.find((person) => person.id === "guard").init, 11);
+  const again = await table.rollInitiative(mara.token, {
+    name: "Mara",
+    init: 9,
+    bonus: 2,
+    die: 7,
+    hp: 8,
+    maxHp: 12,
+    ac: 15,
+  });
+  assert.equal(again.combatants.length, 2);
+  assert.equal(again.combatants.find((person) => person.id === "mara").init, 9);
+  assert.equal(again.combatants.find((person) => person.id === "mara").hp, 8);
+  const joined = await table.rollInitiative(ivo.token, {
+    name: "Ivo",
+    init: 14,
+    bonus: 1,
+    die: 13,
+    hp: 10,
+    maxHp: 10,
+    ac: 14,
+  });
+  assert.equal(joined.combatants.length, 3);
+  assert.equal(joined.combatants.find((person) => person.seat === "Ivo").init, 14);
+  assert.equal(joined.combatants.find((person) => person.seat === "Mara").init, 9);
+  const renamed = await table.rollInitiative(ivo.token, {
+    name: "Mara",
+    init: 1,
+    bonus: 0,
+    die: 1,
+    hp: 10,
+    maxHp: 10,
+    ac: 14,
+  });
+  assert.equal(renamed.combatants.find((person) => person.seat === "Mara").init, 9);
+  assert.equal(renamed.combatants.find((person) => person.seat === "Ivo").init, 1);
+  await assert.rejects(() => table.setOrder(mara.token, renamed), TableError);
+  await assert.rejects(
+    () => table.rollInitiative(mara.token, { name: "  ", init: 10, bonus: 0, die: 10, hp: 1, maxHp: 1, ac: 10 }),
+    TableError,
+  );
+});
+
+test("the initiative route adds only the caller's row", async () => {
+  const table = new TableRoom(memoryStorage());
+  const env = envFor(table);
+  const opened = await call(env, "POST", "/api/rooms");
+  const { code, dmToken } = opened.body;
+  const joined = await call(env, "POST", `/api/rooms/${code}/join`, { name: "Mara" });
+  const denied = await call(env, "POST", `/api/rooms/${code}/initiative`, {
+    name: "Mara",
+    init: 12,
+    bonus: 2,
+    die: 10,
+    hp: 9,
+    maxHp: 12,
+    ac: 14,
+  }, dmToken);
+  assert.equal(denied.status, 400);
+  const posted = await call(env, "POST", `/api/rooms/${code}/initiative`, {
+    name: "Mara",
+    init: 12,
+    bonus: 2,
+    die: 10,
+    hp: 9,
+    maxHp: 12,
+    ac: 14,
+  }, joined.body.token);
+  assert.equal(posted.status, 200);
+  assert.equal(posted.body.order.combatants.length, 1);
+  assert.equal(posted.body.order.combatants[0].init, 12);
+  assert.equal(posted.body.order.combatants[0].seat, "Mara");
+  const view = await call(env, "GET", `/api/rooms/${code}`, undefined, dmToken);
+  assert.equal(view.body.order.combatants[0].name, "Mara");
+});
+
 test("the DM owns the order and a player can only change their own hit points", async () => {
   const { table, dmToken, mara } = await openedRoom();
   const order = await table.setOrder(dmToken, {

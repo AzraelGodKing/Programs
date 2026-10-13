@@ -39,6 +39,10 @@ export class Table extends DurableObject {
     return this.room().setOrder(token, order);
   }
 
+  rollInitiative(token, payload) {
+    return this.room().rollInitiative(token, payload);
+  }
+
   setVitals(token, payload) {
     return this.room().setVitals(token, payload);
   }

@@ -80,7 +80,7 @@ import {
 import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
 import { armorClass } from "./armor.js";
 import { blankDeath, cleanDeath, cleanOrder } from "./order.js";
-import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBuyback, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
+import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
 import { paintHere, paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { registerOffline } from "./pwa.js";
@@ -1184,9 +1184,9 @@ function renderCombat() {
     const banner = document.getElementById("turn-banner");
     const meta = document.getElementById("turn-meta");
     if (!list.length) {
-      mount.replaceChildren(h("p", { class: "empty" }, "The DM has not seated anyone yet."));
+      mount.replaceChildren(h("p", { class: "empty" }, "No one has rolled initiative yet."));
       if (banner) banner.textContent = "The round has not started";
-      if (meta) meta.textContent = "The DM moves the round.";
+      if (meta) meta.textContent = "Roll from the sheet to join the list.";
       return;
     }
     const active = order.started ? order.activeId : null;
@@ -3014,7 +3014,7 @@ function onClick(event) {
   else if (action === "toggle-pause") togglePause();
   else if (action === "revise-character") beginRevise();
   else if (action === "stage-breath") stageBreath();
-  else if (action === "add-self") addSelf();
+  else if (action === "roll-initiative") void rollForInitiative();
   else if (action === "hero-hp") adjustHeroHp(Number(button.dataset.delta));
   else if (action === "short-rest") shortRest();
   else if (action === "toggle-inspiration") toggleInspiration();
@@ -3441,38 +3441,72 @@ function chooseKit(id) {
   renderCharacter();
 }
 
-function addSelf() {
-  if (atSharedTable()) return;
+let rollingInitiative = false;
+
+async function rollForInitiative() {
+  if (rollingInitiative) return;
   const name = state.character.name.trim();
   if (!name) {
     showError("combatant", "Name the character first.");
     return;
   }
-  if (state.combat.combatants.some((person) => person.name === name)) {
-    showError("combatant", `${name} is already in the order.`);
-    return;
-  }
-  const hp = state.character.hp == null ? (suggestedHp(state.character) ?? 10) : state.character.hp;
   const bonus = abilityMod(abilityTotals(state.character).dex);
   const rolled = roll({ count: 1, sides: 20, modifier: bonus });
-  state.combat.combatants.push({
-    id: uid(),
+  const hp = state.character.hp == null ? (suggestedHp(state.character) ?? 10) : state.character.hp;
+  const maxHp = maxHitPoints(state.character);
+  const ac = armorClass(state.character);
+  const entry = {
     name,
-    seat: loadSeat().name,
     init: rolled.total,
     bonus,
     die: rolled.kept[0],
     hp,
-    maxHp: maxHitPoints(state.character),
-    ac: armorClass(state.character),
-    marks: [],
-    exhaustion: 0,
-    death: cleanDeath(state.character.death),
-    order: nextOrder(),
-  });
-  showError("combatant", "");
-  persist(`Added ${name} to the order at ${rolled.total}.`);
-  renderCombat();
+    maxHp,
+    ac,
+  };
+  const result = document.getElementById("initiative-result");
+  rollingInitiative = true;
+  try {
+    if (atSharedTable()) {
+      const posted = await postInitiative(loadSeat().room, entry);
+      if (posted?.order) applySharedOrder(posted.order);
+    } else {
+      let person = state.combat.combatants.find((item) => item.name === name);
+      if (!person) {
+        if (state.combat.combatants.length >= 24) {
+          showError("combatant", "The order holds 24.");
+          return;
+        }
+        person = {
+          id: uid(),
+          name,
+          seat: loadSeat().name,
+          marks: [],
+          exhaustion: 0,
+          death: cleanDeath(state.character.death),
+          order: nextOrder(),
+        };
+        state.combat.combatants.push(person);
+      }
+      person.init = entry.init;
+      person.bonus = entry.bonus;
+      person.die = entry.die;
+      person.hp = entry.hp;
+      person.maxHp = entry.maxHp;
+      person.ac = entry.ac;
+      if (person.hp > 0) person.death = blankDeath();
+      if (!state.combat.started) state.combat.activeId = null;
+      ensureActive();
+      renderCombat();
+    }
+    showError("combatant", "");
+    if (result) result.textContent = `${name} rolled ${entry.init} (${dieLine(entry)}).`;
+    persist(`${name} rolled initiative ${entry.init}.`);
+  } catch (error) {
+    showError("combatant", error instanceof Error ? error.message : "The order did not take that roll.");
+  } finally {
+    rollingInitiative = false;
+  }
 }
 
 function setDeathPip(id, kind, index) {

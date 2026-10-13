@@ -62,6 +62,7 @@ function facade(code) {
     tradeBuyback: (token, body) => room.tradeBuyback(token, body),
     talk: (token, body) => room.talk(token, body),
     setOrder: (token, body) => room.setOrder(token, body),
+    rollInitiative: (token, body) => room.rollInitiative(token, body),
     setVitals: (token, body) => room.setVitals(token, body),
   };
 }

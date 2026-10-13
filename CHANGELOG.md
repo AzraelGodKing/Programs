@@ -4,6 +4,7 @@
 
 ### Changed
 
+- The player Order tab is Roll for initiative. The button rolls a d20 plus the Dexterity modifier from the sheet and adds that character to the shared order. Rolling again updates the same seat. The Dungeon Master still moves the round.
 - The Python copy of the table rules is gone. Join, whisper, and shop are checked against the JavaScript room module.
 
 ### Added

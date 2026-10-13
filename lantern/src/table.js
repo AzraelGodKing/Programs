@@ -161,6 +161,18 @@ export async function postOrder(code, order, token) {
   return response.json();
 }
 
+export async function postInitiative(code, body) {
+  const seat = loadSeat();
+  const response = await fetch(`/api/rooms/${normalizeCode(code)}/initiative`, {
+    method: "POST",
+    headers: tokenHeaders(seat.token),
+    body: JSON.stringify(body),
+  });
+  if (response.status === 404) throw new Error("No table with that code.");
+  if (!response.ok) throw new Error(await readError(response, "The order did not take that roll."));
+  return response.json();
+}
+
 export async function postVitals(code, body) {
   const seat = loadSeat();
   const response = await fetch(`/api/rooms/${normalizeCode(code)}/vitals`, {
