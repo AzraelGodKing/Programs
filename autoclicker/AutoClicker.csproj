@@ -8,7 +8,6 @@
     <RootNamespace>AutoClicker</RootNamespace>
     <AssemblyName>AutoClicker</AssemblyName>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\App.ico</ApplicationIcon>
     <Version>1.1.0</Version>
     <Company>AutoClicker Project</Company>

@@ -6,6 +6,7 @@ import { blankDeath, blankOrder, cleanDeath, cleanOrder } from "./order.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
+import { qrSvg } from "./qr.js";
 import {
   featuredEvent,
   feedKind,
@@ -1134,6 +1135,11 @@ function showTable(next, token = "") {
   playerUrl = `${location.origin}/player.html?room=${code}`;
   link.href = playerUrl;
   link.textContent = playerUrl;
+  const qr = document.getElementById("room-qr");
+  if (qr) {
+    qr.replaceChildren();
+    try { qr.append(qrSvg(playerUrl)); } catch { /* the link under the code still joins the table */ }
+  }
   paintNotes();
   void poll();
 }

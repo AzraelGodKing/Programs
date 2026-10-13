@@ -58,8 +58,11 @@
     <main id="dm-main" hidden>
       <div class="dm-command" id="dm-command">
         <div>
-          <p class="hint">Say this code, or send the link. The secret stays on this screen.</p>
-          <p id="room-code" class="room-code"></p>
+          <p class="hint">Say this code, or send the link. The square opens the player seat. The secret stays on this screen.</p>
+          <div class="code-row">
+            <p id="room-code" class="room-code"></p>
+            <div id="room-qr" class="room-qr" role="img" aria-label="QR code for the player link"></div>
+          </div>
           <p id="room-secret" class="hint"></p>
           <p class="hint">A week of silence clears this shared table. Save a copy on each player's screen is the copy that remains.</p>
           <div class="dm-actions">
