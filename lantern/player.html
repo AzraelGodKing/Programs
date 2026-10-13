@@ -83,7 +83,7 @@
     </div>
     <nav class="tabs" role="tablist" aria-label="Tools">
       <button type="button" role="tab" id="tab-dice" data-action="tab" data-tab="dice" aria-controls="panel-dice" aria-selected="true">Dice</button>
-      <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-haspopup="dialog" aria-controls="module-order" aria-expanded="false" aria-selected="false" tabindex="-1">Order</button>
+      <button type="button" role="tab" id="tab-order" data-action="tab" data-tab="order" aria-haspopup="dialog" aria-controls="module-order" aria-expanded="false" aria-selected="false" tabindex="-1">Roll for initiative</button>
       <button type="button" role="tab" id="tab-character" data-action="tab" data-tab="character" aria-haspopup="dialog" aria-controls="module-pack" aria-expanded="false" aria-selected="false" tabindex="-1">Pack</button>
       <button type="button" role="tab" id="tab-notes" data-action="tab" data-tab="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false" aria-selected="false" tabindex="-1">Notes</button>
       <button type="button" role="tab" id="tab-table" data-action="tab" data-tab="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false" aria-selected="false" tabindex="-1">Table</button>
@@ -306,14 +306,18 @@
 
   </main>
   <footer>
-    <p>Press <kbd>?</kbd> for keyboard keys. Order, the pack, notes, and the table open over the dice. Prompts and the encounter budget are on the Dungeon Master screen.</p>
+    <p>Press <kbd>?</kbd> for keyboard keys. Roll for initiative, the pack, notes, and the table open over the dice. Prompts and the encounter budget are on the Dungeon Master screen.</p>
   </footer>
   <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
   <dialog id="module-order" class="gear-dialog module-dialog" aria-labelledby="order-heading">
     <section role="tabpanel" id="panel-order" aria-labelledby="tab-order" data-module-panel="order">
-      <h2 id="order-heading">Order</h2>
-      <p class="lede">The highlighted name goes first. Start begins the round there. Ties keep whoever was added first.</p>
-      <p id="order-shared-note" class="hint" hidden>The Dungeon Master moves this round. You see the same list.</p>
+      <h2 id="order-heading">Roll for initiative</h2>
+      <p class="lede">Roll a d20 plus the Dexterity modifier on the sheet. At the table that joins the shared list. Playing alone, it stays in this browser. The Dungeon Master moves the shared round. Ties keep the earlier name.</p>
+      <p id="order-shared-note" class="hint" hidden>Everyone at the table sees the same list. Rolling again updates your place.</p>
+      <div class="save-actions">
+        <button type="button" class="btn primary" id="roll-initiative" data-action="roll-initiative">Roll for initiative</button>
+      </div>
+      <p id="initiative-result" class="hint" role="status"></p>
       <div class="turn">
         <div>
           <p id="turn-banner" class="turn-banner">The round has not started</p>
@@ -341,7 +345,6 @@
           <input name="initiative" type="number" inputmode="numeric" placeholder="Blank rolls">
         </label>
         <button type="submit" class="btn primary">Add</button>
-        <button type="button" class="btn" data-action="add-self">Add me</button>
       </form>
       <p class="form-error" data-error-for="combatant"></p>
       <div class="list-head">
@@ -408,9 +411,9 @@
     <h2 id="keys-title">Keys</h2>
     <p class="lede">These work while you are not typing in a box.</p>
     <dl class="keys-list">
-      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Dice, or the Order, Pack, Notes, and Table modules</dd>
+      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Dice, or Roll for initiative, Pack, Notes, and Table</dd>
       <dt><kbd>R</kbd></dt><dd>Roll, while a module is closed</dd>
-      <dt><kbd>N</kbd></dt><dd>Next turn, in the Order module</dd>
+      <dt><kbd>N</kbd></dt><dd>Next turn, in Roll for initiative, when playing alone</dd>
       <dt><kbd>?</kbd></dt><dd>Show this list</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
     </dl>

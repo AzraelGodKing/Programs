@@ -384,6 +384,66 @@ export class TableRoom {
     return order;
   }
 
+  async rollInitiative(token, payload) {
+    if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who || who.role !== "player") throw new TableError("Sit down before you roll initiative.");
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new TableError("Expected an object.");
+    }
+    const name = typeof payload.name === "string" ? payload.name.trim().slice(0, 80) : "";
+    if (!name) throw new TableError("Name the character first.");
+    const order = cleanOrder((await this.storage.get("order")) || blankOrder());
+    const seatName = who.name.toLowerCase();
+    const characterName = name.toLowerCase();
+    let person = order.combatants.find((item) => item.seat.toLowerCase() === seatName);
+    if (!person) {
+      person = order.combatants.find((item) => (
+        item.name.toLowerCase() === characterName
+        && (!item.seat || item.seat.toLowerCase() === seatName || item.seat.toLowerCase() === characterName)
+      ));
+    }
+    const init = intField(payload.init, 0, -100, 200);
+    const bonus = intField(payload.bonus, 0, -30, 30);
+    const die = payload.die == null || payload.die === "" ? null : intField(payload.die, null, 1, 20);
+    const hp = intField(payload.hp, 1, 0, 9999);
+    const maxHp = intField(payload.maxHp, Math.max(hp, 1), 1, 9999);
+    const ac = payload.ac == null || payload.ac === "" ? null : intField(payload.ac, 10, 0, 40);
+    if (person) {
+      person.name = name;
+      person.seat = who.name;
+      person.init = init;
+      person.bonus = bonus;
+      person.die = die;
+      person.hp = hp;
+      person.maxHp = maxHp;
+      person.ac = ac;
+      if (person.hp > 0) person.death = blankDeath();
+    } else {
+      if (order.combatants.length >= 24) throw new TableError("The order holds 24.");
+      const sequence = order.combatants.reduce((max, item) => Math.max(max, item.order), 0) + 1;
+      order.combatants.push({
+        id: hexId(),
+        name,
+        seat: who.name,
+        init,
+        bonus,
+        die,
+        hp,
+        maxHp,
+        ac,
+        marks: [],
+        exhaustion: 0,
+        death: blankDeath(),
+        order: sequence,
+      });
+    }
+    const next = cleanOrder(order);
+    await this.storage.put("order", next);
+    await this.storage.setAlarm(Date.now() + IDLE_MS);
+    return next;
+  }
+
   async setVitals(token, payload) {
     if (!await this.storage.get("meta")) return null;
     const who = await this.role(token);

@@ -83,6 +83,17 @@ export async function handleRequest(request, env) {
       return rejected(error);
     }
   }
+  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/initiative\/?$/i.test(path)) {
+    const code = roomCode(path, /\/initiative\/?$/i);
+    if (!validCode(code)) return json(404, { error: "No table with that code." });
+    try {
+      const order = await stubFor(env, code).rollInitiative(token, await readJson(request));
+      if (!order) return json(404, { error: "No table with that code." });
+      return json(200, { ok: true, order });
+    } catch (error) {
+      return rejected(error);
+    }
+  }
   if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/vitals\/?$/i.test(path)) {
     const code = roomCode(path, /\/vitals\/?$/i);
     if (!validCode(code)) return json(404, { error: "No table with that code." });
