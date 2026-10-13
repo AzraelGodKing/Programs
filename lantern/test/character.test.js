@@ -7,16 +7,12 @@ import {
   assignStandard,
   blankCharacter,
   cleanCharacter,
-  currentHp,
   effectiveHp,
-  longRest,
-  markDeath,
-  maxHpOf,
-  shortRest,
-  stepHp,
   formatMod,
   passiveScore,
   pointBuySpent,
+  classGrant,
+  peopleGrant,
   presentCharacter,
   proficiencyBonus,
   rollScores,
@@ -136,6 +132,19 @@ test("a blank sheet stays off the DM view until someone edits it", () => {
   assert.equal(shown.skills, "Athletics, Perception");
 });
 
+test("a people and a class say what the choice gives", () => {
+  const elf = cleanCharacter({ raceId: "elf", lineageId: "high", classId: "fighter" });
+  const people = peopleGrant(elf);
+  assert.match(people.lines.join(" "), /Darkvision 60 ft/);
+  assert.match(people.title, /High Elf/);
+  const klass = classGrant(elf);
+  const text = klass.lines.join(" ");
+  assert.match(text, /d10/);
+  assert.match(text, /11 hit points/);
+  assert.match(text, /Champion/);
+  assert.match(text, /Saving throw proficiencies/);
+});
+
 test("custom people and classes survive a reload, and unknown ids do not", () => {
   const saved = cleanCharacter({
     touched: true,
@@ -188,42 +197,4 @@ test("askBonus matches skills, checks, saves, and initiative", async () => {
   assert.equal(strSave.bonus - strCheck.bonus, 2);
   assert.equal(askBonus(hero, "Wisdom save").bonus, askBonus(hero, "Wisdom check").bonus);
   assert.equal(askBonus(hero, "Arm wrestling"), null);
-});
-
-test("a short rest spends one hit die and a long rest fills the rest", () => {
-  const hero = cleanCharacter({
-    touched: true,
-    classId: "fighter",
-    level: 4,
-    hp: 6,
-    hitDice: 3,
-    deathSuccess: 2,
-    deathFail: 1,
-    marks: ["concentrating", "poisoned"],
-    scores: { str: 15, dex: 14, con: 14, int: 10, wis: 10, cha: 8 },
-  });
-  assert.equal(maxHpOf(hero), suggestedHp(hero));
-  assert.equal(currentHp(hero), 6);
-  const rested = shortRest(hero, 4);
-  assert.equal(rested.ok, true);
-  assert.equal(rested.gain, 6);
-  assert.equal(rested.character.hp, 12);
-  assert.equal(rested.character.hitDice, 2);
-  assert.equal(rested.character.deathSuccess, 0);
-  const full = shortRest({ ...rested.character, hp: rested.character.maxHp }, 4);
-  assert.equal(full.ok, false);
-  const spent = shortRest({ ...hero, hitDice: 0 }, 4);
-  assert.equal(spent.reason, "No hit dice left.");
-  const night = longRest({ ...hero, hp: 0, hitDice: 1 });
-  assert.equal(night.character.hp, night.character.maxHp);
-  assert.equal(night.character.hitDice, 3);
-  assert.deepEqual(night.character.marks, ["poisoned"]);
-  assert.equal(night.character.deathFail, 0);
-  const down = stepHp({ ...hero, hp: 0, deathFail: 2 }, -1);
-  assert.equal(down.hp, 0);
-  assert.equal(down.deathFail, 2);
-  const up = markDeath(stepHp(down, 1), "fail");
-  assert.equal(up.hp, 1);
-  assert.equal(up.deathSuccess, 0);
-  assert.equal(up.deathFail, 1);
 });

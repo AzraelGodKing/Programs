@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DM_NAME, TableError, TableRoom, cleanTalk } from "../worker/room.js";
+import { DM_NAME, TableError, TableRoom } from "../worker/room.js";
 import { handleRequest } from "../worker/router.js";
 
 function memoryStorage() {
@@ -48,136 +48,142 @@ function envFor(table) {
   };
 }
 
-async function call(env, method, path, payload) {
+async function call(env, method, path, payload, token = "") {
+  const headers = {};
+  if (payload !== undefined) headers["content-type"] = "application/json";
+  if (token) headers["x-lantern-token"] = token;
   const response = await handleRequest(new Request(`https://lantern.azraelsmods.com${path}`, {
     method,
-    headers: payload === undefined ? {} : { "content-type": "application/json" },
+    headers,
     body: payload === undefined ? undefined : JSON.stringify(payload),
   }), env);
   return { status: response.status, body: await response.json().catch(() => null), response };
 }
 
-test("a sale can be bought back until the shop closes", async () => {
+async function openedRoom() {
   const table = new TableRoom(memoryStorage());
-  assert.equal(await table.create(), true);
-  await table.setShop({
+  const dmToken = await table.create();
+  const mara = await table.join("", { name: "Mara" });
+  return { table, dmToken, mara };
+}
+
+test("a sale can be bought back until the shop closes", async () => {
+  const { table, dmToken, mara } = await openedRoom();
+  await table.setShop(dmToken, {
     open: true,
     name: "Smith",
     stall: "smith",
     goods: [{ id: "longsword", name: "Longsword", cp: 1500, service: false }],
   });
-  const sold = await table.tradeBuyback({ name: "Mara", action: "sell", id: "longsword", cp: 750 });
-  await table.tradeBuyback({ name: "Mara", action: "sell", id: "longsword", cp: 750 });
+  const sold = await table.tradeBuyback(mara.token, { action: "sell", id: "longsword", cp: 750 });
+  await table.tradeBuyback(mara.token, { action: "sell", id: "longsword", cp: 750 });
   assert.equal(sold[0].qty, 1);
-  const stacked = await table.view();
+  const stacked = await table.view(dmToken);
   assert.equal(stacked.buybacks[0].qty, 2);
+  const ivo = await table.join("", { name: "Ivo" });
   await assert.rejects(
-    () => table.tradeBuyback({ name: "Ivo", action: "buy", id: "longsword", cp: 750 }),
+    () => table.tradeBuyback(ivo.token, { action: "buy", id: "longsword", cp: 750 }),
     (error) => error instanceof TableError && error.message === "That is no longer held for buy back.",
   );
-  await table.setShop({ open: true, name: "Tavern", stall: "tavern", goods: [] });
-  assert.equal((await table.view()).buybacks[0].qty, 2);
-  const bought = await table.tradeBuyback({ name: "Mara", action: "buy", id: "longsword", cp: 750 });
+  await table.setShop(dmToken, { open: true, name: "Tavern", stall: "tavern", goods: [] });
+  assert.equal((await table.view(dmToken)).buybacks[0].qty, 2);
+  const bought = await table.tradeBuyback(mara.token, { action: "buy", id: "longsword", cp: 750 });
   assert.equal(bought[0].qty, 1);
-  await table.setShop({ open: false, name: "Tavern", stall: "tavern", goods: [] });
-  assert.deepEqual((await table.view()).buybacks, []);
+  await table.setShop(dmToken, { open: false, name: "Tavern", stall: "tavern", goods: [] });
+  assert.deepEqual((await table.view(dmToken)).buybacks, []);
   await assert.rejects(
-    () => table.tradeBuyback({ name: "Mara", action: "buy", id: "longsword", cp: 750 }),
+    () => table.tradeBuyback(mara.token, { action: "buy", id: "longsword", cp: 750 }),
     (error) => error instanceof TableError && error.message === "The shop is closed.",
   );
-  await table.setShop({ open: true, name: "Smith", stall: "smith", goods: [] });
-  assert.deepEqual((await table.view()).buybacks, []);
+  await table.setShop(dmToken, { open: true, name: "Smith", stall: "smith", goods: [] });
+  assert.deepEqual((await table.view(dmToken)).buybacks, []);
 });
 
 test("a boolean shop switch still closes the counter", async () => {
-  const table = new TableRoom(memoryStorage());
-  await table.create();
-  assert.equal(await table.setShop({ open: false }), false);
-  assert.equal((await table.view()).shop, false);
-  assert.equal(await table.setShop({ open: true }), true);
+  const { table, dmToken } = await openedRoom();
+  assert.equal(await table.setShop(dmToken, { open: false }), false);
+  assert.equal((await table.view(dmToken)).shop, false);
+  assert.equal(await table.setShop(dmToken, { open: true }), true);
 });
 
 test("the worker routes shop, buy back, and pages", async () => {
   const env = envFor(new TableRoom(memoryStorage()));
   const opened = await call(env, "POST", "/api/rooms");
   assert.equal(opened.status, 201);
-  const code = opened.body.code;
+  const { code, dmToken } = opened.body;
+  assert.equal(dmToken.length, 32);
+  const joined = await call(env, "POST", `/api/rooms/${code}/join`, { name: "Mara" });
+  assert.equal(joined.status, 200);
   const counter = await call(env, "POST", `/api/rooms/${code}/shop`, {
     open: true,
     name: "Apothecary",
     stall: "apothecary",
     goods: [{ id: "potion-of-healing", name: "Potion of healing", cp: 5000, service: false }],
-  });
+  }, dmToken);
   assert.equal(counter.status, 200);
   assert.equal(counter.body.shop.name, "Apothecary");
   const sale = await call(env, "POST", `/api/rooms/${code}/buyback`, {
-    name: "Mara",
     action: "sell",
     id: "potion-of-healing",
     cp: 2500,
-  });
+  }, joined.body.token);
   assert.equal(sale.status, 200);
   assert.equal(sale.body.buybacks[0].cp, 2500);
-  const view = await call(env, "GET", `/api/rooms/${code}?as=Mara`);
+  const view = await call(env, "GET", `/api/rooms/${code}`, undefined, joined.body.token);
   assert.equal(view.body.buybacks[0].seller, "Mara");
+  const locked = await call(env, "GET", `/api/rooms/${code}`);
+  assert.equal(locked.body.locked, true);
+  assert.equal(locked.body.players.length, 0);
   const page = await handleRequest(new Request("https://lantern.azraelsmods.com/player"), env);
   assert.equal(page.status, 200);
   assert.equal(await page.text(), "page");
-  const closed = await call(env, "POST", `/api/rooms/${code}/shop`, { open: false });
+  const closed = await call(env, "POST", `/api/rooms/${code}/shop`, { open: false }, dmToken);
   assert.equal(closed.status, 200);
   assert.equal(closed.body.shop, false);
-  const after = await call(env, "GET", `/api/rooms/${code}`);
+  const after = await call(env, "GET", `/api/rooms/${code}`, undefined, dmToken);
   assert.deepEqual(after.body.buybacks, []);
 });
 
 test("only the DM can ask a seat for a roll", async () => {
   const room = new TableRoom(memoryStorage());
-  await room.create();
-  const asked = await room.talk(cleanTalk({ name: DM_NAME, text: "Roll Stealth.", to: "Mara", ask: " Stealth " }));
+  const dmToken = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  const asked = await room.talk(dmToken, { text: "Roll Stealth.", to: "Mara", ask: " Stealth " });
   assert.equal(asked.ask, "Stealth");
-  const plain = await room.talk(cleanTalk({ name: DM_NAME, text: "Quiet now.", to: "" }));
+  assert.equal(asked.from, DM_NAME);
+  const plain = await room.talk(dmToken, { text: "Quiet now.", to: "" });
   assert.equal("ask" in plain, false);
-  assert.throws(() => cleanTalk({ name: "Mara", text: "Roll.", to: "", ask: "Stealth" }), TableError);
-  const view = await room.view("Mara");
+  await assert.rejects(
+    () => room.talk(mara.token, { text: "Roll.", to: "", ask: "Stealth" }),
+    TableError,
+  );
+  const view = await room.view(mara.token);
   assert.equal(view.messages[0].ask, "Stealth");
 });
 
-test("the DM advances one order and a player rolls into it", async () => {
-  const env = envFor(new TableRoom(memoryStorage()));
-  const opened = await call(env, "POST", "/api/rooms");
-  const code = opened.body.code;
-  const added = await call(env, "POST", `/api/rooms/${code}/order`, {
-    name: DM_NAME,
-    op: "add",
-    label: "Guard",
-    init: 8,
-    hp: 11,
+test("the DM owns the order and a player can only change their own hit points", async () => {
+  const { table, dmToken, mara } = await openedRoom();
+  const order = await table.setOrder(dmToken, {
+    round: 1,
+    started: true,
+    activeId: "mara",
+    combatants: [{
+      id: "mara",
+      name: "Mara",
+      seat: "Mara",
+      init: 14,
+      bonus: 2,
+      hp: 12,
+      maxHp: 12,
+      ac: 16,
+      marks: [],
+      exhaustion: 0,
+      order: 1,
+    }],
   });
-  assert.equal(added.status, 200);
-  assert.equal(added.body.order.rows[0].name, "Guard");
-  const denied = await call(env, "POST", `/api/rooms/${code}/order`, {
-    name: "Mara",
-    op: "remove",
-    id: added.body.order.rows[0].id,
-  });
-  assert.equal(denied.status, 400);
-  const rolled = await call(env, "POST", `/api/rooms/${code}/order`, {
-    name: "Mara",
-    op: "initiative",
-    label: "Mara",
-    init: 16,
-    hp: 9,
-    maxHp: 9,
-  });
-  assert.equal(rolled.status, 200);
-  const stepped = await call(env, "POST", `/api/rooms/${code}/order`, {
-    name: DM_NAME,
-    op: "next",
-  });
-  assert.equal(stepped.status, 200);
-  assert.equal(stepped.body.order.started, true);
-  const view = await call(env, "GET", `/api/rooms/${code}`);
-  assert.equal(view.body.order.rows.length, 2);
-  const active = view.body.order.rows.find((row) => row.id === view.body.order.activeId);
-  assert.equal(active.name, "Mara");
+  assert.equal(order.combatants[0].hp, 12);
+  await assert.rejects(() => table.setOrder(mara.token, order), TableError);
+  const next = await table.setVitals(mara.token, { hp: 7, maxHp: 12, ac: 16 });
+  assert.equal(next.combatants[0].hp, 7);
+  assert.equal((await table.view(dmToken)).order.combatants[0].name, "Mara");
 });
