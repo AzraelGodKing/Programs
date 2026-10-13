@@ -310,6 +310,7 @@ function startSolo(name) {
   seatError = "";
   paintSeatStatus();
   openTableGate();
+  renderCombat();
 }
 
 async function joinSeat(form) {
@@ -344,6 +345,7 @@ async function joinSeat(form) {
   paintSeatStatus();
   persist("Joined the table.");
   openTableGate();
+  renderCombat();
 }
 
 function seatedCode() {
@@ -872,6 +874,7 @@ function showTab(tab, { save = true } = {}) {
     }
   }
   paintPlayerTabs(tab);
+  if (tab === "order" && gateMode === "play") renderCombat();
   if (save) persist();
 }
 
