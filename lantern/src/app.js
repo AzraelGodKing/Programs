@@ -79,7 +79,7 @@ import {
 } from "./roster.js";
 import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
 import { armorClass } from "./armor.js";
-import { blankDeath, cleanDeath, cleanOrder } from "./order.js";
+import { blankDeath, cleanDeath, cleanOrder, sortOrder } from "./order.js";
 import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
 import { paintHere, paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
@@ -834,7 +834,7 @@ function findCombatant(id) {
 }
 
 function turnOrder() {
-  return [...state.combat.combatants].sort((a, b) => b.init - a.init || a.order - b.order);
+  return sortOrder(state.combat.combatants);
 }
 
 function ensureActive() {
@@ -1183,7 +1183,7 @@ function renderCombat() {
   if (!mount) return;
   if (shared) {
     const order = sharedOrder || cleanOrder(null);
-    const list = [...order.combatants].sort((a, b) => b.init - a.init || a.order - b.order);
+    const list = sortOrder(order.combatants);
     const banner = document.getElementById("turn-banner");
     const meta = document.getElementById("turn-meta");
     if (!list.length) {

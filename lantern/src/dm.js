@@ -2,7 +2,7 @@ import { armorClass } from "./armor.js";
 import { ABILITIES, SKILLS, abilityMod, abilityTotals, effectiveHp, formatMod, maxHitPoints, presentCharacter } from "./character.js";
 import { roll } from "./dice.js";
 import { MARKS } from "./marks.js";
-import { blankDeath, blankOrder, cleanDeath, cleanOrder } from "./order.js";
+import { blankDeath, blankOrder, cleanDeath, cleanOrder, sortOrder } from "./order.js";
 import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, lightCaption } from "./lights.js";
 import { draw, drawScene, KIND_LABEL, sparkText } from "./oracle.js";
@@ -66,10 +66,6 @@ function h(tag, props = {}, children = []) {
 
 function clock(ms) {
   return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
-}
-
-function turnOrder(combatants) {
-  return [...combatants].sort((a, b) => b.init - a.init || a.order - b.order);
 }
 
 function soonestLight(lights) {
@@ -140,7 +136,7 @@ function diceBlock(history) {
 }
 
 function orderBlock(combat) {
-  const list = turnOrder(combat.combatants);
+  const list = sortOrder(combat.combatants);
   if (!list.length) return h("p", { class: "hint" }, "No one is in the order.");
   const who = list.find((person) => person.id === combat.activeId);
   const started = combat.started || combat.round > 1;
@@ -990,10 +986,6 @@ function cycleSeat(step) {
   chooseSeat(names[(index + step + names.length) % names.length]);
 }
 
-function sortedOrder() {
-  return [...tableOrder.combatants].sort((a, b) => b.init - a.init || a.order - b.order);
-}
-
 function dmOrderRow(person, active) {
   const death = cleanDeath(person.death);
   const pip = (kind, index) => {
@@ -1044,7 +1036,7 @@ function dmOrderRow(person, active) {
 function renderDmOrder() {
   const mount = document.getElementById("dm-order-list");
   if (!mount) return;
-  const list = sortedOrder();
+  const list = sortOrder(tableOrder.combatants);
   const banner = document.getElementById("dm-turn-banner");
   const active = tableOrder.started ? list.find((person) => person.id === tableOrder.activeId) : null;
   if (banner) banner.textContent = active ? `${active.name} · round ${tableOrder.round}` : "The round has not started";
@@ -1096,7 +1088,7 @@ async function seatParty() {
 }
 
 function dmStep(direction) {
-  const list = sortedOrder();
+  const list = sortOrder(tableOrder.combatants);
   if (!list.length) return;
   if (!tableOrder.started) {
     if (direction < 0) return;
