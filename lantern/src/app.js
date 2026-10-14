@@ -55,10 +55,8 @@ import {
   sellToCounter,
   useItem,
 } from "./gear.js";
-import { CR_XP, formatXp, rateEncounter } from "./encounter.js";
 import { findLight, formatRemaining, LIGHTS, lightCaption, lightOptionLabel } from "./lights.js";
 import { MARKS } from "./marks.js";
-import { KIND_LABEL } from "./oracle.js";
 import {
   activeCharacter,
   addCharacter,
@@ -84,19 +82,6 @@ import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postB
 import { paintHere, paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { registerOffline } from "./pwa.js";
-
-const WORDS = {
-  trivial: "Trivial",
-  easy: "Easy",
-  medium: "Medium",
-  hard: "Hard",
-  deadly: "Deadly",
-};
-
-const SHIFT = {
-  stricter: "Fewer than three in the party, so the multiplier steps up.",
-  gentler: "Six or more in the party, so the multiplier steps down.",
-};
 
 let state = loadState() ?? normalize(null);
 let sharedOrder = null;
@@ -409,7 +394,7 @@ function closePlayerModules() {
 }
 
 function paintPlayerTabs(tab) {
-  for (const name of ["dice", "order", "threat", "spark", "character", "notes", "table"]) {
+  for (const name of ["dice", "order", "character", "notes", "table"]) {
     const button = document.getElementById(`tab-${name}`);
     if (!button) continue;
     const on = name === tab;
@@ -444,7 +429,7 @@ function paintGate() {
   }
   if (gateMode === "create" || gateMode === "view") {
     document.getElementById("panel-character").hidden = false;
-    for (const name of ["dice", "order", "threat", "spark", "notes", "table"]) {
+    for (const name of ["dice", "order", "notes", "table"]) {
       const panel = document.getElementById(`panel-${name}`);
       if (panel) panel.hidden = true;
     }
@@ -863,10 +848,6 @@ function showTab(tab, { save = true } = {}) {
     if (dice) dice.hidden = false;
     const character = document.getElementById("panel-character");
     if (character) character.hidden = true;
-    for (const name of ["threat", "spark"]) {
-      const panel = document.getElementById(`panel-${name}`);
-      if (panel) panel.hidden = true;
-    }
     if (dialog) {
       const panel = dialog.querySelector("[data-module-panel]");
       if (panel) panel.hidden = false;
@@ -1362,239 +1343,6 @@ function levelOptions(selected) {
     options.push(option);
   }
   return options;
-}
-
-function renderParty() {
-  const mount = document.getElementById("party-list");
-  if (!mount) return;
-  if (!state.party.length) {
-    mount.replaceChildren(h("p", { class: "empty" }, "No adventurers yet."));
-    return;
-  }
-  mount.replaceChildren(...state.party.map((hero) => h("div", { class: "edit-row" }, [
-    h("input", {
-      type: "text",
-      "data-field": "hero-name",
-      "data-id": hero.id,
-      value: hero.name,
-      placeholder: "Adventurer",
-      maxlength: "80",
-      spellcheck: "false",
-      "aria-label": "Adventurer name",
-    }),
-    h("label", { class: "inline" }, [
-      "Level",
-      h("select", { "data-field": "hero-level", "data-id": hero.id, "aria-label": "Level" }, levelOptions(hero.level)),
-    ]),
-    h("button", { type: "button", class: "text-btn", "data-action": "remove-hero", "data-id": hero.id }, "Remove"),
-  ])));
-}
-
-function renderMonsters() {
-  const mount = document.getElementById("monster-list");
-  if (!mount) return;
-  if (!state.monsters.length) {
-    mount.replaceChildren(h("p", { class: "empty" }, "No creatures yet."));
-    return;
-  }
-  mount.replaceChildren(...state.monsters.map((monster) => h("div", { class: "edit-row" }, [
-    h("input", {
-      type: "text",
-      "data-field": "monster-name",
-      "data-id": monster.id,
-      value: monster.name,
-      maxlength: "80",
-      spellcheck: "false",
-      "aria-label": "Creature name",
-    }),
-    h("label", { class: "inline" }, [
-      "Count",
-      h("input", {
-        type: "number",
-        "data-field": "monster-count",
-        "data-id": monster.id,
-        value: String(monster.count),
-        min: "1",
-        "aria-label": `Count of ${monster.name}`,
-      }),
-    ]),
-    h("label", { class: "inline" }, [
-      "XP each",
-      h("input", {
-        type: "number",
-        "data-field": "monster-xp",
-        "data-id": monster.id,
-        value: String(monster.xp),
-        min: "0",
-        "aria-label": `Experience for one ${monster.name}`,
-      }),
-    ]),
-    h("button", { type: "button", class: "text-btn", "data-action": "remove-monster", "data-id": monster.id }, "Remove"),
-  ])));
-}
-
-function partyLabel() {
-  if (!state.party.length) return "";
-  const levels = state.party.map((hero) => hero.level);
-  const unique = [...new Set(levels)];
-  if (unique.length === 1) return `Party of ${state.party.length} at level ${unique[0]}`;
-  return `Party of ${state.party.length}`;
-}
-
-function renderThreat({ reveal = false } = {}) {
-  if (!document.getElementById("threat-summary")) return;
-  const result = rateEncounter({
-    levels: state.party.map((hero) => hero.level),
-    groups: state.monsters.map((monster) => ({ count: monster.count, xp: monster.xp })),
-  });
-  const mount = document.getElementById("threat-summary");
-  const thresholds = result.thresholds;
-  let word = "Add a party";
-  let rating = "none";
-  if (thresholds.size) {
-    if (result.monsterCount === 0) {
-      word = "Empty";
-      rating = "empty";
-    } else {
-      word = WORDS[result.rating];
-      rating = result.rating;
-    }
-  }
-  const math = !thresholds.size || result.monsterCount === 0
-    ? ""
-    : result.multiplier === 1
-      ? `${formatXp(result.adjusted)} XP`
-      : `${formatXp(result.adjusted)} adjusted XP · ${formatXp(result.raw)} × ${result.multiplier}`;
-  const bands = thresholds.size
-    ? `Easy ${formatXp(thresholds.easy)} · Medium ${formatXp(thresholds.medium)} · Hard ${formatXp(thresholds.hard)} · Deadly ${formatXp(thresholds.deadly)}`
-    : "Seat the party and the budget appears.";
-  const width = thresholds.size && thresholds.deadly > 0
-    ? Math.min(100, (result.adjusted / thresholds.deadly) * 100)
-    : 0;
-  const creatures = state.monsters
-    .map((monster) => `${monster.name} ${monster.count} × ${formatXp(monster.xp)}`)
-    .join(" · ");
-
-  mount.dataset.rating = rating;
-  mount.replaceChildren(...present([
-    h("p", { class: "verdict" }, word),
-    math ? h("p", { class: "math" }, math) : null,
-    result.shift ? h("p", { class: "hint" }, SHIFT[result.shift]) : null,
-    h("div", { class: "bar", "data-rating": rating }, [
-      h("span", { class: "bar-fill", style: `width: ${width}%` }),
-    ]),
-    h("p", { class: "bands" }, partyLabel() ? `${partyLabel()} · ${bands}` : bands),
-    creatures ? h("p", { class: "bands" }, creatures) : null,
-  ]));
-  if (reveal) document.getElementById("threat-summary").scrollIntoView({ block: "start" });
-}
-
-function addHeroes(form, times) {
-  const level = readInt(form.elements.level, 3, 1, 20);
-  const name = form.elements.name.value.trim().slice(0, 80);
-  const room = 8 - state.party.length;
-  const count = Math.min(times, room);
-  if (count < 1) {
-    showError("hero", "The table seats 8.");
-    return;
-  }
-  for (let i = 0; i < count; i += 1) {
-    state.party.push({ id: uid(), name: times === 1 ? name : "", level });
-  }
-  showError("hero", count < times ? `Added ${count}. The table seats 8.` : "");
-  if (times === 1) {
-    form.elements.name.value = "";
-    form.elements.name.focus();
-  }
-  const label = times === 1
-    ? (name || "an unnamed adventurer")
-    : `${count} adventurer${count === 1 ? "" : "s"}`;
-  persist(`Seated ${label} at level ${level}.`);
-  renderParty();
-  renderThreat({ reveal: true });
-}
-
-function addMonster(form) {
-  const name = form.elements.name.value.trim().slice(0, 80);
-  if (!name) {
-    showError("monster", "Name the creature.");
-    form.elements.name.focus();
-    return;
-  }
-  if (form.elements.xp.value.trim() === "") {
-    showError("monster", "Add the experience, or pick a challenge rating.");
-    return;
-  }
-  if (state.monsters.length >= 12) {
-    showError("monster", "Twelve groups is the limit.");
-    return;
-  }
-  state.monsters.push({
-    id: uid(),
-    name,
-    count: readInt(form.elements.count, 1, 1, 40),
-    xp: readInt(form.elements.xp, 0, 0, 2000000),
-  });
-  showError("monster", "");
-  form.elements.name.value = "";
-  form.elements.name.focus();
-  const added = state.monsters[state.monsters.length - 1];
-  persist(`Added ${added.count} × ${added.name} (${formatXp(added.xp)} XP each).`);
-  renderMonsters();
-  renderThreat({ reveal: true });
-}
-
-function removeHero(id) {
-  const hero = state.party.find((item) => item.id === id);
-  state.party = state.party.filter((item) => item.id !== id);
-  persist(hero ? `Removed ${hero.name || "an unnamed adventurer"} (level ${hero.level}) from the party.` : undefined);
-  renderParty();
-  renderThreat({ reveal: true });
-}
-
-function removeMonster(id) {
-  const monster = state.monsters.find((item) => item.id === id);
-  state.monsters = state.monsters.filter((item) => item.id !== id);
-  persist(monster ? `Removed ${monster.count} × ${monster.name} from the encounter.` : undefined);
-  renderMonsters();
-  renderThreat({ reveal: true });
-}
-
-function cardBody(card) {
-  if (card.lines?.length) {
-    return h("dl", {}, card.lines.flatMap(([label, value]) => [
-      h("dt", {}, label),
-      h("dd", {}, value),
-    ]));
-  }
-  return h("p", {}, card.body);
-}
-
-function sparkCard(spark, latest) {
-  const inner = spark.kind === "scene"
-    ? spark.cards.map((card) => h("section", { class: "scene-part" }, [
-      h("p", { class: "kicker" }, card.kind === "person" ? card.title : KIND_LABEL[card.kind]),
-      cardBody(card),
-    ]))
-    : [cardBody(spark)];
-  return h("article", { class: latest ? "card is-latest" : "card" }, [
-    h("header", { class: "card-head" }, [
-      h("h3", {}, spark.title),
-      h("button", { type: "button", class: "text-btn", "data-action": "copy-spark", "data-id": spark.id }, "Copy"),
-      h("button", { type: "button", class: "text-btn", "data-action": "dismiss-spark", "data-id": spark.id }, "Dismiss"),
-    ]),
-    ...inner,
-  ]);
-}
-
-function renderSparks() {
-  const mount = document.getElementById("spark-list");
-  if (!mount) return;
-  if (!state.sparks.length) {
-    mount.replaceChildren(h("p", { class: "empty" }, "The table is quiet. Draw a prompt."));
-    return;
-  }
-  mount.replaceChildren(...state.sparks.map((spark, index) => sparkCard(spark, index === 0)));
 }
 
 function noteIfOut(light, spec, now) {
@@ -2870,15 +2618,6 @@ function fillSelects() {
     "data-sides": String(sides),
     "aria-label": `Roll a d${sides}`,
   }, `d${sides}`)));
-  const levels = document.querySelector("#hero-form select[name='level']");
-  if (levels) levels.replaceChildren(...levelOptions(3));
-  const cr = document.querySelector("#monster-form select[name='cr']");
-  if (cr) {
-    cr.replaceChildren(
-      h("option", { value: "" }, "Set XP from challenge"),
-      ...CR_XP.map(([rating, xp]) => h("option", { value: String(xp) }, `CR ${rating} · ${formatXp(xp)} XP`)),
-    );
-  }
   const raceSelect = document.getElementById("character-race");
   raceSelect.replaceChildren(
     h("option", { value: "" }, "Choose a race"),
@@ -2920,10 +2659,6 @@ function applyLoaded() {
   else renderIdleResult();
   renderHistory();
   renderCombat();
-  renderParty();
-  renderMonsters();
-  renderThreat();
-  renderSparks();
   renderFlames();
   renderCharacter();
 }
@@ -2999,8 +2734,6 @@ function resetAll() {
   announcedOut.clear();
   state = normalize(null);
   document.getElementById("combatant-form")?.reset();
-  document.getElementById("hero-form")?.reset();
-  document.getElementById("monster-form")?.reset();
   fillSelects();
   applyLoaded();
   paintGate();
@@ -3064,8 +2797,6 @@ function onClick(event) {
   else if (action === "remove-combatant") removeCombatant(button.dataset.id);
   else if (action === "next") stepTurn(1);
   else if (action === "back") stepTurn(-1);
-  else if (action === "seat-four" || action === "remove-hero" || action === "remove-monster") return;
-  else if (action === "draw" || action === "draw-scene" || action === "copy-spark" || action === "dismiss-spark") return;
   else if (action === "hood") toggleHood(button.dataset.id);
   else if (action === "snuff") snuff(button.dataset.id);
   else if (action === "score-method") applyScoreMethod(button.dataset.method);
@@ -3117,7 +2848,6 @@ function onSubmit(event) {
   if (form.id === "seat-form") joinSeat(form);
   else if (form.id === "talk-form") void sendTalk();
   else if (form.dataset.form === "combatant") addCombatant(form);
-  else if (form.dataset.form === "hero" || form.dataset.form === "monster") return;
   else if (form.dataset.form === "light") strike(form);
 }
 
@@ -3177,31 +2907,6 @@ function onInput(event) {
   }
   const { field, id } = target.dataset;
   if (!field || !id) return;
-  if (field === "hero-name") {
-    const hero = state.party.find((item) => item.id === id);
-    if (hero) hero.name = target.value.slice(0, 80);
-    persist();
-    return;
-  }
-  if (field === "monster-name") {
-    const monster = state.monsters.find((item) => item.id === id);
-    const name = target.value.slice(0, 80);
-    if (!monster || !name.trim()) return;
-    monster.name = name;
-    persist();
-    renderThreat();
-    return;
-  }
-  if (field === "monster-count" || field === "monster-xp") {
-    const monster = state.monsters.find((item) => item.id === id);
-    const n = looseInt(target.value);
-    if (!monster || n == null) return;
-    if (field === "monster-count" && n >= 1 && n <= 40) monster.count = n;
-    if (field === "monster-xp" && n >= 0 && n <= 2000000) monster.xp = n;
-    persist();
-    renderThreat();
-    return;
-  }
   if (field === "combat-name") {
     const person = findCombatant(id);
     const name = target.value.slice(0, 80);
@@ -3242,19 +2947,9 @@ function onChange(event) {
     updateSheet(target, { log: true });
     return;
   }
-  if (target.name === "cr" && target.form?.dataset.form === "monster") {
-    if (target.value !== "") target.form.elements.xp.value = target.value;
-    return;
-  }
   const { field, id } = target.dataset;
   if (!field || !id) return;
-  if (field === "hero-level") {
-    const hero = state.party.find((item) => item.id === id);
-    if (!hero) return;
-    hero.level = readInt(target, hero.level, 1, 20);
-    persist(`Set ${hero.name || "an adventurer"} to level ${hero.level}.`);
-    renderThreat();
-  } else if (field === "init") {
+  if (field === "init") {
     const person = findCombatant(id);
     if (!person) return;
     person.init = readInt(target, person.init, -100, 200);
@@ -3313,13 +3008,6 @@ function onChange(event) {
       persist(`Set ${person.name}'s armor class to ${person.ac}.`);
     }
     renderCombat();
-  } else if (field === "monster-count" || field === "monster-xp") {
-    const monster = state.monsters.find((item) => item.id === id);
-    if (!monster) return;
-    if (field === "monster-count") monster.count = readInt(target, monster.count, 1, 40);
-    if (field === "monster-xp") monster.xp = readInt(target, monster.xp, 0, 2000000);
-    persist(`Set ${monster.name} to ${monster.count} × ${formatXp(monster.xp)} XP.`);
-    renderThreat();
   }
 }
 

@@ -49,6 +49,10 @@
 - A DM screen. Players join a table code, and the DM sees every roll (who, and what it was for), the order, hit points, lights, the encounter budget, prompts, and scratch notes.
 - A character sheet. The common 2014 races, classes, subclasses, and backgrounds are listed, and Custom is there for anything else. Ability scores can be the standard array, point buy, 4d6, or typed in. The DM sees the sheet.
 
+### Removed
+
+- Unused player leftovers from when Spark and Threat moved to the DM screen: the encounter and spark renderers, no-op handlers, and CSS for those tabs. Old saves still load. The leftover prepare-drawer save field is gone; `#dm-prepare` has been missing since that drawer became a module.
+
 ### Fixed
 
 - Dice buttons render their labels. Rolls and the encounter verdict no longer print an empty "null". A combatant at 0 hit points is marked Down, and adding a creature brings the verdict into view.
