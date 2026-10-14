@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Worker traces are on, at the same sampling as logs.
 - The player Order tab is Roll for initiative. The button rolls a d20 plus the Dexterity modifier from the sheet and adds that character to the shared order. Rolling again updates the same seat. The Dungeon Master still moves the round.
 - The Python copy of the table rules is gone. Join, whisper, and shop are checked against the JavaScript room module.
 
@@ -51,4 +52,5 @@
 
 ### Fixed
 
+- Offline play includes the armor class script. Returning visitors pick up a new shell.
 - Dice buttons render their labels. Rolls and the encounter verdict no longer print an empty "null". A combatant at 0 hit points is marked Down, and adding a creature brings the verdict into view.
