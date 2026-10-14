@@ -46,6 +46,7 @@ function cleanHistory(item) {
 }
 
 function cleanCombatant(item, index) {
+  // Local night saves keep maxHp 0; cleanCombatantRecord clamps it to 1.
   if (!item || typeof item !== "object") return null;
   const name = text(item.name, 80);
   if (!name) return null;

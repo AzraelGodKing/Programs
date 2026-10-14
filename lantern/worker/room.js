@@ -85,11 +85,6 @@ export function validCode(code) {
   return typeof code === "string" && /^[A-Z0-9]{4}$/.test(code);
 }
 
-export function cleanViewer(value) {
-  if (typeof value !== "string") return "";
-  return collapse(value).slice(0, NAME_LENGTH);
-}
-
 export function cleanMessage(value) {
   if (typeof value !== "string") throw new TableError("A message has to be text.");
   const text = collapse(value).slice(0, MESSAGE_LENGTH);
