@@ -292,7 +292,6 @@ function blankPrep() {
 
 function blankTools() {
   return {
-    prepareOpen: false,
     feed: "all",
     secrets: {},
     tables: {},
@@ -367,7 +366,6 @@ function loadTools() {
       groups: legacyGroups,
     };
     return {
-      prepareOpen: raw.prepareOpen === true,
       feed,
       secrets,
       tables,
@@ -529,8 +527,6 @@ function paintNotes() {
 function paintTools() {
   const levels = document.getElementById("dm-levels");
   if (levels && document.activeElement !== levels) levels.value = prep().levels;
-  const prepare = document.getElementById("dm-prepare");
-  if (prepare) prepare.open = tools.prepareOpen;
   renderDmSpark();
   renderDmGroups();
   renderDmThreat();
