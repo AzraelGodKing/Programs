@@ -4,7 +4,7 @@
   "type": "module",
   "description": "A shelf for small, finished programs.",
   "scripts": {
-    "start": "python3 lantern/server.py",
+    "start": "node lantern/serve.mjs",
     "test": "node --test && python3 -m unittest discover -s lantern/test -p 'test_*.py'",
     "deploy": "wrangler deploy --config lantern/wrangler.jsonc"
   },
