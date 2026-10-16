@@ -57,6 +57,18 @@ export function describeSetup(dice = {}, intent = "") {
   return what ? `${text} for ${what}` : text;
 }
 
+// The DM reads the sheet, dice, lights, and scratch. Threat, Spark, drafts,
+// and the local order stay in this browser. The shared order is its own post.
+export function sharedSnapshot(state) {
+  const snapshot = { ...(state && typeof state === "object" ? state : {}) };
+  delete snapshot.drafts;
+  delete snapshot.party;
+  delete snapshot.monsters;
+  delete snapshot.sparks;
+  delete snapshot.combat;
+  return snapshot;
+}
+
 function tokenHeaders(token) {
   return token ? { "content-type": "application/json", "x-lantern-token": token } : { "content-type": "application/json" };
 }
@@ -100,11 +112,14 @@ export async function fetchRoom(code, token = "") {
 
 export async function pushTable(code, body) {
   const seat = loadSeat();
+  const sent = body && typeof body === "object"
+    ? { ...body, snapshot: sharedSnapshot(body.snapshot) }
+    : body;
   try {
     const response = await fetch(`/api/rooms/${normalizeCode(code)}`, {
       method: "POST",
       headers: tokenHeaders(seat.token),
-      body: JSON.stringify(body),
+      body: JSON.stringify(sent),
     });
     if (response.status === 404) return { ok: false, error: "No table with that code." };
     if (!response.ok) return { ok: false, error: await readError(response, "The DM missed that.") };
