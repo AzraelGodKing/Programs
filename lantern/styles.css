@@ -351,9 +351,8 @@ textarea { width: 100%; resize: vertical; color: var(--cream); }
 
 .text-btn.danger { color: var(--blood); }
 
-/* Seated: the join form and the long explanation fold away into one line. */
-body.is-seated:not(.seat-editing) #seat-form,
-body.is-seated .save-explain { display: none; }
+/* Seated: the join form folds away into one line. */
+body.is-seated:not(.seat-editing) #seat-form { display: none; }
 
 body.is-seated .seat-wrap {
   display: flex;
@@ -504,8 +503,6 @@ body.creating #panel-character > [data-step].is-on.form {
   display: grid;
   gap: 0.55rem;
 }
-
-body.sheet-play #panel-character > :not(#kit):not(#mark-dead) { display: none; }
 
 body:not(.sheet-play) #kit { display: none; }
 
@@ -1038,7 +1035,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 
-.lede, .hint, .bands, .math, .init-die, .flame-caption, .ticket-detail, .result-detail, .result-formula {
+.lede, .hint, .math, .init-die, .flame-caption, .ticket-detail, .result-detail, .result-formula {
   color: var(--muted);
 }
 
@@ -1393,11 +1390,6 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 
 .verdict { font-size: clamp(2.6rem, 7vw, 4.2rem); line-height: 0.9; }
 
-.summary[data-rating="deadly"] .verdict { color: var(--blood); }
-.summary[data-rating="hard"] .verdict { color: var(--ember); }
-.summary[data-rating="medium"] .verdict { color: var(--gold); }
-.summary[data-rating="easy"] .verdict { color: var(--moss); }
-
 .bar {
   height: 0.55rem;
   background: #3a3128;
@@ -1406,12 +1398,6 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 }
 
 .bar-fill { display: block; height: 100%; background: currentColor; }
-
-.bar[data-rating="deadly"] { color: var(--blood); }
-.bar[data-rating="hard"] { color: var(--ember); }
-.bar[data-rating="medium"] { color: var(--gold); }
-.bar[data-rating="easy"] { color: var(--moss); }
-.bar[data-rating="trivial"], .bar[data-rating="empty"], .bar[data-rating="none"] { color: var(--faint); }
 
 .edit-row {
   display: flex;
@@ -1450,13 +1436,6 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 .card dt { color: var(--muted); }
 
 .card dd { margin: 0; }
-
-.kicker {
-  color: var(--gold);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 
 .scene-part + .scene-part { border-top: 1px solid var(--line); padding-top: 0.6rem; }
 
