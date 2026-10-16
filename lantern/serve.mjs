@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleRequest } from "./worker/router.js";
+import { memoryStorage } from "./worker/memory-storage.js";
 import { TableRoom } from "./worker/room.js";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
@@ -22,33 +23,6 @@ const TYPES = {
   ".webmanifest": "application/manifest+json",
   ".ico": "image/x-icon",
 };
-
-function memoryStorage() {
-  const data = new Map();
-  return {
-    async get(key) {
-      return data.has(key) ? structuredClone(data.get(key)) : undefined;
-    },
-    async put(key, value) {
-      if (typeof key === "object") {
-        for (const [name, stored] of Object.entries(key)) data.set(name, structuredClone(stored));
-        return;
-      }
-      data.set(key, structuredClone(value));
-    },
-    async list({ prefix }) {
-      const out = new Map();
-      for (const [name, stored] of data) {
-        if (name.startsWith(prefix)) out.set(name, structuredClone(stored));
-      }
-      return out;
-    },
-    async setAlarm() {},
-    async deleteAll() {
-      data.clear();
-    },
-  };
-}
 
 function facade(code) {
   if (!rooms.has(code)) rooms.set(code, new TableRoom(memoryStorage()));
@@ -69,10 +43,7 @@ function facade(code) {
 
 const env = {
   TABLE: {
-    idFromName(code) {
-      return code;
-    },
-    get(code) {
+    getByName(code) {
       return facade(code);
     },
   },

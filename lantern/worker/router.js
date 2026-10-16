@@ -16,7 +16,7 @@ function json(status, payload) {
 }
 
 function stubFor(env, code) {
-  return env.TABLE.get(env.TABLE.idFromName(code));
+  return env.TABLE.getByName(code);
 }
 
 function tokenFrom(request) {
@@ -45,6 +45,32 @@ function rejected(error) {
   throw error;
 }
 
+function missing() {
+  return json(404, { error: "No table with that code." });
+}
+
+async function roomPost(env, request, token, path, suffix, call, wrap) {
+  const code = roomCode(path, suffix);
+  if (!validCode(code)) return missing();
+  try {
+    const value = await call(stubFor(env, code), token, await readJson(request));
+    if (value == null) return missing();
+    return json(200, wrap(value));
+  } catch (error) {
+    return rejected(error);
+  }
+}
+
+const ROOM_POSTS = [
+  [/\/join\/?$/i, (stub, token, body) => stub.join(token, body), (seat) => seat],
+  [/\/order\/?$/i, (stub, token, body) => stub.setOrder(token, body), (order) => ({ ok: true, order })],
+  [/\/initiative\/?$/i, (stub, token, body) => stub.rollInitiative(token, body), (order) => ({ ok: true, order })],
+  [/\/vitals\/?$/i, (stub, token, body) => stub.setVitals(token, body), (order) => ({ ok: true, order })],
+  [/\/shop\/?$/i, (stub, token, body) => stub.setShop(token, body), (shop) => ({ ok: true, shop })],
+  [/\/buyback\/?$/i, (stub, token, body) => stub.tradeBuyback(token, body), (buybacks) => ({ ok: true, buybacks })],
+  [/\/talk\/?$/i, (stub, token, body) => stub.talk(token, body), (stored) => ({ ok: true, message: stored })],
+];
+
 export async function handleRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -61,100 +87,27 @@ export async function handleRequest(request, env) {
     }
     return json(405, { error: "Open a table with POST." });
   }
-  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/join\/?$/i.test(path)) {
-    const code = roomCode(path, /\/join\/?$/i);
-    if (!validCode(code)) return json(404, { error: "No table with that code." });
-    try {
-      const seat = await stubFor(env, code).join(token, await readJson(request));
-      if (!seat) return json(404, { error: "No table with that code." });
-      return json(200, seat);
-    } catch (error) {
-      return rejected(error);
-    }
-  }
-  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/order\/?$/i.test(path)) {
-    const code = roomCode(path, /\/order\/?$/i);
-    if (!validCode(code)) return json(404, { error: "No table with that code." });
-    try {
-      const order = await stubFor(env, code).setOrder(token, await readJson(request));
-      if (!order) return json(404, { error: "No table with that code." });
-      return json(200, { ok: true, order });
-    } catch (error) {
-      return rejected(error);
-    }
-  }
-  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/initiative\/?$/i.test(path)) {
-    const code = roomCode(path, /\/initiative\/?$/i);
-    if (!validCode(code)) return json(404, { error: "No table with that code." });
-    try {
-      const order = await stubFor(env, code).rollInitiative(token, await readJson(request));
-      if (!order) return json(404, { error: "No table with that code." });
-      return json(200, { ok: true, order });
-    } catch (error) {
-      return rejected(error);
-    }
-  }
-  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/vitals\/?$/i.test(path)) {
-    const code = roomCode(path, /\/vitals\/?$/i);
-    if (!validCode(code)) return json(404, { error: "No table with that code." });
-    try {
-      const order = await stubFor(env, code).setVitals(token, await readJson(request));
-      if (!order) return json(404, { error: "No table with that code." });
-      return json(200, { ok: true, order });
-    } catch (error) {
-      return rejected(error);
-    }
-  }
-  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/shop\/?$/i.test(path)) {
-    const code = roomCode(path, /\/shop\/?$/i);
-    if (!validCode(code)) return json(404, { error: "No table with that code." });
-    try {
-      const shop = await stubFor(env, code).setShop(token, await readJson(request));
-      if (shop === null) return json(404, { error: "No table with that code." });
-      return json(200, { ok: true, shop });
-    } catch (error) {
-      return rejected(error);
-    }
-  }
-  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/buyback\/?$/i.test(path)) {
-    const code = roomCode(path, /\/buyback\/?$/i);
-    if (!validCode(code)) return json(404, { error: "No table with that code." });
-    try {
-      const buybacks = await stubFor(env, code).tradeBuyback(token, await readJson(request));
-      if (buybacks === null) return json(404, { error: "No table with that code." });
-      return json(200, { ok: true, buybacks });
-    } catch (error) {
-      return rejected(error);
-    }
-  }
-  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/talk\/?$/i.test(path)) {
-    const code = roomCode(path, /\/talk\/?$/i);
-    if (!validCode(code)) return json(404, { error: "No table with that code." });
-    try {
-      const stored = await stubFor(env, code).talk(token, await readJson(request));
-      if (!stored) return json(404, { error: "No table with that code." });
-      return json(200, { ok: true, message: stored });
-    } catch (error) {
-      return rejected(error);
-    }
-  }
   if (path.startsWith("/api/rooms/")) {
-    const code = roomCode(path, /$/);
-    if (!validCode(code)) return json(404, { error: "No table with that code." });
-    const stub = stubFor(env, code);
-    if (request.method === "GET") {
-      const view = await stub.view(token);
-      if (!view) return json(404, { error: "No table with that code." });
-      return json(200, { code, ...view });
-    }
     if (request.method === "POST") {
-      try {
-        const result = await stub.update(token, await readJson(request));
-        if (!result) return json(404, { error: "No table with that code." });
-        return json(200, { ok: true, shop: result.shop, order: result.order });
-      } catch (error) {
-        return rejected(error);
+      for (const [suffix, call, wrap] of ROOM_POSTS) {
+        if (suffix.test(path)) return roomPost(env, request, token, path, suffix, call, wrap);
       }
+      return roomPost(
+        env,
+        request,
+        token,
+        path,
+        /$/,
+        (stub, seatToken, body) => stub.update(seatToken, body),
+        (result) => ({ ok: true, shop: result.shop, order: result.order }),
+      );
+    }
+    const code = roomCode(path, /$/);
+    if (!validCode(code)) return missing();
+    if (request.method === "GET") {
+      const view = await stubFor(env, code).view(token);
+      if (!view) return missing();
+      return json(200, { code, ...view });
     }
     return json(405, { error: "Method not allowed." });
   }
