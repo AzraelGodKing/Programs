@@ -49,6 +49,10 @@
 - A DM screen. Players join a table code, and the DM sees every roll (who, and what it was for), the order, hit points, lights, the encounter budget, prompts, and scratch notes.
 - A character sheet. The common 2014 races, classes, subclasses, and backgrounds are listed, and Custom is there for anything else. Ability scores can be the standard array, point buy, 4d6, or typed in. The DM sees the sheet.
 
+### Removed
+
+- Unused CSS leftovers: `.save-explain`, `.kicker`, `.bands`, leftover `[data-rating]` colors on the old player verdict, the `#panel-character > :not(#kit)` hide from when the pack lived in that panel, `.inline`, `.hp-line`, `.rest-actions`, `.death-line`, `.mark-picks`, `button.mark-chip` / `.mark-chip.is-on`, `.tab-badge`, `.roll-strip`, `.table-order`, and `.seat-card .hp-line`. Room helpers that nothing imports are no longer exported. Unused `playingAlone()` is gone.
+
 ### Fixed
 
 - Dice buttons render their labels. Rolls and the encounter verdict no longer print an empty "null". A combatant at 0 hit points is marked Down, and adding a creature brings the verdict into view.

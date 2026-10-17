@@ -295,14 +295,12 @@ button { cursor: pointer; }
   margin-top: 1rem;
 }
 
-label, .inline {
+label {
   display: grid;
   gap: 0.25rem;
   color: var(--muted);
   font-size: 0.82rem;
 }
-
-.inline { align-items: center; }
 
 input, select, textarea {
   background: #17130f;
@@ -351,9 +349,8 @@ textarea { width: 100%; resize: vertical; color: var(--cream); }
 
 .text-btn.danger { color: var(--blood); }
 
-/* Seated: the join form and the long explanation fold away into one line. */
-body.is-seated:not(.seat-editing) #seat-form,
-body.is-seated .save-explain { display: none; }
+/* Seated: the join form folds away into one line. */
+body.is-seated:not(.seat-editing) #seat-form { display: none; }
 
 body.is-seated .seat-wrap {
   display: flex;
@@ -504,8 +501,6 @@ body.creating #panel-character > [data-step].is-on.form {
   display: grid;
   gap: 0.55rem;
 }
-
-body.sheet-play #panel-character > :not(#kit):not(#mark-dead) { display: none; }
 
 body:not(.sheet-play) #kit { display: none; }
 
@@ -1038,7 +1033,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 
-.lede, .hint, .bands, .math, .init-die, .flame-caption, .ticket-detail, .result-detail, .result-formula {
+.lede, .hint, .math, .init-die, .flame-caption, .ticket-detail, .result-detail, .result-formula {
   color: var(--muted);
 }
 
@@ -1393,11 +1388,6 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 
 .verdict { font-size: clamp(2.6rem, 7vw, 4.2rem); line-height: 0.9; }
 
-.summary[data-rating="deadly"] .verdict { color: var(--blood); }
-.summary[data-rating="hard"] .verdict { color: var(--ember); }
-.summary[data-rating="medium"] .verdict { color: var(--gold); }
-.summary[data-rating="easy"] .verdict { color: var(--moss); }
-
 .bar {
   height: 0.55rem;
   background: #3a3128;
@@ -1406,12 +1396,6 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 }
 
 .bar-fill { display: block; height: 100%; background: currentColor; }
-
-.bar[data-rating="deadly"] { color: var(--blood); }
-.bar[data-rating="hard"] { color: var(--ember); }
-.bar[data-rating="medium"] { color: var(--gold); }
-.bar[data-rating="easy"] { color: var(--moss); }
-.bar[data-rating="trivial"], .bar[data-rating="empty"], .bar[data-rating="none"] { color: var(--faint); }
 
 .edit-row {
   display: flex;
@@ -1450,13 +1434,6 @@ main { padding: 1.2rem 0 2rem; display: grid; gap: 0.8rem; }
 .card dt { color: var(--muted); }
 
 .card dd { margin: 0; }
-
-.kicker {
-  color: var(--gold);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 
 .scene-part + .scene-part { border-top: 1px solid var(--line); padding-top: 0.6rem; }
 
@@ -1517,51 +1494,11 @@ footer {
   html { scroll-behavior: auto; }
 }
 
-.hp-line, .rest-actions, .death-line, .gear-restock, .code-row, .turn-actions {
+.gear-restock, .code-row, .turn-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.45rem 0.7rem;
-}
-
-.mark-picks { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-
-button.mark-chip {
-  appearance: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-button.mark-chip.is-on,
-.mark-chip.is-on {
-  border-color: var(--gold);
-  color: var(--gold);
-}
-
-.tab-badge {
-  display: inline-grid;
-  place-items: center;
-  min-width: 1.2rem;
-  margin-left: 0.35rem;
-  padding: 0 0.3rem;
-  border-radius: 999px;
-  background: var(--gold);
-  color: var(--ember-ink);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.roll-strip {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  margin: 0;
-  padding: 0.35rem 0.2rem;
-  background: var(--bg);
-  color: var(--gold);
-  font-variant-numeric: tabular-nums;
 }
 
 .code-row { align-items: center; }
@@ -1577,18 +1514,7 @@ button.mark-chip.is-on,
 
 .room-qr svg { display: block; width: 100%; height: 100%; }
 
-.table-order {
-  display: grid;
-  gap: 0.7rem;
-  padding: 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: 0.8rem;
-  background: var(--raise);
-}
-
 .dm-command.is-compact .room-qr { width: 4.5rem; height: 4.5rem; }
-
-.seat-card .hp-line { margin-top: 0.15rem; }
 
 @media (max-width: 640px) {
   .room-qr, .dm-command.is-compact .room-qr { width: 6.5rem; height: 6.5rem; }
