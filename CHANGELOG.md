@@ -51,7 +51,7 @@
 
 ### Removed
 
-- Unused CSS leftovers: `.save-explain`, `.kicker`, `.bands`, leftover `[data-rating]` colors on the old player verdict, and the `#panel-character > :not(#kit)` hide from when the pack lived in that panel. Room helpers that nothing imports are no longer exported.
+- Unused CSS leftovers: `.save-explain`, `.kicker`, `.bands`, leftover `[data-rating]` colors on the old player verdict, the `#panel-character > :not(#kit)` hide from when the pack lived in that panel, `.inline`, `.hp-line`, `.rest-actions`, `.death-line`, `.mark-picks`, `button.mark-chip` / `.mark-chip.is-on`, `.tab-badge`, `.roll-strip`, `.table-order`, and `.seat-card .hp-line`. Room helpers that nothing imports are no longer exported. Unused `playingAlone()` is gone.
 
 ### Fixed
 
