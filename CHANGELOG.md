@@ -51,4 +51,6 @@
 
 ### Fixed
 
+- The player page no longer jumps while it loads. The seat line and the dice formula start with their text, and a browser that already has a seat folds the join form before the first paint.
+
 - Dice buttons render their labels. Rolls and the encounter verdict no longer print an empty "null". A combatant at 0 hit points is marked Down, and adding a creature brings the verdict into view.
