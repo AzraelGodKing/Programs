@@ -12,6 +12,13 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="player-page">
+  <script>
+    // Fold the join form before the first paint when this browser already has a seat, so the page doesn't jump.
+    try {
+      var seat = JSON.parse(localStorage.getItem("lantern.seat") || "{}");
+      if (seat.solo === true || (seat.name && seat.room)) document.body.classList.add("is-seated");
+    } catch (e) {}
+  </script>
   <a class="skip" href="#main">Skip to the table</a>
   <header class="top">
     <div class="brand">
@@ -48,7 +55,7 @@
       <button class="btn" type="button" data-action="play-alone">Play alone</button>
     </form>
     <div class="seat-line">
-      <p id="seat-status" class="hint" role="status"></p>
+      <p id="seat-status" class="hint" role="status">Play alone, or join with a four-character code.</p>
       <button type="button" class="text-btn" id="edit-seat" data-action="edit-seat" hidden>Change table</button>
     </div>
   </section>
@@ -110,7 +117,7 @@
       <h2>Dice</h2>
       <p class="lede">Roll in front of the table. The last dozen stay here, and a joined table shares each one with the DM.</p>
       <div id="dice-result" class="readout" aria-live="polite"></div>
-      <p id="dice-formula" class="formula"></p>
+      <p id="dice-formula" class="formula">1d20</p>
       <p id="dice-hint" class="hint" hidden>Advantage and disadvantage wait for a d20.</p>
       <div class="dice-setup">
         <label>Count
