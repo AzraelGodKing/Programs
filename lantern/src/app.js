@@ -116,6 +116,7 @@ import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postB
 import { mentions, paintHere, paintPins, paintTalk, paintTargets, typingLine } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { bootDisplay } from "./display.js";
+import { cleanSpell, readLibraryFile, readPdfContent } from "./library.js";
 import { registerOffline } from "./pwa.js";
 
 const WORDS = {
@@ -493,7 +494,7 @@ function paintGate() {
     lede.textContent = "Six steps. Jump back whenever you want, then sit down.";
     actions.replaceChildren(...present([
       list.length ? h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back") : null,
-      h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file"),
+      h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file or PDF sheet"),
     ]));
     mount.replaceChildren();
     paintCreator();
@@ -517,7 +518,7 @@ function paintGate() {
   lede.textContent = "Load a living character, start a new one, or look back at a character who died.";
   actions.replaceChildren(
     h("button", { type: "button", class: "btn primary", "data-action": "create-character" }, "Create a new character"),
-    h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file"),
+    h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file or PDF sheet"),
   );
   mount.replaceChildren(
     ...list.filter((entry) => !entry.dead).map((entry) => rosterRow(entry, "Load", "load-character")),
@@ -770,9 +771,22 @@ async function importCharacter(file) {
   }
   let sheet;
   let dead;
+  let fromPdf = false;
   try {
-    if (file.size > SAVE_BYTES) throw new Error("That file is too large to be a character.");
-    ({ sheet, dead } = readCharacterFile(JSON.parse(await file.text())));
+    if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+      setGateStatus("Reading the sheet…");
+      const { readPdf, looksScanned } = await import("./pdfread.js");
+      const pdf = await readPdf(file);
+      if (looksScanned(pdf)) throw new Error("That PDF is a picture of a sheet, with no text to read. A fillable sheet or one exported from an app works.");
+      sheet = readPdfContent(pdf, "character").character;
+      if (!sheet) throw new Error("No character sheet found in that PDF.");
+      if (!sheet.name.trim()) sheet = { ...sheet, name: file.name.replace(/\.pdf$/i, "").slice(0, 80) };
+      dead = false;
+      fromPdf = true;
+    } else {
+      if (file.size > SAVE_BYTES) throw new Error("That file is too large to be a character.");
+      ({ sheet, dead } = readCharacterFile(JSON.parse(await file.text())));
+    }
   } catch (error) {
     setGateStatus(error instanceof SyntaxError ? "That file is not a Lantern character." : error.message);
     return;
@@ -787,6 +801,12 @@ async function importCharacter(file) {
     return;
   }
   loadCharacter(made.entry.id);
+  if (fromPdf) {
+    beginRevise();
+    creatorStep = CREATOR_STEPS.findIndex((item) => item.id === "review");
+    paintCreator();
+    setGateStatus(`Read ${sheet.name} from the PDF. Check each step, then sit down.`);
+  }
 }
 
 function loadCharacter(id) {
@@ -1974,6 +1994,7 @@ function renderKit() {
   paintResources(character);
   paintSlots();
   paintTonight(character);
+  paintSpellbook();
   paintKitChoices();
   paintWeight(character);
   paintAmmo(character);
@@ -3076,6 +3097,7 @@ function onClick(event) {
   const { action } = button.dataset;
   if (extraClick(action, button)) return;
   if (boardClick(action, button)) return;
+  if (libraryClick(action, button)) return;
   if (action === "play-alone") startSolo(document.getElementById("seat-name")?.value || "");
   else if (action === "toggle-pause") togglePause();
   else if (action === "revise-character") beginRevise();
@@ -4161,7 +4183,7 @@ function paintTrinkets() {
   mount.replaceChildren(...present([
     list.some((item) => item.attune) ? h("p", { class: "sheet-title" }, `Attuned ${count} of ${ATTUNE_CAP}`) : null,
     ...list.map((item) => h("div", { class: item.attuned ? "gear-row is-attuned" : "gear-row" }, present([
-      h("span", {}, `${item.name}${item.weight ? ` · ${item.weight} lb` : ""}`),
+      h("span", { title: item.note || null }, [`${item.name}${item.weight ? ` · ${item.weight} lb` : ""}`, item.note ? h("small", { class: "hint trinket-note" }, item.note) : null]),
       item.attune ? h("button", {
         type: "button",
         class: "btn",
@@ -4950,6 +4972,110 @@ async function copyRecap() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Spellbook and magic items read from a PDF or a Lantern file.
+
+const SPELL_ORDINAL = ["Cantrip", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th"];
+
+function paintSpellbook() {
+  const mount = document.getElementById("kit-spellbook");
+  if (!mount || typingInside(mount)) return;
+  const book = extras().spellbook || [];
+  mount.replaceChildren(...present([
+    h("h3", {}, "Spellbook"),
+    h("p", { class: "hint" }, "Spells you know. Prepare one to put it under Tonight with its slot."),
+    ...book.map((spell) => h("details", { class: "lib-row" }, [
+      h("summary", {}, [h("span", { class: "lib-name" }, spell.name), h("span", { class: "hint" }, ` ${SPELL_ORDINAL[spell.level]}${spell.school ? ` ${spell.school}` : ""}${spell.concentration ? " · concentration" : ""}${spell.range ? ` · ${spell.range}` : ""}`)]),
+      h("p", { class: "hint" }, [spell.castingTime, spell.components, spell.duration].filter(Boolean).join(" · ")),
+      spell.text ? h("p", { class: "lib-text" }, spell.text) : null,
+      h("div", { class: "turn-actions" }, [
+        h("button", { type: "button", class: "btn", "data-action": "prepare-spell", "data-id": spell.id }, "Prepare for tonight"),
+        h("button", { type: "button", class: "text-btn", "data-action": "forget-spell", "data-id": spell.id }, "Remove"),
+      ]),
+    ])),
+    book.length ? null : h("p", { class: "empty" }, "No spells in the book yet."),
+    h("div", { class: "turn-actions" }, [
+      h("button", { type: "button", class: "btn", "data-action": "read-spells" }, "Read spells from a PDF or Lantern file"),
+    ]),
+    h("p", { id: "spell-status", class: "hint", role: "status" }, ""),
+  ]));
+}
+
+async function readLibraryInput(file, want) {
+  if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+    const { readPdf, looksScanned } = await import("./pdfread.js");
+    const pdf = await readPdf(file);
+    if (looksScanned(pdf)) throw new Error("That PDF is a picture of a page, with no text to read.");
+    return readPdfContent(pdf, want);
+  }
+  return readLibraryFile(JSON.parse(await file.text()));
+}
+
+async function importSpells(file) {
+  const status = () => document.getElementById("spell-status");
+  setText(status(), "Reading…");
+  try {
+    const found = await readLibraryInput(file, "spells");
+    const spells = (found.spells || []).map((spell) => cleanSpell(spell, 800)).filter(Boolean);
+    if (!spells.length) throw new Error("No spells found. Lantern reads spells laid out like the SRD: name, then level and school.");
+    const ex = extras();
+    const known = new Set(ex.spellbook.map((spell) => spell.name.toLowerCase()));
+    const fresh = spells.filter((spell) => !known.has(spell.name.toLowerCase()));
+    state.character.extras = cleanExtras({ ...ex, spellbook: [...ex.spellbook, ...fresh] });
+    const kept = state.character.extras.spellbook.length - ex.spellbook.length;
+    persist(`Added ${kept} spells to the spellbook.`);
+    renderKit();
+    setText(status(), `Added ${kept} of ${spells.length}.${kept < fresh.length ? " The book holds forty." : ""}`);
+  } catch (error) {
+    setText(status(), error instanceof SyntaxError ? "That file is not a Lantern file or a PDF." : error.message);
+  }
+}
+
+async function importItems(file) {
+  const status = document.getElementById("item-status");
+  setText(status, "Reading…");
+  try {
+    const found = await readLibraryInput(file, "items");
+    const items = found.items || [];
+    if (!items.length) throw new Error("No magic items found. Lantern reads items laid out like the SRD: name, then type and rarity.");
+    const ex = extras();
+    const room = TRINKET_CAP - ex.trinkets.length;
+    const adding = items.slice(0, Math.max(0, room)).map((item) => ({
+      id: uid(),
+      name: item.name,
+      qty: 1,
+      weight: item.weight || 0,
+      attune: item.attune,
+      note: [item.rarity, item.text].filter(Boolean).join(". ").slice(0, 120),
+    }));
+    setExtras({ ...ex, trinkets: [...ex.trinkets, ...adding] }, `Added ${adding.length} magic items.`);
+    setText(status, `Added ${adding.length} of ${items.length}.${adding.length < items.length ? " The pack holds twenty magic items." : ""}`);
+  } catch (error) {
+    setText(status, error instanceof SyntaxError ? "That file is not a Lantern file or a PDF." : error.message);
+  }
+}
+
+function prepareSpell(id) {
+  const spell = extras().spellbook.find((item) => item.id === id);
+  if (!spell) return;
+  if ((state.character.spells || []).some((item) => item.name === spell.name)) {
+    setText(document.getElementById("spell-status"), `${spell.name} is already under Tonight.`);
+    return;
+  }
+  state.character.spells = [...(state.character.spells || []), { id: uid(), name: spell.name, slot: spell.level, used: false }];
+  persist(`Prepared ${spell.name}.`);
+  renderKit();
+}
+
+function libraryClick(action, button) {
+  if (action === "read-spells") document.getElementById("spell-file")?.click();
+  else if (action === "read-items") document.getElementById("item-file")?.click();
+  else if (action === "prepare-spell") prepareSpell(button.dataset.id);
+  else if (action === "forget-spell") setExtras({ ...extras(), spellbook: extras().spellbook.filter((item) => item.id !== button.dataset.id) }, "Removed a spell from the book.");
+  else return false;
+  return true;
+}
+
 function boot() {
   bootTextSize(document.getElementById("text-size"));
   bootDisplay({ contrast: document.getElementById("contrast-switch"), motion: document.getElementById("motion-switch") });
@@ -4982,6 +5108,13 @@ function boot() {
     if (file) void loadPortrait(file);
   });
   renderMacros();
+  for (const [id, read] of [["spell-file", importSpells], ["item-file", importItems]]) {
+    document.getElementById(id)?.addEventListener("change", (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) void read(file);
+    });
+  }
   const prefs = alertPrefs();
   const turnBox = document.getElementById("alert-turn");
   const mentionBox = document.getElementById("alert-mention");

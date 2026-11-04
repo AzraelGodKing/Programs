@@ -342,7 +342,9 @@ test("the party board keeps notes, quests, a glossary, and a stash", async () =>
   assert.deepEqual(took.taken, { name: "Rope", gearId: "rope" });
   await assert.rejects(room.board(mara.token, { op: "coin-take", cp: 5000 }), TableError);
   assert.equal((await room.board(mara.token, { op: "coin-take", cp: 400 })).board.stash.cp, 600);
-  await assert.rejects(room.board(dm, { op: "stash-put", name: "Gold" }), TableError);
+  const loot = await room.board(dm, { op: "stash-put", name: "Cloak of Protection" });
+  assert.equal(loot.board.stash.items.at(-1).by, "Dungeon Master");
+  await assert.rejects(room.board(dm, { op: "stash-take", id: loot.board.stash.items.at(-1).id }), TableError);
 });
 
 test("polls, ready checks, and the X-card", async () => {
