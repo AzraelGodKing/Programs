@@ -131,9 +131,26 @@
                 <input id="dm-ask" list="ask-options" maxlength="60" placeholder="Perception, Dexterity save, Initiative" spellcheck="false">
               </label>
               <datalist id="ask-options"></datalist>
+              <label>DC
+                <input id="dm-ask-dc" type="number" min="1" max="40" inputmode="numeric" placeholder="—">
+              </label>
+              <label class="check"><input id="dm-ask-hide" type="checkbox"> Hide the DC</label>
+              <label>Against
+                <select id="dm-ask-against" aria-label="Contest against a creature in the order"><option value="">No one</option></select>
+              </label>
               <button class="btn" type="submit">Ask</button>
+              <button class="text-btn" type="button" id="dm-ask-save">Save as preset</button>
             </form>
-            <p class="hint">The roll goes to whoever is in To. Their screen offers a button that rolls it with their own bonus.</p>
+            <div id="dm-ask-presets" class="chip-row" aria-label="Saved asks"></div>
+            <p class="hint">The roll goes to whoever is in To. Their screen offers a button that rolls it with their own bonus. A hidden DC stays on this screen. Against rolls the creature's side for you.</p>
+            <div id="dm-ask-cards" class="stack" aria-live="polite"></div>
+            <details class="dm-passive">
+              <summary>Passive checks</summary>
+              <label>Against DC
+                <input id="dm-passive-dc" type="number" min="1" max="40" inputmode="numeric" placeholder="15">
+              </label>
+              <div id="dm-passive-list" class="stack"></div>
+            </details>
           </section>
         </div>
       </div>
@@ -151,6 +168,32 @@
       <button type="button" class="btn" id="dm-seat-party">Seat the party</button>
     </div>
     <p id="dm-turn-banner" class="turn-banner">The round has not started</p>
+    <div class="turn-timer-row">
+      <p id="dm-turn-timer" class="hint" aria-live="off"></p>
+      <label>Turn timer
+        <select id="dm-turn-limit">
+          <option value="0">Off</option>
+          <option value="30">30 seconds</option>
+          <option value="60">1 minute</option>
+          <option value="90">90 seconds</option>
+          <option value="120">2 minutes</option>
+          <option value="180">3 minutes</option>
+        </select>
+      </label>
+    </div>
+    <form id="dm-quick-form" class="form quick-add" autocomplete="off">
+      <label>Monster
+        <input name="monster" list="monster-options" maxlength="80" placeholder="Goblin" spellcheck="false">
+      </label>
+      <datalist id="monster-options"></datalist>
+      <label>How many
+        <input name="count" type="number" min="1" max="12" value="1" inputmode="numeric">
+      </label>
+      <label class="check"><input name="shared" type="checkbox" checked> One initiative for the group</label>
+      <label class="check"><input name="hidden" type="checkbox"> Hidden from players</label>
+      <button class="btn primary" type="submit">Quick add</button>
+    </form>
+    <p class="hint">Quick add knows your Library monsters and a short SRD list, with their attacks. Or add one by hand:</p>
     <form id="dm-combatant-form" class="form" autocomplete="off">
       <label>Name
         <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="The third guard">
@@ -164,9 +207,45 @@
       <label>AC
         <input name="ac" type="number" min="0" inputmode="numeric" placeholder="—">
       </label>
+      <label class="check"><input name="hidden" type="checkbox"> Hidden</label>
       <button class="btn primary" type="submit">Add</button>
     </form>
+    <details id="dm-area" class="dm-area">
+      <summary>Damage several rows</summary>
+      <form id="dm-area-form" class="form" autocomplete="off">
+        <p id="dm-area-count" class="hint">No rows picked</p>
+        <label>Damage
+          <input name="amount" maxlength="10" placeholder="28 or 8d6" spellcheck="false">
+        </label>
+        <label>Save
+          <select name="save">
+            <option value="">No save</option>
+            <option value="str">Strength</option>
+            <option value="dex">Dexterity</option>
+            <option value="con">Constitution</option>
+            <option value="int">Intelligence</option>
+            <option value="wis">Wisdom</option>
+            <option value="cha">Charisma</option>
+          </select>
+        </label>
+        <label>DC
+          <input name="dc" type="number" min="1" max="40" value="15" inputmode="numeric">
+        </label>
+        <label>On a save
+          <select name="onsave">
+            <option value="half">Half</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        <button class="btn primary" type="submit">Apply to picked rows</button>
+      </form>
+      <p class="hint">Each picked row rolls its own save: a seat uses the hero's sheet, a monster its modifiers.</p>
+    </details>
     <div id="dm-order-list" class="stack"></div>
+    <section class="dm-log" aria-label="Your rolls">
+      <h3>Your rolls</h3>
+      <div id="dm-roll-log" class="stack" aria-live="polite"></div>
+    </section>
   </dialog>
   <dialog id="module-shop" class="gear-dialog module-dialog module-shop" aria-labelledby="shop-title">
     <div class="module-head">

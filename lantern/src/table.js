@@ -139,9 +139,10 @@ export async function postBuyback(code, body) {
   return response.json();
 }
 
-export async function postTalk(code, { text, to = "", ask = "", kind = "", as = "" }, token = "") {
+export async function postTalk(code, { text, to = "", ask = "", kind = "", as = "", dc = null }, token = "") {
   const body = { text, to };
   if (ask) body.ask = ask;
+  if (ask && Number.isInteger(dc)) body.dc = dc;
   if (kind) body.kind = kind;
   if (as) body.as = as;
   const response = await fetch(`/api/rooms/${normalizeCode(code)}/talk`, {
