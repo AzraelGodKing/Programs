@@ -59,6 +59,7 @@ function line(message, opts = {}) {
   if (message.to) classes.push("is-whisper");
   if (message.kind === "ooc") classes.push("is-ooc");
   if (message.kind === "emote") classes.push("is-emote");
+  if (message.kind === "read") classes.push("is-read");
   if (message.pinned) classes.push("is-pinned");
   if (opts.selfName && message.from !== opts.selfName && mentions(message.text, opts.mentionNames || [opts.selfName])) classes.push("is-mention");
   article.className = classes.join(" ");
@@ -75,7 +76,7 @@ function line(message, opts = {}) {
     head.append(img);
   }
   const speaker = message.as && message.as !== message.from ? `${message.as} (${message.from})` : message.from;
-  const who = el("p", "talk-who", message.to ? `${speaker} whispers to ${message.to}` : message.kind === "ooc" ? `${speaker} · out of character` : speaker);
+  const who = el("p", "talk-who", message.to ? `${speaker} whispers to ${message.to}` : message.kind === "ooc" ? `${speaker} · out of character` : message.kind === "read" ? `${speaker} · read aloud` : speaker);
   head.append(who);
   const time = document.createElement("time");
   const at = new Date(message.at);

@@ -101,6 +101,9 @@ import {
   encumbrance,
   formulaText,
   levelUpSteps,
+  applyGift,
+  levelForXp,
+  XP_LEVELS,
   parseFormula,
   potionHealing,
   restExtras,
@@ -118,7 +121,7 @@ import { bootTextSize } from "./textsize.js";
 import { bootDisplay } from "./display.js";
 import { cleanSpell, readLibraryFile, readPdfContent } from "./library.js";
 import { registerOffline } from "./pwa.js";
-import { turnTimerText } from "./combat.js";
+import { hourText, turnTimerText } from "./combat.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -2224,6 +2227,8 @@ function renderGear() {
     if (services) lines.push("A service is paid, not packed.");
     if (!goods) lines.push("This counter does not buy gear.");
     if (!lines.length) lines.push("Nothing is on this counter.");
+    const deal = Number(counter.deals?.[loadSeat().name]) || 0;
+    if (deal) lines.push(deal < 0 ? `The keeper gives you ${-deal}% off.` : `The keeper charges you ${deal}% more.`);
     lede.textContent = lines.join(" ");
   }
   shop.replaceChildren(...(offers.length
@@ -2298,6 +2303,12 @@ function heldForSeat() {
   ));
 }
 
+/** The DM's per-seat discount or markup, in percent. */
+function dealPrice(cp) {
+  const deal = Number(counter.deals?.[loadSeat().name]) || 0;
+  return deal ? Math.max(0, Math.round((cp * (100 + deal)) / 100)) : cp;
+}
+
 function normalizeShop(shop) {
   if (shop && typeof shop === "object") {
     const name = typeof shop.name === "string" ? shop.name.trim() : "";
@@ -2305,6 +2316,7 @@ function normalizeShop(shop) {
       open: shop.open !== false,
       name: name || "Shop",
       goods: Array.isArray(shop.goods) ? shop.goods : null,
+      deals: shop.deals && typeof shop.deals === "object" ? shop.deals : null,
     };
   }
   return { open: shop !== false, name: "Market", goods: null };
@@ -2319,7 +2331,7 @@ function counterOffers() {
     return [{
       id: known.id,
       name: known.name,
-      cp: good.cp,
+      cp: dealPrice(good.cp),
       service: known.service === true || good.service === true,
     }];
   });
@@ -4226,8 +4238,12 @@ function paintLevelUp(character) {
   const info = classInfo(character);
   const ex = extras();
   const steps = ex.levelSeen && ex.levelSeen === character.level && info ? levelUpSteps(character.classId, character.level, info.hitDie) : [];
+  const reached = levelForXp(ex.xp);
+  const ready = character.level < 20 && (ex.milestone || reached > character.level);
   mount.replaceChildren(...present([
     h("h3", {}, "Level"),
+    ex.xp || character.level > 1 ? h("p", { class: "hint" }, `${ex.xp} XP${character.level < 20 ? `. Level ${character.level + 1} at ${XP_LEVELS[character.level]}.` : "."}`) : null,
+    ready ? h("p", { class: "turn-banner is-mine" }, ex.milestone ? "The DM says you have reached a new level." : "You have the experience for a new level.") : null,
     character.level < 20 && info ? h("button", { type: "button", class: "btn", "data-action": "level-up" }, `Level up to ${character.level + 1}`) : null,
     steps.length ? h("p", { class: "lede" }, `Level ${character.level}. Work down the list, then close it.`) : null,
     steps.length ? h("ul", { class: "checklist" }, steps.map((step) => h("li", {}, [h("label", { class: "check-line" }, [h("input", { type: "checkbox" }), step])]))) : null,
@@ -4248,7 +4264,7 @@ function levelUp() {
     character.maxHp += gain;
     if (Number.isInteger(character.hp)) character.hp += gain;
   }
-  character.extras = cleanExtras({ ...extras(), levelSeen: character.level });
+  character.extras = cleanExtras({ ...extras(), levelSeen: character.level, milestone: false });
   persist(`${character.name || "The hero"} reaches level ${character.level}.`);
   void pushHeroVitals();
   renderKit();
@@ -4625,6 +4641,88 @@ function paintBoard(board) {
     if (board.xcard && !was) ping("X-card");
   }
   paintHelp(board.helps);
+  void takeGifts(board.gifts);
+  paintHandouts(board.handouts);
+  paintWorld(board.world);
+}
+
+// --- Rewards, handouts, and the world, from the DM.
+
+let giftBusy = false;
+
+async function takeGifts(gifts) {
+  const seat = loadSeat();
+  const mine = (gifts || []).filter((gift) => gift.to === seat.name);
+  if (giftBusy || !mine.length || gateMode !== "play") return;
+  giftBusy = true;
+  const lines = [];
+  try {
+    for (const gift of mine) {
+      const result = await postBoard(seat.room, { op: "gift-take", id: gift.id }).catch(() => null);
+      if (!result?.gift) continue;
+      const applied = applyGift(state.character, result.gift);
+      if (!applied) continue;
+      state.character = applied.character;
+      lines.push(`${applied.line}${result.gift.reason ? ` (${result.gift.reason})` : ""}`);
+    }
+  } finally {
+    giftBusy = false;
+  }
+  if (!lines.length) return;
+  persist(`Received ${lines.join(", ")} from the DM.`);
+  renderCharacter();
+  renderKit();
+  const banner = document.getElementById("gift-banner");
+  if (banner) {
+    banner.hidden = false;
+    banner.replaceChildren(
+      h("p", {}, `The DM gave you ${lines.join(", ")}.`),
+      h("div", { class: "ask-actions" }, [h("button", { type: "button", class: "text-btn", "data-action": "gift-ok" }, "Got it")]),
+    );
+  }
+  ping("A reward");
+}
+
+let seenHandouts = null;
+
+function paintHandouts(handouts) {
+  const mount = document.getElementById("party-handouts");
+  const list = handouts || [];
+  if (mount) {
+    mount.replaceChildren(...(list.length ? [...list].reverse().map((item) => h("div", { class: "gear-row" }, [
+      h("span", {}, `${item.title}${item.to ? " · just for you" : ""}${item.image ? " · picture" : ""}`),
+      h("button", { type: "button", class: "btn", "data-action": "open-handout", "data-id": item.id }, "Read"),
+    ])) : [h("p", { class: "empty" }, "The DM has not handed anything out.")]));
+  }
+  const ids = list.map((item) => item.id);
+  if (seenHandouts && ids.some((id) => !seenHandouts.includes(id))) {
+    const fresh = list.find((item) => !seenHandouts.includes(item.id));
+    setText(document.getElementById("roll-live"), `New handout: ${fresh.title}.`);
+    ping("A handout");
+    void openHandout(fresh.id);
+  }
+  seenHandouts = ids;
+}
+
+async function openHandout(id) {
+  const result = await boardOp({ op: "handout-get", id });
+  if (!result?.handout) return;
+  const { handout } = result;
+  setText(document.getElementById("handout-title"), handout.title);
+  const body = document.getElementById("handout-body");
+  body.replaceChildren(...present([
+    handout.image ? h("img", { src: handout.image, alt: handout.title, class: "handout-image" }) : null,
+    ...(handout.text ? handout.text.split(/\n{2,}/).map((para) => h("p", {}, para)) : []),
+  ]));
+  const dialog = document.getElementById("handout-dialog");
+  if (!dialog.open) dialog.showModal();
+}
+
+function paintWorld(world) {
+  const line = document.getElementById("world-line");
+  if (!line) return;
+  line.hidden = !world || gateMode !== "play";
+  if (world) line.textContent = `Day ${world.day} · ${String(world.hour).padStart(2, "0")}:00, ${hourText(world.hour)}${world.weather ? ` · ${world.weather}` : ""}`;
 }
 
 function paintPoll(poll) {
@@ -4857,6 +4955,9 @@ function boardClick(action, button) {
     "glossary-remove": () => void boardOp({ op: "glossary-remove", id: button.dataset.id }),
     "quest-remove": () => void boardOp({ op: "quest-remove", id: button.dataset.id }),
     "stash-take": () => void takeFromStash(button.dataset.id),
+    "open-handout": () => void openHandout(button.dataset.id),
+    "close-handout": () => document.getElementById("handout-dialog").close(),
+    "gift-ok": () => { document.getElementById("gift-banner").hidden = true; },
     "coin-put": () => void moveCoin("coin-put", readInt(document.getElementById("coin-amount"), 0, 0, 1_000_000) * 100),
     "coin-take": () => void moveCoin("coin-take", readInt(document.getElementById("coin-amount"), 0, 0, 1_000_000) * 100),
     "coin-share": () => void moveCoin("coin-take", Number(button.dataset.cp)),

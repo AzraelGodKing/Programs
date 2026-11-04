@@ -23,6 +23,11 @@ import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postBoard
 import { bootLibrary } from "./dmlibrary.js";
 import { bootCombat, combatRowBits, combatTableChanged, stepTurn } from "./dmcombat.js";
 import { asksTableChanged, bootAsks, paintAsks } from "./dmasks.js";
+import { glanceNodes, paintPacks } from "./dmparty.js";
+import { bootRewards, paintRewards, rewardsTableChanged } from "./dmrewards.js";
+import { bootStory, paintStoryRoom } from "./dmstory.js";
+import { knownMonsters } from "./dmcombat.js";
+import { monsterRows } from "./monsters.js";
 import { paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { registerOffline } from "./pwa.js";
@@ -35,7 +40,7 @@ const WORDS = {
   deadly: "Deadly",
 };
 
-const FEED_LABEL = { all: "All", rolls: "Rolls", table: "The rest" };
+const FEED_LABEL = { all: "All", rolls: "Rolls", table: "The rest", secret: "Secret" };
 const AWAY_MS = 20000;
 const NOTE_CAP = 4000;
 const NOTE_ROOMS = 20;
@@ -236,6 +241,7 @@ function seatCard(player) {
     ]),
     h("span", { class: "hint" }, view ? view.title : "No character yet."),
     vitals ? h("span", { class: "vitals" }, vitals) : null,
+    ...glanceNodes(player, hero),
     active ? h("span", { class: "their-turn" }, "Their turn") : null,
     down ? h("span", { class: "down-flag" }, "Down") : null,
     passiveSummary(snapshot.character) ? h("span", {}, passiveSummary(snapshot.character)) : null,
@@ -680,12 +686,14 @@ function bootTools() {
 function filteredEvents(events) {
   if (tools.feed === "rolls") return events.filter((event) => feedKind(event.summary) === "roll");
   if (tools.feed === "table") return events.filter((event) => feedKind(event.summary) !== "roll");
+  if (tools.feed === "secret") return events.filter((event) => event.secret);
   return events;
 }
 
 function emptyFeed() {
   if (tools.feed === "rolls") return "No rolls yet.";
   if (tools.feed === "table") return "No other news yet.";
+  if (tools.feed === "secret") return "No secret rolls yet.";
   return "Nothing has happened since this table opened.";
 }
 
@@ -727,6 +735,7 @@ function renderRoom(room) {
     all: room.events.length,
     rolls: room.events.filter((event) => feedKind(event.summary) === "roll").length,
     table: room.events.filter((event) => feedKind(event.summary) !== "roll").length,
+    secret: room.events.filter((event) => event.secret).length,
   };
   const shown = filteredEvents(room.events);
   document.getElementById("feed-list").replaceChildren(
@@ -961,7 +970,32 @@ function readCounter(open) {
     stall,
     name: document.getElementById("shop-name").value.trim() || known?.name || "Shop",
     goods,
+    deals: readDeals(),
   };
+}
+
+function readDeals() {
+  const deals = {};
+  for (const input of document.querySelectorAll("[data-deal]")) {
+    const value = Number(input.value);
+    if (Number.isInteger(value) && value !== 0 && value >= -50 && value <= 100) deals[input.dataset.deal] = value;
+  }
+  return deals;
+}
+
+function paintDeals(room) {
+  const mount = document.getElementById("shop-deals");
+  if (!mount || mount.contains(document.activeElement)) return;
+  const deals = room.shop && typeof room.shop === "object" ? room.shop.deals || {} : {};
+  const typed = readDeals();
+  mount.replaceChildren(...(room.players.length ? room.players.map((player) => h("label", {}, [
+    player.name,
+    h("input", {
+      type: "number", min: "-50", max: "100", step: "5", inputmode: "numeric",
+      value: String(typed[player.name] ?? deals[player.name] ?? 0),
+      "data-deal": player.name,
+    }),
+  ])) : [h("p", { class: "empty" }, "No one is seated.")]));
 }
 
 async function publishCounter(open) {
@@ -1011,6 +1045,10 @@ async function poll() {
   signature = next;
   renderRoom(room);
   paintAsks(room);
+  paintPacks(room);
+  paintRewards(room);
+  paintStoryRoom(room);
+  paintDeals(room);
   paintTalk(document.getElementById("dm-talk-log"), room.messages || [], { colors: playerColors(room.players) });
   paintTargets(
     document.getElementById("dm-talk-to"),
@@ -1193,6 +1231,7 @@ function showTable(next, token = "") {
   paintNotes();
   combatTableChanged();
   asksTableChanged();
+  rewardsTableChanged();
   void poll();
 }
 
@@ -1226,6 +1265,33 @@ function boot() {
       return;
     }
     showTable(next, /^[a-f0-9]{32}$/.test(secret) ? secret : "");
+  });
+  const refresh = async () => {
+    signature = "";
+    await poll();
+  };
+  document.getElementById("module-packs")?.addEventListener("toggle", () => paintPacks(lastRoom));
+  document.getElementById("dm-pack-search")?.addEventListener("input", () => paintPacks(lastRoom));
+  bootRewards({ code: () => code, token: () => dmToken, room: () => lastRoom, status: setStatus, refresh });
+  bootStory({
+    code: () => code,
+    token: () => dmToken,
+    room: () => lastRoom,
+    status: setStatus,
+    refresh,
+    async addToOrder(name, count) {
+      if (!code || !dmToken) throw new Error("Open a table first.");
+      const monster = knownMonsters().find((item) => item.name.toLowerCase() === name.toLowerCase());
+      if (!monster) throw new Error(`${name} is not in the Library or the quick list.`);
+      tableOrder.combatants.push(...monsterRows(monster, { count, existing: tableOrder.combatants, rollD20: () => roll({ count: 1, sides: 20 }).kept[0] }));
+      await saveOrder();
+    },
+    addGroup(name, count) {
+      const monster = knownMonsters().find((item) => item.name.toLowerCase() === name.toLowerCase());
+      prep().groups.push(cleanGroup({ name, count, cr: monster?.cr || "1" }));
+      saveTools();
+      renderDmThreat();
+    },
   });
   bootAsks({
     code: () => code,
@@ -1389,7 +1455,7 @@ function boot() {
   document.getElementById("dm-feed").addEventListener("click", (event) => {
     const button = event.target.closest("[data-feed]");
     if (!button) return;
-    tools.feed = button.dataset.feed === "rolls" || button.dataset.feed === "table" ? button.dataset.feed : "all";
+    tools.feed = ["rolls", "table", "secret"].includes(button.dataset.feed) ? button.dataset.feed : "all";
     saveTools();
     if (lastRoom) renderRoom(lastRoom);
   });

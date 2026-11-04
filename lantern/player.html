@@ -91,6 +91,8 @@
       </div>
     </div>
     <div id="ready-banner" class="ask-banner" hidden role="alert"></div>
+    <p id="world-line" class="world-line" hidden></p>
+    <div id="gift-banner" class="ask-banner gift-banner" hidden role="status"></div>
     <div id="turn-strip" class="turn-strip" hidden role="status"></div>
     <div id="ask-banner" class="ask-banner" hidden role="alert">
       <p id="ask-text"></p>
@@ -466,6 +468,8 @@
       <p class="lede">Shared with everyone at the table, the DM too. Playing alone, the party board waits for a table.</p>
       <p id="party-status" class="hint" role="status"></p>
       <div id="party-ready"></div>
+      <h3>Handouts</h3>
+      <div id="party-handouts" class="stack"></div>
       <h3>Party notes</h3>
       <textarea id="party-notes" maxlength="8000" rows="5" placeholder="Quest leads, the shopping list, who owes whom."></textarea>
       <p id="party-notes-by" class="hint"></p>
@@ -576,6 +580,11 @@
     <p id="recap-status" class="hint" role="status"></p>
     <div id="recap-list" class="recap-list"></div>
     <button type="button" class="btn" data-action="close-recap">Close</button>
+  </dialog>
+  <dialog id="handout-dialog" class="gear-dialog" aria-labelledby="handout-title">
+    <h2 id="handout-title">Handout</h2>
+    <div id="handout-body" class="handout-body"></div>
+    <button type="button" class="btn" data-action="close-handout">Close</button>
   </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
     <h2 id="keys-title">Keys</h2>
