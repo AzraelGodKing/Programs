@@ -1808,3 +1808,34 @@ html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-
 .passive-row { margin: 0; }
 .passive-row .tag { margin-left: 0.4rem; }
 .passive-row.is-noticed .tag { border-color: var(--moss); color: var(--moss); }
+
+/* DM party view, rewards, and story */
+.hp-bar { display: block; height: 6px; border-radius: 3px; background: var(--raise-2); overflow: hidden; margin: 0.2rem 0; }
+.hp-fill { display: block; height: 100%; background: var(--moss); }
+.hp-bar.is-bloodied .hp-fill { background: var(--ember); }
+.hp-bar.is-down .hp-fill { background: var(--blood); }
+.bloodied-tag { border-color: var(--ember); color: var(--ember); }
+.load-tag, .warn-tag { border-color: var(--gold); color: var(--gold); }
+.glance-line { font-size: 0.8rem; }
+.pack-grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); margin-top: 0.6rem; }
+.pack-card { border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.7rem; }
+.pack-list { margin: 0.3rem 0; padding-left: 1.1rem; }
+.pack-list .is-attuned { color: var(--gold); }
+.shop-deals { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.shop-deals input { width: 5rem; margin-left: 0.4rem; }
+.form .wide { grid-column: 1 / -1; }
+#module-story details, #module-rewards h3 { margin-top: 0.7rem; }
+#module-story summary { cursor: pointer; font-weight: 600; }
+.read-box, .npc-card { border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.7rem; }
+.read-box.is-read { opacity: 0.75; }
+.read-text { white-space: pre-wrap; font-family: var(--serif); }
+.npc-secret { color: var(--gold); }
+.scene-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.scene-row.is-done { opacity: 0.6; }
+.scene-row.is-stop { border-left: 3px solid var(--ember); padding-left: 0.4rem; }
+.gear-row.is-done { opacity: 0.65; }
+.world-line { margin: 0.3rem 0; color: var(--ash); font-size: 0.9rem; }
+.gift-banner { border-color: var(--gold); }
+.handout-image { max-width: 100%; height: auto; border-radius: 8px; display: block; margin-bottom: 0.6rem; }
+.talk-row.is-read, .is-read .talk-body, .talk-log .is-read { font-family: var(--serif); }
+.talk-log .is-read { border-left: 3px solid var(--gold); padding-left: 0.6rem; background: var(--raise-2); border-radius: 6px; }

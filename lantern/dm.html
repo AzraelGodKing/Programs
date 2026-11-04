@@ -94,6 +94,9 @@
         <button type="button" class="btn" data-module="threat" aria-haspopup="dialog" aria-controls="module-threat" aria-expanded="false">Threat</button>
         <button type="button" class="btn" data-module="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false">Notes</button>
         <button type="button" class="btn" data-module="library" aria-haspopup="dialog" aria-controls="module-library" aria-expanded="false">Library</button>
+        <button type="button" class="btn" data-module="packs" aria-haspopup="dialog" aria-controls="module-packs" aria-expanded="false">Packs</button>
+        <button type="button" class="btn" data-module="rewards" aria-haspopup="dialog" aria-controls="module-rewards" aria-expanded="false">Rewards</button>
+        <button type="button" class="btn" data-module="story" aria-haspopup="dialog" aria-controls="module-story" aria-expanded="false">Story</button>
       </div>
 
       <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
@@ -107,6 +110,7 @@
               <button type="button" class="btn" data-feed="all" aria-pressed="true">All</button>
               <button type="button" class="btn" data-feed="rolls" aria-pressed="false">Rolls</button>
               <button type="button" class="btn" data-feed="table" aria-pressed="false">The rest</button>
+              <button type="button" class="btn" data-feed="secret" aria-pressed="false">Secret</button>
             </div>
           </div>
           <div id="feed-list" class="stack"></div>
@@ -247,6 +251,200 @@
       <div id="dm-roll-log" class="stack" aria-live="polite"></div>
     </section>
   </dialog>
+  <dialog id="module-packs" class="gear-dialog module-dialog" aria-labelledby="packs-title">
+    <div class="module-head">
+      <h2 id="packs-title">Packs</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">What everyone carries and what they have attuned, read from their seats.</p>
+    <label>Who has
+      <input id="dm-pack-search" type="search" placeholder="rope, healing, torch" spellcheck="false">
+    </label>
+    <div id="dm-pack-hits" class="stack" aria-live="polite"></div>
+    <div id="dm-packs" class="pack-grid"></div>
+    <h3>Party notes</h3>
+    <pre id="dm-party-notes" class="dm-note"></pre>
+  </dialog>
+  <dialog id="module-rewards" class="gear-dialog module-dialog" aria-labelledby="rewards-title">
+    <div class="module-head">
+      <h2 id="rewards-title">Rewards</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <h3>Loot</h3>
+    <form id="dm-loot-form" class="form" autocomplete="off">
+      <label>To
+        <select name="to" data-reward-to="stash"></select>
+      </label>
+      <label>Item
+        <input name="name" maxlength="60" placeholder="Ring of the Drowned Moon" spellcheck="false">
+      </label>
+      <label>How many
+        <input name="qty" type="number" min="1" max="99" value="1" inputmode="numeric">
+      </label>
+      <label>Coin
+        <input name="coin" maxlength="20" placeholder="25 gp" spellcheck="false">
+      </label>
+      <label class="wide">What it does
+        <textarea name="text" rows="2" maxlength="600" placeholder="The card the player reads once it is identified."></textarea>
+      </label>
+      <label>Unidentified, shown as
+        <input name="shown" maxlength="60" placeholder="a cold silver ring" spellcheck="false">
+      </label>
+      <label class="check"><input name="attune" type="checkbox"> Needs attunement</label>
+      <label>Why
+        <input name="reason" maxlength="120" placeholder="From the barrow chest">
+      </label>
+      <button class="btn primary" type="submit">Give</button>
+    </form>
+    <p class="hint">A player's pack takes the item when their seat is next open. Leave "shown as" empty for an item they already understand.</p>
+    <h3>Not yet identified</h3>
+    <div id="dm-given" class="stack"></div>
+    <h3>Inspiration</h3>
+    <form id="dm-inspire-form" class="form" autocomplete="off">
+      <label>To
+        <select name="to" data-reward-to="seat"></select>
+      </label>
+      <label>Why
+        <input name="reason" maxlength="120" placeholder="The speech at the gate">
+      </label>
+      <button class="btn primary" type="submit">Inspire</button>
+    </form>
+    <h3>Experience</h3>
+    <form id="dm-xp-form" class="form" autocomplete="off">
+      <label>To
+        <select name="to" data-reward-to="seat"></select>
+      </label>
+      <label>XP
+        <input name="xp" type="number" min="1" max="400000" inputmode="numeric" placeholder="450">
+      </label>
+      <label class="check"><input name="split" type="checkbox" checked> Split it between everyone</label>
+      <label>Why
+        <input name="reason" maxlength="120" placeholder="The wolves of Hollow Road">
+      </label>
+      <button class="btn primary" type="submit">Award</button>
+    </form>
+    <div class="turn-actions">
+      <input id="dm-milestone-reason" maxlength="120" placeholder="Why, like the end of the first act" aria-label="Why the party levels up">
+      <button type="button" class="btn" id="dm-milestone">Milestone: everyone levels up</button>
+    </div>
+    <p class="hint">Each seat shows a level-up prompt once it has the experience or a milestone.</p>
+    <h3>Treasure hoard</h3>
+    <form id="dm-hoard-form" class="form" autocomplete="off">
+      <label>Challenge rating
+        <select name="cr">
+          <option value="2">0 to 4</option>
+          <option value="7">5 to 10</option>
+          <option value="13">11 to 16</option>
+          <option value="18">17 and up</option>
+        </select>
+      </label>
+      <button class="btn primary" type="submit">Roll a hoard</button>
+    </form>
+    <p class="hint">Lantern's own tables, not a book's.</p>
+    <div id="dm-hoard" class="stack"></div>
+  </dialog>
+  <dialog id="module-story" class="gear-dialog module-dialog" aria-labelledby="story-title">
+    <div class="module-head">
+      <h2 id="story-title">Story</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">Your notebook stays in this browser between sessions. Only what you hand out or read reaches the table.</p>
+    <details open>
+      <summary>Day and weather</summary>
+      <p id="dm-world-now" class="hint"></p>
+      <form id="dm-world-form" class="form" autocomplete="off">
+        <label>Day <input name="day" type="number" min="1" max="9999" value="1" inputmode="numeric"></label>
+        <label>Hour <input name="hour" type="number" min="0" max="23" value="8" inputmode="numeric"></label>
+        <label>Weather
+          <input name="weather" list="weather-options" maxlength="40" placeholder="Light rain" spellcheck="false">
+        </label>
+        <datalist id="weather-options">
+          <option value="Clear"></option><option value="Overcast"></option><option value="Light rain"></option><option value="Storm"></option>
+          <option value="Fog"></option><option value="Snow"></option><option value="Bitter cold"></option><option value="Heat haze"></option>
+        </datalist>
+        <button class="btn primary" type="submit">Show the table</button>
+      </form>
+      <div class="turn-actions">
+        <button type="button" class="btn" data-story="time" data-hours="1">An hour</button>
+        <button type="button" class="btn" data-story="time" data-hours="1">Short rest</button>
+        <button type="button" class="btn" data-story="time" data-hours="8">Long rest</button>
+        <button type="button" class="btn" data-story="time" data-hours="10">A day of travel</button>
+        <button type="button" class="text-btn" data-story="world-clear">Hide</button>
+      </div>
+    </details>
+    <details>
+      <summary>Handouts</summary>
+      <form id="dm-handout-form" class="form" autocomplete="off">
+        <label>To <select name="to" id="dm-handout-to"></select></label>
+        <label>Title <input name="title" maxlength="80" placeholder="The ferryman's letter"></label>
+        <label class="wide">Words <textarea name="text" rows="3" maxlength="4000"></textarea></label>
+        <label>Picture <input name="image" type="file" accept="image/*"></label>
+        <button class="btn primary" type="submit">Hand it out</button>
+      </form>
+      <div id="dm-handouts" class="stack"></div>
+    </details>
+    <details>
+      <summary>Read aloud</summary>
+      <form id="dm-box-form" class="form" autocomplete="off">
+        <label>Title <input name="title" maxlength="80" placeholder="The flooded crypt"></label>
+        <label class="wide">Boxed text <textarea name="text" rows="3" maxlength="3000" required></textarea></label>
+        <button class="btn primary" type="submit">Keep it ready</button>
+      </form>
+      <div id="dm-boxes" class="stack"></div>
+    </details>
+    <details>
+      <summary>NPCs</summary>
+      <form id="dm-npc-form" class="form" autocomplete="off">
+        <label>Name <input name="name" maxlength="80" required></label>
+        <label>Voice <input name="voice" maxlength="200" placeholder="Slow, gravel, never says no"></label>
+        <label class="wide">What the players see <textarea name="shown" rows="2" maxlength="600"></textarea></label>
+        <label class="wide">Secrets <textarea name="secrets" rows="2" maxlength="1500"></textarea></label>
+        <button class="btn primary" type="submit">Add the NPC</button>
+      </form>
+      <div id="dm-npcs" class="stack"></div>
+    </details>
+    <details>
+      <summary>Quests</summary>
+      <form id="dm-quest-form" class="form" autocomplete="off">
+        <label>Quest <input name="title" maxlength="120" required></label>
+        <label class="check"><input name="hidden" type="checkbox"> Hidden until revealed</label>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div id="dm-quests" class="stack"></div>
+    </details>
+    <details>
+      <summary>Glossary</summary>
+      <form id="dm-gloss-form" class="form" autocomplete="off">
+        <label>Name <input name="name" maxlength="60" required></label>
+        <label class="wide">Entry <textarea name="body" rows="2" maxlength="600"></textarea></label>
+        <label class="check"><input name="hidden" type="checkbox" checked> Hidden until they learn it</label>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div id="dm-glossary" class="stack"></div>
+    </details>
+    <details>
+      <summary>Session plan</summary>
+      <form id="dm-scene-form" class="form" autocomplete="off">
+        <label>Scene <input name="title" maxlength="120" required placeholder="Ambush at the ford"></label>
+        <label>Content warning <input name="warning" maxlength="160" placeholder="drowning, spiders"></label>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div id="dm-scenes" class="stack"></div>
+    </details>
+    <details>
+      <summary>Random encounters</summary>
+      <form id="dm-enc-form" class="form" autocomplete="off">
+        <label>What happens <input name="text" maxlength="160" required placeholder="Wolves circle the camp"></label>
+        <label>Monster <input name="monster" list="monster-options" maxlength="80" placeholder="Wolf"></label>
+        <label>How many <input name="count" type="number" min="1" max="12" value="1"></label>
+        <label>Weight <input name="weight" type="number" min="1" max="20" value="1"></label>
+        <button class="btn primary" type="submit">Add the row</button>
+      </form>
+      <div id="dm-encounters" class="stack"></div>
+      <button type="button" class="btn primary" data-story="enc-roll">Roll on the table</button>
+      <div id="dm-encounter-result" class="stack" aria-live="polite"></div>
+    </details>
+  </dialog>
   <dialog id="module-shop" class="gear-dialog module-dialog module-shop" aria-labelledby="shop-title">
     <div class="module-head">
       <h2 id="shop-title">Shop</h2>
@@ -271,6 +469,9 @@
       </div>
       <p class="hint">Uncheck a line to take it off this counter. A bare number in the price is gold. Write pp, gp, ep, sp, or cp when you mean those coins: 1 pp is 10 gp, and 1 ep is 5 sp. Players sell these goods back at half that price, and can buy that sale back for the same coin until you close the shop. A service is not bought back.</p>
       <div id="shop-goods" class="shop-goods"></div>
+      <h3>Haggling</h3>
+      <p class="hint">A discount or markup for one player at this counter, in percent: −20 is a fifth off, 25 is a quarter more. Only that player sees it. Open the shop again to apply a change.</p>
+      <div id="shop-deals" class="shop-deals"></div>
       <label class="base-find">Base list
         <input id="base-find" type="search" placeholder="Plate, rations, lute" spellcheck="false" aria-label="Find a base item">
       </label>

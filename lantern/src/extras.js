@@ -3,7 +3,7 @@
 // Everything here is plain data so it saves with the night and shares with the DM.
 
 import { STANDARD_SIDES } from "./dice.js";
-import { findGear } from "./gear.js";
+import { findGear, formatCoin } from "./gear.js";
 import { MARKS } from "./marks.js";
 
 const SIDES = new Set(STANDARD_SIDES);
@@ -103,7 +103,9 @@ function cleanTrinket(raw, index) {
     weight: int(raw.weight, 0, 0, 500),
     attune: raw.attune === true,
     attuned: raw.attune === true && raw.attuned === true,
-    note: text(raw.note, 120),
+    note: text(raw.note, 600),
+    ...(typeof raw.key === "string" && /^[a-f0-9]{16}$/.test(raw.key) ? { key: raw.key } : {}),
+    ...(raw.unknown === true ? { unknown: true } : {}),
   };
 }
 
@@ -192,7 +194,62 @@ export function cleanExtras(input) {
     conditions: [...new Set((Array.isArray(src.conditions) ? src.conditions : []).filter((mark) => MARKS.includes(mark)))],
     ammoLeft: int(src.ammoLeft, 0, 0, 9999),
     spellbook: cleanBook(src.spellbook),
+    xp: int(src.xp, 0, 0, 400000),
+    milestone: src.milestone === true,
   };
+}
+
+/** 2014 experience thresholds: the XP each level starts at. */
+export const XP_LEVELS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
+
+/** The level that much experience reaches. */
+export function levelForXp(xp) {
+  let level = 1;
+  for (let index = 0; index < XP_LEVELS.length; index += 1) if (xp >= XP_LEVELS[index]) level = index + 1;
+  return level;
+}
+
+/**
+ * Applies a reward from the DM to a character. Returns the new character
+ * and a line that says what happened, or null when the gift is not understood.
+ */
+export function applyGift(character, gift) {
+  const next = structuredClone(character);
+  const ex = cleanExtras(next.extras);
+  let line = "";
+  if (gift.kind === "coin") {
+    next.purse = Math.min(100_000_000, (next.purse || 0) + gift.cp);
+    line = formatCoin(gift.cp);
+  } else if (gift.kind === "inspiration") {
+    next.inspiration = true;
+    line = "inspiration";
+  } else if (gift.kind === "xp") {
+    if (gift.xp) ex.xp = Math.min(400000, ex.xp + gift.xp);
+    if (gift.milestone) ex.milestone = true;
+    line = gift.milestone ? "a milestone" : `${gift.xp} XP`;
+  } else if (gift.kind === "item") {
+    if (ex.trinkets.length >= TRINKET_CAP) return null;
+    const unknown = Boolean(gift.shown);
+    ex.trinkets.push({
+      id: `g${gift.key}`,
+      key: gift.key,
+      name: unknown ? gift.shown : gift.name,
+      qty: gift.qty || 1,
+      attune: gift.attune === true,
+      note: unknown ? "Not yet identified." : gift.text || "",
+      ...(unknown ? { unknown: true } : {}),
+    });
+    line = unknown ? gift.shown : gift.name;
+  } else if (gift.kind === "identify") {
+    const found = ex.trinkets.find((item) => item.key === gift.key);
+    if (!found) return null;
+    found.name = gift.name;
+    found.note = gift.text || "";
+    delete found.unknown;
+    line = `what ${gift.name} really is`;
+  } else return null;
+  next.extras = cleanExtras(ex);
+  return { character: next, line };
 }
 
 export function attunedCount(extras) {

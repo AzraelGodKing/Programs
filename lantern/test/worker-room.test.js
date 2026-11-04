@@ -459,3 +459,49 @@ test("answers to an ask carry its id and total, and the DM can roll for a player
   assert.deepEqual(answers.map((event) => event.total), [9, 15]);
   assert.equal(answers[0].by, DM_NAME);
 });
+
+test("rewards, handouts, hidden entries, the world, and deals", async () => {
+  const room = new TableRoom(memoryStorage());
+  const dm = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  const bram = await room.join("", { name: "Bram" });
+  await assert.rejects(room.board(mara.token, { op: "gift", kind: "coin", cp: 100 }), TableError);
+  await room.board(dm, { op: "gift", kind: "inspiration", to: "Mara", reason: "Good plan" });
+  await room.board(dm, { op: "gift", kind: "xp", xp: 100 });
+  let view = await room.view(mara.token);
+  assert.equal(view.board.gifts.length, 2);
+  assert.equal((await room.view(bram.token)).board.gifts.length, 1);
+  assert.ok(view.events.some((event) => event.summary === "The DM gave Mara inspiration: Good plan"));
+  const taken = await room.board(mara.token, { op: "gift-take", id: view.board.gifts[0].id });
+  assert.equal(taken.gift.kind, "inspiration");
+  await assert.rejects(room.board(bram.token, { op: "gift-take", id: view.board.gifts[1].id }), TableError);
+
+  await room.board(dm, { op: "handout", title: "Letter", text: "Meet at dawn.", to: "Bram" });
+  view = await room.view(mara.token);
+  assert.equal(view.board.handouts.length, 0);
+  const bramView = await room.view(bram.token);
+  const got = await room.board(bram.token, { op: "handout-get", id: bramView.board.handouts[0].id });
+  assert.equal(got.handout.text, "Meet at dawn.");
+  await assert.rejects(room.board(mara.token, { op: "handout-get", id: bramView.board.handouts[0].id }), TableError);
+
+  await room.board(dm, { op: "quest-add", title: "The secret door", hidden: true });
+  await room.board(mara.token, { op: "quest-add", title: "Buy rope", hidden: true });
+  await room.board(dm, { op: "glossary-add", name: "The Pale King", hidden: true });
+  view = await room.view(mara.token);
+  assert.deepEqual(view.board.quests.map((quest) => quest.title), ["Buy rope"]);
+  assert.equal(view.board.glossary.length, 0);
+  const full = await room.view(dm);
+  await room.board(dm, { op: "glossary-reveal", id: full.board.glossary[0].id });
+  assert.equal((await room.view(mara.token)).board.glossary.length, 1);
+
+  await room.board(dm, { op: "world", day: 3, hour: 19, weather: "Fog" });
+  assert.deepEqual({ ...(await room.view(bram.token)).board.world, at: 0 }, { day: 3, hour: 19, weather: "Fog", at: 0 });
+
+  await room.setShop(dm, { open: true, name: "Smith", goods: [], deals: { Mara: -20, Bram: 10 } });
+  assert.deepEqual((await room.view(mara.token)).shop.deals, { Mara: -20 });
+  assert.deepEqual((await room.view(dm)).shop.deals, { Mara: -20, Bram: 10 });
+
+  await assert.rejects(room.talk(mara.token, { text: "Hear ye", kind: "read" }), TableError);
+  const read = await room.talk(dm, { text: "The door creaks.", kind: "read" });
+  assert.equal(read.kind, "read");
+});

@@ -3,7 +3,7 @@
  * the network answers and kept for when it does not, so solo play still opens
  * offline. The shared table (/api/) always goes to the network.
  */
-const CACHE = "lantern-shell-v4";
+const CACHE = "lantern-shell-v5";
 const SHELL = [
   "/",
   "/index.html",
@@ -23,6 +23,9 @@ const SHELL = [
   "/src/dm.js",
   "/src/dmasks.js",
   "/src/dmcombat.js",
+  "/src/dmparty.js",
+  "/src/dmrewards.js",
+  "/src/dmstory.js",
   "/src/dmlibrary.js",
   "/src/display.js",
   "/src/extras.js",
@@ -42,6 +45,7 @@ const SHELL = [
   "/src/store.js",
   "/src/table.js",
   "/src/talk.js",
+  "/src/treasure.js",
   "/src/textsize.js",
 ];
 

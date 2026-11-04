@@ -116,3 +116,14 @@ export function turnTimerText(order, now = Date.now()) {
   const over = spent > order.turnLimit * 1000;
   return `${line} of ${clockText(order.turnLimit * 1000)}${over ? " · time" : ""}`;
 }
+
+/** A word for the hour: dawn, morning, midday, afternoon, dusk, evening, or night. */
+export function hourText(hour) {
+  if (hour < 5) return "night";
+  if (hour < 7) return "dawn";
+  if (hour < 12) return "morning";
+  if (hour < 14) return "midday";
+  if (hour < 18) return "afternoon";
+  if (hour < 20) return "dusk";
+  return "evening";
+}

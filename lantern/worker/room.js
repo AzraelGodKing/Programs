@@ -131,6 +131,7 @@ export function cleanTalk(payload) {
   if (to === name) throw new TableError("Whisper someone else.");
   const ask = cleanAsk(payload.ask, name);
   const kind = TALK_KINDS.includes(payload.kind) ? payload.kind : "";
+  if (kind === "read" && name !== DM_NAME) throw new TableError("Only the DM reads aloud.");
   const as = typeof payload.as === "string" ? collapse(payload.as).slice(0, 80) : "";
   const message = { name, text, to };
   if (ask) message.ask = ask;
@@ -140,7 +141,7 @@ export function cleanTalk(payload) {
   return message;
 }
 
-export const TALK_KINDS = ["ic", "ooc", "emote"];
+export const TALK_KINDS = ["ic", "ooc", "emote", "read"];
 export const REACTIONS = ["👍", "😂", "😮", "💀", "❤️", "🎲"];
 const BOARD_LIST_CAP = 60;
 const HELP_MS = 10 * 60 * 1000;
@@ -156,7 +157,35 @@ export function blankBoard() {
     ready: null,
     xcard: null,
     helps: [],
+    gifts: [],
+    handouts: [],
+    world: null,
   };
+}
+
+export const GIFT_KINDS = ["item", "coin", "inspiration", "xp", "identify"];
+const GIFT_CAP = 40;
+const HANDOUT_CAP = 12;
+export const HANDOUT_IMAGE_CHARS = 120_000;
+
+/** What one viewer may see of the board. Hidden quests and glossary entries, and other people's gifts and handouts, stay with the DM. */
+export function boardFor(board, who) {
+  if (who.role === "dm") return board;
+  return {
+    ...board,
+    glossary: board.glossary.filter((item) => !item.hidden),
+    quests: board.quests.filter((item) => !item.hidden),
+    helps: board.helps.filter((help) => help.to === who.name || help.from === who.name),
+    gifts: board.gifts.filter((gift) => gift.to === who.name),
+    handouts: board.handouts.filter((item) => !item.to || item.to === who.name),
+  };
+}
+
+function cleanWorld(payload) {
+  const day = intField(payload.day, 1, 1, 9999);
+  const hour = intField(payload.hour, 8, 0, 23);
+  const weather = typeof payload.weather === "string" ? collapse(payload.weather).slice(0, 40) : "";
+  return { day, hour, weather };
 }
 
 function boardText(value, max, what) {
@@ -184,6 +213,14 @@ export function cleanAsk(value, name) {
   if (typeof value !== "string") throw new TableError("Ask for a roll by name.");
   if (name !== DM_NAME) throw new TableError("Only the DM asks for rolls.");
   return collapse(value).slice(0, INTENT_LENGTH);
+}
+
+/** A player sees only their own deal at the counter. */
+export function shopFor(shop, who) {
+  if (!shop || typeof shop !== "object" || !shop.deals || who.role === "dm") return shop;
+  const deal = shop.deals[who.name];
+  const { deals, ...rest } = shop;
+  return Number.isInteger(deal) && deal ? { ...rest, deals: { [who.name]: deal } } : rest;
 }
 
 export function shopIsOpen(shop) {
@@ -223,7 +260,16 @@ export function cleanShop(payload) {
     goods.push({ id: raw.id, name: label, cp: raw.cp, service: raw.service === true });
     seen.add(raw.id);
   }
-  return { open, name: name || "Shop", stall, goods };
+  const deals = {};
+  if (payload.deals && typeof payload.deals === "object" && !Array.isArray(payload.deals)) {
+    for (const [who, percent] of Object.entries(payload.deals).slice(0, 12)) {
+      const seat = collapse(String(who)).slice(0, NAME_LENGTH);
+      if (seat && Number.isInteger(percent) && percent !== 0 && percent >= -50 && percent <= 100) deals[seat] = percent;
+    }
+  }
+  const shop = { open, name: name || "Shop", stall, goods };
+  if (Object.keys(deals).length) shop.deals = deals;
+  return shop;
 }
 
 export function cleanBuyback(payload) {
@@ -349,13 +395,12 @@ export class TableRoom {
       .sort((a, b) => b.seen - a.seen);
     const messages = ((await this.storage.get("messages")) || []).filter((message) => messageVisible(message, who.name));
     const buybacks = shopIsOpen(shop) ? ((await this.storage.get("buybacks")) || []) : [];
-    const board = cleanBoard(await this.storage.get("board"));
-    board.helps = board.helps.filter((help) => who.role === "dm" || help.to === who.name || help.from === who.name);
+    const board = boardFor(cleanBoard(await this.storage.get("board")), who);
     return {
       events: [...events].reverse(),
       board,
       players,
-      shop,
+      shop: shopFor(shop, who),
       buybacks: buybacks.map((line) => ({ ...line })),
       messages,
       order: who.role === "dm" ? order : playerOrder(order),
@@ -605,7 +650,113 @@ export class TableRoom {
     }
     const board = cleanBoard(await this.storage.get("board"));
     const by = who.name;
+    const dmOnly = (what) => {
+      if (who.role !== "dm") throw new TableError(`Only the DM ${what}.`);
+    };
     switch (op) {
+      case "gift": {
+        dmOnly("hands out rewards");
+        const kind = GIFT_KINDS.includes(payload.kind) ? payload.kind : "";
+        if (!kind) throw new TableError("That is not a reward Lantern knows.");
+        const seats = [...(await this.storage.list({ prefix: "seat:" })).values()].map((seat) => seat.name);
+        const to = cleanTarget(payload.to);
+        const names = to ? [to] : seats;
+        if (to && !seats.includes(to)) throw new TableError("Nobody by that name is seated.");
+        if (!names.length) throw new TableError("Nobody is seated yet.");
+        const reason = typeof payload.reason === "string" ? collapse(payload.reason).slice(0, 120) : "";
+        const gift = { kind, reason, at: now };
+        if (kind === "item" || kind === "identify") {
+          gift.name = boardText(payload.name, 60, "The item");
+          gift.text = typeof payload.text === "string" ? payload.text.trim().slice(0, 600) : "";
+          gift.key = typeof payload.key === "string" && /^[a-f0-9]{16}$/.test(payload.key) ? payload.key : hexId();
+          gift.qty = intField(payload.qty, 1, 1, 99);
+          if (kind === "item" && typeof payload.shown === "string" && collapse(payload.shown)) gift.shown = collapse(payload.shown).slice(0, 60);
+          if (payload.attune === true) gift.attune = true;
+        }
+        if (kind === "coin") gift.cp = intField(payload.cp, 0, 1, PRICE_CAP);
+        if (kind === "xp") {
+          gift.xp = intField(payload.xp, 0, 0, 400_000);
+          if (payload.milestone === true) gift.milestone = true;
+          if (!gift.xp && !gift.milestone) throw new TableError("Give some experience, or a milestone.");
+        }
+        if (board.gifts.length + names.length > GIFT_CAP) throw new TableError("Too many rewards are waiting to be picked up.");
+        let events = (await this.storage.get("events")) || [];
+        for (const name of names) {
+          board.gifts.push({ id: hexId(), to: name, ...gift });
+          const what = kind === "item" ? `${gift.shown || gift.name}${gift.qty > 1 ? ` × ${gift.qty}` : ""}`
+            : kind === "coin" ? `${Math.floor(gift.cp / 100)} gp${gift.cp % 100 ? ` ${gift.cp % 100} cp` : ""}`
+              : kind === "xp" ? (gift.milestone ? "a milestone level" : `${gift.xp} XP`)
+                : kind === "identify" ? `the truth about ${gift.name}` : "inspiration";
+          if (kind !== "identify") events.push({ id: hexId(), at: now, name, by: DM_NAME, summary: `The DM gave ${name} ${what}${reason ? `: ${reason}` : "."}` });
+        }
+        if (events.length > EVENT_CAP) events = events.slice(-EVENT_CAP);
+        await this.storage.put({ board, events });
+        await this.storage.setAlarm(now + IDLE_MS);
+        return { ok: true, board: boardFor(board, who) };
+      }
+      case "gift-take": {
+        if (who.role !== "player") throw new TableError("Only a player picks up a reward.");
+        const id = boardId(payload.id);
+        const gift = board.gifts.find((item) => item.id === id && item.to === who.name);
+        if (!gift) throw new TableError("That reward was already picked up.");
+        board.gifts = board.gifts.filter((item) => item !== gift);
+        await this.storage.put("board", board);
+        return { ok: true, board: boardFor(board, who), gift };
+      }
+      case "handout": {
+        dmOnly("hands out handouts");
+        const title = boardText(payload.title, 80, "The title");
+        const body = typeof payload.text === "string" ? payload.text.trim().slice(0, 4000) : "";
+        const image = typeof payload.image === "string" && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(payload.image)
+          ? payload.image : "";
+        if (image.length > HANDOUT_IMAGE_CHARS) throw new TableError("That picture is too large. Try a smaller one.");
+        if (!body && !image) throw new TableError("A handout needs words or a picture.");
+        const to = cleanTarget(payload.to);
+        const id = hexId();
+        board.handouts.push({ id, to, title, at: now, image: Boolean(image) });
+        if (board.handouts.length > HANDOUT_CAP) {
+          const gone = board.handouts.shift();
+          await this.storage.put(`handout:${gone.id}`, null);
+        }
+        await this.storage.put({ board, [`handout:${id}`]: { text: body, image } });
+        await this.storage.setAlarm(now + IDLE_MS);
+        return { ok: true, board: boardFor(board, who) };
+      }
+      case "handout-get": {
+        const id = boardId(payload.id);
+        const meta = boardFor(board, who).handouts.find((item) => item.id === id);
+        if (!meta) throw new TableError("That handout is not yours to read.");
+        const body = (await this.storage.get(`handout:${id}`)) || { text: "", image: "" };
+        return { ok: true, handout: { ...meta, text: body.text || "", image: body.image || "" } };
+      }
+      case "handout-remove": {
+        dmOnly("takes back handouts");
+        const id = boardId(payload.id);
+        board.handouts = board.handouts.filter((item) => item.id !== id);
+        await this.storage.put({ board, [`handout:${id}`]: null });
+        return { ok: true, board };
+      }
+      case "glossary-reveal": {
+        dmOnly("reveals the glossary");
+        const entry = board.glossary.find((item) => item.id === boardId(payload.id));
+        if (!entry) throw new TableError("That entry is gone.");
+        if (entry.hidden) delete entry.hidden;
+        else entry.hidden = true;
+        break;
+      }
+      case "quest-hide": {
+        dmOnly("hides quests");
+        const quest = board.quests.find((item) => item.id === boardId(payload.id));
+        if (!quest) throw new TableError("That quest is gone.");
+        if (quest.hidden) delete quest.hidden;
+        else quest.hidden = true;
+        break;
+      }
+      case "world": {
+        dmOnly("sets the weather and the hour");
+        board.world = payload.clear === true ? null : { ...cleanWorld(payload), at: now };
+        break;
+      }
       case "notes": {
         if (typeof payload.text !== "string") throw new TableError("Notes have to be text.");
         board.notes = { text: payload.text.slice(0, 8000), by, at: now };
@@ -617,7 +768,7 @@ export class TableRoom {
         const body = typeof payload.body === "string" ? payload.body.trim().slice(0, 600) : "";
         const found = board.glossary.find((item) => item.name.toLowerCase() === name.toLowerCase());
         if (found) Object.assign(found, { body, by, at: now });
-        else board.glossary.push({ id: hexId(), name, body, by, at: now });
+        else board.glossary.push({ id: hexId(), name, body, by, at: now, ...(who.role === "dm" && payload.hidden === true ? { hidden: true } : {}) });
         board.glossary.sort((a, b) => a.name.localeCompare(b.name));
         break;
       }
@@ -626,7 +777,7 @@ export class TableRoom {
         break;
       case "quest-add": {
         if (board.quests.length >= BOARD_LIST_CAP) throw new TableError("The quest log is full.");
-        board.quests.push({ id: hexId(), title: boardText(payload.title, 120, "The quest"), done: false, by, at: now });
+        board.quests.push({ id: hexId(), title: boardText(payload.title, 120, "The quest"), done: false, by, at: now, ...(who.role === "dm" && payload.hidden === true ? { hidden: true } : {}) });
         break;
       }
       case "quest-toggle": {
@@ -728,7 +879,7 @@ export class TableRoom {
     }
     await this.storage.put("board", board);
     await this.storage.setAlarm(now + IDLE_MS);
-    return { ok: true, board };
+    return { ok: true, board: boardFor(board, who) };
   }
 }
 
