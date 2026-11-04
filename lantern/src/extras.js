@@ -121,6 +121,36 @@ function cleanSlots(value) {
   });
 }
 
+export const SPELLBOOK_CAP = 40;
+const SCHOOLS = ["abjuration", "conjuration", "divination", "enchantment", "evocation", "illusion", "necromancy", "transmutation"];
+
+/** The spells a character knows, in the same shape as a library spell, with shorter text. */
+function cleanBook(value) {
+  const seen = new Set();
+  const book = [];
+  for (const raw of Array.isArray(value) ? value : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const name = text(raw.name, 80);
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    book.push({
+      id: idOf(raw.id, `s${book.length}`),
+      name,
+      level: int(raw.level, 0, 0, 9),
+      school: SCHOOLS.includes(raw.school) ? raw.school : "",
+      ritual: raw.ritual === true,
+      castingTime: text(raw.castingTime, 60),
+      range: text(raw.range, 60),
+      components: text(raw.components, 120),
+      duration: text(raw.duration, 60),
+      concentration: raw.concentration === true,
+      text: typeof raw.text === "string" ? raw.text.trim().slice(0, 800) : "",
+    });
+    if (book.length === SPELLBOOK_CAP) break;
+  }
+  return book;
+}
+
 export function blankExtras() {
   return {
     macros: [],
@@ -134,6 +164,7 @@ export function blankExtras() {
     levelSeen: 0,
     conditions: [],
     ammoLeft: 0,
+    spellbook: [],
   };
 }
 
@@ -160,6 +191,7 @@ export function cleanExtras(input) {
     levelSeen: int(src.levelSeen, 0, 0, 20),
     conditions: [...new Set((Array.isArray(src.conditions) ? src.conditions : []).filter((mark) => MARKS.includes(mark)))],
     ammoLeft: int(src.ammoLeft, 0, 0, 9999),
+    spellbook: cleanBook(src.spellbook),
   };
 }
 

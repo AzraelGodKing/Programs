@@ -79,7 +79,7 @@
     <p id="character-gate-lede" class="lede"></p>
     <div id="character-gate-actions" class="save-actions"></div>
     <div id="character-gate-list" class="stack"></div>
-    <input id="import-character" type="file" accept="application/json,.json" hidden aria-label="Lantern character file">
+    <input id="import-character" type="file" accept="application/json,.json,application/pdf,.pdf" hidden aria-label="Lantern character file or character sheet PDF">
     <p id="character-gate-status" class="hint" role="status"></p>
   </section>
 
@@ -526,6 +526,8 @@
       <div id="kit-resources"></div>
       <div id="kit-slots"></div>
       <div id="kit-tonight"></div>
+      <div id="kit-spellbook"></div>
+      <input id="spell-file" type="file" accept="application/pdf,.pdf,application/json,.json" hidden aria-label="Spells PDF or Lantern file">
       <button type="button" class="text-btn" data-action="revise-character">Revise</button>
       <button type="button" class="btn primary" data-action="open-gear">Market</button>
       <p id="shop-note" class="hint" hidden>The DM closed the shop.</p>
@@ -538,6 +540,11 @@
       <h3>Magic items</h3>
       <p class="hint">Mark an item that needs attunement. Three can be attuned at once.</p>
       <div id="kit-trinkets" class="stack"></div>
+      <div class="turn-actions">
+        <button type="button" class="btn" data-action="read-items">Read items from a PDF or Lantern file</button>
+        <input id="item-file" type="file" accept="application/pdf,.pdf,application/json,.json" hidden aria-label="Items PDF or Lantern file">
+      </div>
+      <p id="item-status" class="hint" role="status"></p>
       <form id="trinket-form" data-form="trinket" class="form" autocomplete="off">
         <label>Item
           <input name="name" maxlength="60" required placeholder="Cloak of protection" spellcheck="false">

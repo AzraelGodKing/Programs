@@ -614,7 +614,6 @@ export class TableRoom {
         board.quests = board.quests.filter((item) => item.id !== boardId(payload.id));
         break;
       case "stash-put": {
-        if (who.role !== "player") throw new TableError("Sit down before you share the stash.");
         const name = boardText(payload.name, 60, "The item");
         const qty = intField(payload.qty, 1, 1, 99);
         const gearId = typeof payload.gearId === "string" && /^[a-z0-9-]{1,40}$/.test(payload.gearId) ? payload.gearId : "";
@@ -634,7 +633,6 @@ export class TableRoom {
         return { ok: true, board, taken: { name: item.name, gearId: item.gearId } };
       }
       case "coin-put": {
-        if (who.role !== "player") throw new TableError("Sit down before you share coin.");
         board.stash.cp = Math.min(PRICE_CAP, board.stash.cp + intField(payload.cp, 0, 0, PRICE_CAP));
         break;
       }

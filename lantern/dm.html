@@ -93,6 +93,7 @@
         <button type="button" class="btn" data-module="spark" aria-haspopup="dialog" aria-controls="module-spark" aria-expanded="false">Spark</button>
         <button type="button" class="btn" data-module="threat" aria-haspopup="dialog" aria-controls="module-threat" aria-expanded="false">Threat</button>
         <button type="button" class="btn" data-module="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false">Notes</button>
+        <button type="button" class="btn" data-module="library" aria-haspopup="dialog" aria-controls="module-library" aria-expanded="false">Library</button>
       </div>
 
       <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
@@ -236,6 +237,31 @@
     </div>
     <textarea id="dm-notes" rows="8" maxlength="4000" aria-label="Your notes" placeholder="A ruling, a name, the thing you do not want to forget."></textarea>
     <p class="hint">Players never see this. It stays in this browser, with this table code. Closing this module leaves the note where it is.</p>
+  </dialog>
+  <dialog id="module-library" class="gear-dialog module-dialog" aria-labelledby="library-title">
+    <div class="module-head">
+      <h2 id="library-title">Library</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">Monsters, spells, and magic items in Lantern's own format. Read them from a PDF or a Lantern file. The PDF is read in this browser and never uploaded. The library stays in this browser, so export it to keep a copy.</p>
+    <div class="modes" role="group" aria-label="What to read">
+      <button type="button" data-library-tab="monsters" aria-pressed="true">Monsters</button>
+      <button type="button" data-library-tab="spells" aria-pressed="false">Spells</button>
+      <button type="button" data-library-tab="items" aria-pressed="false">Items</button>
+      <button type="button" data-library-tab="characters" aria-pressed="false">Characters</button>
+    </div>
+    <div class="turn-actions">
+      <button type="button" class="btn primary" data-library="read">Read a PDF or Lantern file</button>
+      <button type="button" class="btn" data-library="export">Export the library</button>
+      <input id="library-file" type="file" accept="application/pdf,.pdf,application/json,.json" hidden aria-label="PDF or Lantern file">
+    </div>
+    <p id="library-status" class="hint" role="status"></p>
+    <div id="library-pending"></div>
+    <label id="library-search-field">Search
+      <input id="library-search" type="search" maxlength="60" spellcheck="false" placeholder="Goblin">
+    </label>
+    <p id="library-count" class="hint"></p>
+    <div id="library-list" class="stack"></div>
   </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
     <h2 id="keys-title">Keys</h2>

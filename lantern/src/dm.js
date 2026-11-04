@@ -20,6 +20,7 @@ import {
 import { BASE_LIST, COUNTER_CAP, counterFor, findOffer, formatCoin, parseCoin, stallById, STALLS } from "./gear.js";
 import { normalize } from "./store.js";
 import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postBoard, postOrder, postTalk, setShop } from "./table.js";
+import { bootLibrary } from "./dmlibrary.js";
 import { paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { registerOffline } from "./pwa.js";
@@ -633,6 +634,43 @@ function bootTools() {
   });
   document.getElementById("dm-notes")?.addEventListener("input", (event) => {
     rememberNotes(event.target.value);
+  });
+  bootLibrary({
+    addGroup(monster) {
+      const groups = prep().groups;
+      const found = groups.find((group) => group.name === monster.name && group.cr === monster.cr);
+      if (found) found.count = Math.min(40, found.count + 1);
+      else groups.push(cleanGroup({ name: monster.name, count: 1, cr: monster.cr }));
+      saveTools();
+      renderDmThreat();
+    },
+    async addToOrder(monster) {
+      if (!code || !dmToken) throw new Error("Open a table first.");
+      const bonus = Math.floor((monster.scores.dex - 10) / 2);
+      const rolled = roll({ count: 1, sides: 20, modifier: bonus });
+      const same = tableOrder.combatants.filter((person) => person.name.startsWith(monster.name)).length;
+      const sequence = tableOrder.combatants.reduce((max, person) => Math.max(max, person.order), 0) + 1;
+      tableOrder.combatants.push({
+        id: crypto.randomUUID(),
+        name: same ? `${monster.name} ${same + 1}` : monster.name,
+        seat: "",
+        init: rolled.total,
+        bonus,
+        die: rolled.kept[0],
+        hp: monster.hp,
+        maxHp: monster.hp,
+        ac: monster.ac,
+        marks: [],
+        exhaustion: 0,
+        death: blankDeath(),
+        order: sequence,
+      });
+      await saveOrder();
+    },
+    async stashPut(item) {
+      if (!code || !dmToken) throw new Error("Open a table first.");
+      await postBoard(code, { op: "stash-put", name: item.name, qty: 1 }, dmToken);
+    },
   });
   paintTools();
 }

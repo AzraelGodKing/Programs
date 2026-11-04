@@ -1759,3 +1759,19 @@ html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-
   .turn-strip .btn { width: 100%; }
   .head-actions { flex-wrap: wrap; }
 }
+
+/* Library: monsters, spells, and items read from a PDF or a Lantern file. */
+.lib-row { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.45rem 0.7rem; background: var(--raise); }
+.lib-row summary { cursor: pointer; }
+.lib-row[open] { display: grid; gap: 0.35rem; }
+.lib-row p { margin: 0; }
+.lib-name { font-family: var(--serif); font-weight: 600; }
+.lib-scores { font-variant-numeric: tabular-nums; color: var(--muted); }
+.lib-text { white-space: pre-line; }
+.lib-field { margin-right: 0.8rem; }
+.lib-entries { display: grid; gap: 0.25rem; }
+.lib-review { display: grid; gap: 0.45rem; padding: 0.6rem 0.8rem; border: 1px solid var(--gold); border-radius: 0.6rem; margin: 0.5rem 0; }
+.lib-pending-row { display: grid; gap: 0.15rem; }
+.lib-pending-row input[type="checkbox"] { width: auto; }
+.trinket-note { display: block; }
+.lib-section { font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.8rem; margin-top: 0.3rem !important; }
