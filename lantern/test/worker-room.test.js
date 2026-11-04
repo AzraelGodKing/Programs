@@ -320,3 +320,101 @@ test("a player sets their own conditions on the order", async () => {
   const order = await room.setVitals(mara.token, { marks: ["prone", "concentrating", "made-up"] });
   assert.deepEqual(order.combatants[0].marks, ["prone", "concentrating"]);
 });
+
+test("the party board keeps notes, quests, a glossary, and a stash", async () => {
+  const room = new TableRoom(memoryStorage());
+  const dm = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  await room.board(mara.token, { op: "notes", text: "Owe the ferryman" });
+  let { board } = await room.board(mara.token, { op: "quest-add", title: "Find the mill" });
+  await room.board(mara.token, { op: "quest-toggle", id: board.quests[0].id });
+  await room.board(dm, { op: "glossary-add", name: "Old Wend", body: "Ferryman" });
+  await room.board(mara.token, { op: "glossary-add", name: "old wend", body: "Lies about tolls" });
+  await room.board(mara.token, { op: "stash-put", name: "Rope", gearId: "rope", qty: 2 });
+  await room.board(mara.token, { op: "coin-put", cp: 1000 });
+  board = (await room.view(mara.token)).board;
+  assert.equal(board.notes.text, "Owe the ferryman");
+  assert.equal(board.notes.by, "Mara");
+  assert.equal(board.quests[0].done, true);
+  assert.equal(board.glossary.length, 1);
+  assert.equal(board.glossary[0].body, "Lies about tolls");
+  const took = await room.board(mara.token, { op: "stash-take", id: board.stash.items[0].id });
+  assert.deepEqual(took.taken, { name: "Rope", gearId: "rope" });
+  await assert.rejects(room.board(mara.token, { op: "coin-take", cp: 5000 }), TableError);
+  assert.equal((await room.board(mara.token, { op: "coin-take", cp: 400 })).board.stash.cp, 600);
+  await assert.rejects(room.board(dm, { op: "stash-put", name: "Gold" }), TableError);
+});
+
+test("polls, ready checks, and the X-card", async () => {
+  const room = new TableRoom(memoryStorage());
+  const dm = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  const bram = await room.join("", { name: "Bram" });
+  await assert.rejects(room.board(mara.token, { op: "poll-open", question: "When?", options: ["Friday"] }), TableError);
+  await room.board(mara.token, { op: "poll-open", question: "When?", options: ["Friday", "Saturday"] });
+  await room.board(bram.token, { op: "poll-vote", option: "1" });
+  let { board } = await room.board(mara.token, { op: "poll-vote", option: "1" });
+  assert.deepEqual(board.poll.options[1].votes, ["Bram", "Mara"]);
+  ({ board } = await room.board(mara.token, { op: "poll-vote", option: "1" }));
+  assert.deepEqual(board.poll.options[1].votes, ["Bram"]);
+  await room.board(mara.token, { op: "ready-call" });
+  ({ board } = await room.board(bram.token, { op: "ready-answer", answer: "wait" }));
+  assert.deepEqual(board.ready.answers, { Mara: "ready", Bram: "wait" });
+  ({ board } = await room.board(bram.token, { op: "xcard" }));
+  assert.deepEqual(Object.keys(board.xcard), ["at"]);
+  assert.ok((await room.view(dm)).board.xcard);
+  await room.board(dm, { op: "xcard-clear" });
+  assert.equal((await room.view(mara.token)).board.xcard, null);
+});
+
+test("help is seen by the two players in it and cleared once used", async () => {
+  const room = new TableRoom(memoryStorage());
+  await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  const bram = await room.join("", { name: "Bram" });
+  const cora = await room.join("", { name: "Cora" });
+  await assert.rejects(room.board(mara.token, { op: "help", to: "Mara" }), TableError);
+  await room.board(mara.token, { op: "help", to: "Bram" });
+  assert.equal((await room.view(bram.token)).board.helps.length, 1);
+  assert.equal((await room.view(cora.token)).board.helps.length, 0);
+  await room.board(bram.token, { op: "help-used" });
+  assert.equal((await room.view(bram.token)).board.helps.length, 0);
+});
+
+test("reactions, pins, voice, and typing ride on the messages", async () => {
+  const room = new TableRoom(memoryStorage());
+  await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  const bram = await room.join("", { name: "Bram" });
+  const said = await room.talk(mara.token, { text: "draws her blade", kind: "emote", as: "Mara the Bold" });
+  assert.equal(said.kind, "emote");
+  assert.equal(said.as, "Mara the Bold");
+  const ooc = await room.talk(mara.token, { text: "brb", kind: "ooc", as: "Mara the Bold" });
+  assert.equal(ooc.as, undefined);
+  await room.board(bram.token, { op: "react", id: said.id, emoji: "😮" });
+  await assert.rejects(room.board(bram.token, { op: "react", id: said.id, emoji: "🦄" }), TableError);
+  await room.board(bram.token, { op: "pin", id: said.id, on: true });
+  await room.board(bram.token, { op: "typing" });
+  const view = await room.view(mara.token);
+  assert.deepEqual(view.messages[0].reactions, { "😮": ["Bram"] });
+  assert.equal(view.messages[0].pinned, true);
+  assert.ok(view.players.find((player) => player.name === "Bram").typing > 0);
+  const whisper = await room.talk(mara.token, { text: "psst", to: "Dungeon Master" });
+  await assert.rejects(room.board(bram.token, { op: "react", id: whisper.id, emoji: "👍" }), TableError);
+});
+
+test("a player ends only their own turn", async () => {
+  const room = new TableRoom(memoryStorage());
+  const dm = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  const bram = await room.join("", { name: "Bram" });
+  await room.rollInitiative(mara.token, { name: "Mara", init: 18, hp: 10 });
+  let order = await room.rollInitiative(bram.token, { name: "Bram", init: 9, hp: 10 });
+  const first = order.combatants.find((person) => person.seat === "Mara");
+  await room.setOrder(dm, { ...order, started: true, activeId: first.id });
+  await assert.rejects(room.board(bram.token, { op: "end-turn" }), TableError);
+  ({ order } = await room.board(mara.token, { op: "end-turn" }));
+  assert.equal(order.combatants.find((person) => person.id === order.activeId).seat, "Bram");
+  ({ order } = await room.board(bram.token, { op: "end-turn" }));
+  assert.equal(order.round, 2);
+});

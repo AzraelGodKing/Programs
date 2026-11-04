@@ -1652,3 +1652,110 @@ button.mark-chip.is-on,
 .checklist { list-style: none; padding: 0; display: grid; gap: 0.35rem; }
 #kit-weight[data-load="encumbered"], #kit-weight[data-load="heavy"] { color: var(--gold); }
 #kit-weight[data-load="over"] { color: var(--blood); }
+
+/* The shared table: turns, chat extras, the party board. */
+.xcard-btn { color: var(--blood); font-weight: 650; }
+.xcard-banner { border-color: var(--blood); background: rgba(227, 139, 124, 0.14); }
+.turn-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.8rem;
+  margin: 0.4rem 0 0.2rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--raise);
+}
+.turn-strip p { margin: 0; }
+.turn-strip.is-mine { border-color: var(--gold); background: rgba(230, 194, 122, 0.12); }
+.turn-helper { display: grid; gap: 0.45rem; margin: 0.5rem 0; }
+.turn-helper:empty { display: none; }
+.turn-banner.is-mine { color: var(--gold); margin: 0; }
+.combatant.is-next { border-style: dashed; border-color: var(--moss); }
+.talk-line { border-left: 3px solid var(--who, transparent); padding-left: 0.6rem; }
+.talk-line.is-whisper { border-left-color: var(--ember); }
+.talk-head { display: flex; align-items: center; gap: 0.45rem; }
+.talk-portrait { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.talk-line.is-ooc { opacity: 0.85; }
+.talk-line.is-ooc .talk-who { font-family: var(--sans); font-size: 0.9rem; color: var(--muted); }
+.talk-line.is-emote .talk-who { display: none; }
+.talk-emote { font-style: italic; color: var(--gold); }
+.talk-line.is-mention { background: rgba(230, 194, 122, 0.1); border-radius: 0.4rem; }
+.talk-line.is-pinned .talk-who::after { content: " · pinned"; color: var(--gold); font-size: 0.8rem; font-family: var(--sans); }
+.talk-tools { display: flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; }
+.react-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+.react-btn:hover, .react-btn:focus-visible, .react-btn.has-count { opacity: 1; }
+.react-btn.has-count { border-color: var(--line); }
+.react-btn[aria-pressed="true"] { border-color: var(--gold); }
+.talk-reacts { color: var(--muted); font-size: 0.85rem; }
+.glossary-link { padding: 0; font: inherit; color: var(--gold); }
+.talk-pins { display: grid; gap: 0.25rem; padding: 0.5rem 0.7rem; margin-top: 0.5rem; border: 1px solid var(--gold); border-radius: 0.6rem; }
+.pin-row { display: flex; justify-content: space-between; gap: 0.6rem; align-items: center; }
+.pin-row p { margin: 0; }
+.talk-typing { min-height: 1.3em; margin: 0 0 0.3rem; }
+.table-rolls { display: grid; gap: 0.2rem; max-height: 14rem; overflow: auto; }
+.roll-line { margin: 0; border-left: 3px solid var(--who, var(--line)); padding-left: 0.5rem; }
+.roll-line.is-secret { color: var(--ash); }
+.roll-who { font-weight: 650; color: var(--who, var(--cream)); }
+.glossary-row { padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 0.5rem; }
+.glossary-row p { margin: 0; }
+.glossary-row.is-found { border-color: var(--gold); }
+.gear-row.is-done label { text-decoration: line-through; color: var(--faint); }
+.poll-option { display: block; width: 100%; text-align: left; margin-bottom: 0.3rem; border-radius: 0.6rem; }
+.poll-option.is-best { border-color: var(--moss); }
+.poll-option[aria-pressed="true"] { background: rgba(156, 186, 132, 0.2); }
+.here-chip.is-gone { border-color: var(--line); border-style: dashed; color: var(--faint); }
+
+/* Recap, display switches, and phone tap targets. */
+.recap-list { display: grid; gap: 0.35rem; max-height: 60vh; overflow: auto; margin: 0.6rem 0; }
+.recap-row { display: grid; grid-template-columns: 4.6rem 1fr; gap: 0.5rem; align-items: baseline; }
+.recap-row p { margin: 0; }
+.recap-row time { color: var(--ash); font-size: 0.85rem; }
+.recap-row.is-roll p { color: var(--muted); }
+.recap-row.natural-20 p { color: var(--gold); font-weight: 650; }
+.recap-row.natural-1 p { color: var(--blood); font-weight: 650; }
+.recap-row.is-ooc p, .recap-row.is-whisper p { font-style: italic; }
+
+html[data-contrast="high"] {
+  --bg: #000;
+  --raise: #0d0d0d;
+  --raise-2: #161616;
+  --line: #d8d8d8;
+  --cream: #fff;
+  --muted: #f0f0f0;
+  --faint: #e0e0e0;
+  --ash: #e6f0ff;
+  --gold: #ffd75e;
+  --blood: #ff9e8f;
+  --moss: #b8f09a;
+}
+html[data-contrast="high"] body { background: #000; }
+html[data-contrast="high"] .btn, html[data-contrast="high"] .chip, html[data-contrast="high"] .modes button { border-color: #fff; color: #fff; background: #111; }
+html[data-contrast="high"] .btn.primary { background: var(--gold); color: #000; border-color: var(--gold); }
+html[data-contrast="high"] :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (max-width: 560px) {
+  .btn, .chip, .modes button, .purposes button, .die, .react-btn { min-height: 44px; }
+  .pip { width: 2.1rem; height: 2.1rem; }
+  .swatch { width: 2.4rem; height: 2.4rem; }
+  .text-btn { min-height: 40px; display: inline-flex; align-items: center; }
+  .ability-rolls { grid-template-columns: repeat(2, 1fr); }
+  .turn-strip .btn { width: 100%; }
+  .head-actions { flex-wrap: wrap; }
+}

@@ -147,3 +147,15 @@ test("the character keeps its extras", () => {
   assert.deepEqual(character.extras.conditions, ["prone"]);
   assert.equal(character.extras.portrait, "");
 });
+
+test("chat helpers find mentions and glossary links", async () => {
+  const { glossaryParts, mentions, typingLine, presence } = await import("../src/talk.js");
+  assert.equal(mentions("hey @Mara, look", ["Mara"]), true);
+  assert.equal(mentions("hey @Marabelle", ["Mara"]), false);
+  assert.equal(mentions("hey Mara", ["Mara"]), false);
+  assert.deepEqual(glossaryParts("meet [[Old Wend]] now"), [{ text: "meet " }, { link: "Old Wend" }, { text: " now" }]);
+  assert.equal(typingLine([{ name: "Bram", typing: 1000 }, { name: "Mara", typing: 1000 }], "Mara", 3000), "Bram is typing…");
+  assert.equal(presence(0, 10_000), "here");
+  assert.equal(presence(0, 60_000), "away");
+  assert.equal(presence(0, 600_000), "gone");
+});

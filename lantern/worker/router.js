@@ -127,6 +127,17 @@ export async function handleRequest(request, env) {
       return rejected(error);
     }
   }
+  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/board\/?$/i.test(path)) {
+    const code = roomCode(path, /\/board\/?$/i);
+    if (!validCode(code)) return json(404, { error: "No table with that code." });
+    try {
+      const result = await stubFor(env, code).board(token, await readJson(request));
+      if (!result) return json(404, { error: "No table with that code." });
+      return json(200, result);
+    } catch (error) {
+      return rejected(error);
+    }
+  }
   if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/talk\/?$/i.test(path)) {
     const code = roomCode(path, /\/talk\/?$/i);
     if (!validCode(code)) return json(404, { error: "No table with that code." });

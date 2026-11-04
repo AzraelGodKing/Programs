@@ -32,8 +32,11 @@ A merge to main runs the Buildkite pipeline `lantern`. That pipeline tests this 
 - **Spark, on the DM screen.** Original people, places, twists, rumors, and trinkets. They are not from a published adventure or table. Spark opens as a module.
 - **Character.** One hero from the common 2014 races, classes, subclasses, and backgrounds, made before the table. Custom is there for a people, a class, or a subclass the list does not have. Scores can be the standard array, point buy, four d6s dropping the lowest, or typed in. Joining a table with no character starts a sheet. Later joins load a living character, create another, view and export one who died, or import a character file exported from another browser.
 - **Scratch.** A note that stays with the rest of the night.
+- **Party.** Shared notes, quests, a glossary, a stash and coin pot, the Help action, a poll, and a ready check. Everyone at the table and the DM see the same board.
+- **Your turn.** A strip says whose turn it is and when you are next. The turn helper tracks your action, bonus action, movement, and reaction, and End turn passes the round when it is yours.
+- **X-card.** Anyone can tap it. Every screen shows that the scene should change, and the table does not record who tapped it.
 
-Keys 1–5 open the dice, or the order, pack, notes, and table modules, while you are not typing. R rolls while a module is closed. N advances the round inside the order module. Press ? on either screen for the list. Text size is a switch in the header and stays with this browser.
+Keys 1–6 open the dice, or the order, pack, notes, table, and party modules, while you are not typing. R rolls while a module is closed. N advances the round inside the order module. Press ? on either screen for the list. Text size is a switch in the header and stays with this browser.
 
 On a phone, Lantern can be added to the home screen. The pages open offline for solo play. The shared table needs the network.
 
