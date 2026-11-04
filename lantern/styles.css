@@ -1775,3 +1775,36 @@ html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-
 .lib-pending-row input[type="checkbox"] { width: auto; }
 .trinket-note { display: block; }
 .lib-section { font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.8rem; margin-top: 0.3rem !important; }
+
+/* DM combat and roll calling */
+.turn-timer-row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; justify-content: space-between; }
+.quick-add { align-items: end; }
+.check { display: inline-flex; gap: 0.35rem; align-items: center; }
+.combat-tags, .combat-attacks, .combat-hit, .combat-legend { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.35rem; }
+.combat-hit input[type="number"] { width: 4.5rem; }
+.combat-legend input[type="number"] { width: 3.5rem; margin-left: 0.3rem; }
+.combat-attacks .btn { font-size: 0.85rem; }
+.tag { display: inline-block; padding: 0.05rem 0.45rem; border: 1px solid var(--line); border-radius: 999px; font-size: 0.78rem; color: var(--muted); }
+.hidden-tag { border-color: var(--gold); color: var(--gold); }
+.pick { display: inline-flex; gap: 0.3rem; align-items: center; font-size: 0.85rem; }
+.dm-area { margin: 0.6rem 0; }
+.dm-area summary, .dm-passive summary { cursor: pointer; font-weight: 600; }
+.dm-log { margin-top: 0.8rem; border-top: 1px solid var(--line); padding-top: 0.5rem; }
+.dm-log-line { margin: 0; font-size: 0.88rem; }
+.dm-log-line time { color: var(--muted); font-size: 0.78rem; }
+.dm-log-line.is-note { color: var(--gold); }
+.ask-form { flex-wrap: wrap; }
+.ask-form input[type="number"] { width: 4.5rem; }
+.preset { display: inline-flex; align-items: center; gap: 0.1rem; }
+.ask-card { border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.7rem; }
+.ask-card-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.ask-card-head .text-btn { margin-left: auto; }
+.ask-answers { list-style: none; margin: 0.35rem 0 0; padding: 0; display: grid; gap: 0.2rem; }
+.ask-answer .tag { margin-left: 0.4rem; }
+.ask-answer.is-passes .tag, .ask-answer.is-wins .tag { border-color: var(--moss); color: var(--moss); }
+.ask-answer.is-fails .tag, .ask-answer.is-loses .tag { border-color: var(--blood); color: var(--blood); }
+.ask-group { margin: 0.35rem 0 0; font-weight: 600; }
+.dm-passive { margin-top: 0.7rem; }
+.passive-row { margin: 0; }
+.passive-row .tag { margin-left: 0.4rem; }
+.passive-row.is-noticed .tag { border-color: var(--moss); color: var(--moss); }

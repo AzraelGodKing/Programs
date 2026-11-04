@@ -1,5 +1,5 @@
 import { armorClass } from "./armor.js";
-import { ABILITIES, SKILLS, abilityMod, abilityTotals, effectiveHp, formatMod, maxHitPoints, presentCharacter } from "./character.js";
+import { ABILITIES, abilityMod, abilityTotals, effectiveHp, formatMod, maxHitPoints, presentCharacter } from "./character.js";
 import { roll } from "./dice.js";
 import { MARKS } from "./marks.js";
 import { blankDeath, blankOrder, cleanDeath, cleanOrder } from "./order.js";
@@ -21,6 +21,8 @@ import { BASE_LIST, COUNTER_CAP, counterFor, findOffer, formatCoin, parseCoin, s
 import { normalize } from "./store.js";
 import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postBoard, postOrder, postTalk, setShop } from "./table.js";
 import { bootLibrary } from "./dmlibrary.js";
+import { bootCombat, combatRowBits, combatTableChanged, stepTurn } from "./dmcombat.js";
+import { asksTableChanged, bootAsks, paintAsks } from "./dmasks.js";
 import { paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { registerOffline } from "./pwa.js";
@@ -1008,6 +1010,7 @@ async function poll() {
   if (next === signature) return;
   signature = next;
   renderRoom(room);
+  paintAsks(room);
   paintTalk(document.getElementById("dm-talk-log"), room.messages || [], { colors: playerColors(room.players) });
   paintTargets(
     document.getElementById("dm-talk-to"),
@@ -1097,6 +1100,7 @@ function dmOrderRow(person, active) {
       ...[0, 1, 2].map((index) => pip("success", index)),
       ...[0, 1, 2].map((index) => pip("failure", index)),
     ]) : null,
+    ...combatRowBits(person),
   ]);
 }
 
@@ -1155,20 +1159,7 @@ async function seatParty() {
 }
 
 function dmStep(direction) {
-  const list = sortedOrder();
-  if (!list.length) return;
-  if (!tableOrder.started) {
-    if (direction < 0) return;
-    tableOrder.started = true;
-    tableOrder.activeId = list[0].id;
-  } else {
-    const index = Math.max(0, list.findIndex((person) => person.id === tableOrder.activeId));
-    const nextIndex = (index + direction + list.length) % list.length;
-    if (direction > 0 && nextIndex === 0) tableOrder.round += 1;
-    if (direction < 0 && nextIndex === list.length - 1) tableOrder.round = Math.max(1, tableOrder.round - 1);
-    tableOrder.activeId = list[nextIndex].id;
-  }
-  void saveOrder();
+  stepTurn(direction);
 }
 
 function showTable(next, token = "") {
@@ -1200,6 +1191,8 @@ function showTable(next, token = "") {
     try { qr.append(qrSvg(playerUrl)); } catch { /* the link under the code still joins the table */ }
   }
   paintNotes();
+  combatTableChanged();
+  asksTableChanged();
   void poll();
 }
 
@@ -1234,35 +1227,15 @@ function boot() {
     }
     showTable(next, /^[a-f0-9]{32}$/.test(secret) ? secret : "");
   });
-  const askList = document.getElementById("ask-options");
-  if (askList) {
-    const names = [
-      ...SKILLS.map((skill) => skill.label),
-      "Initiative",
-      ...ABILITIES.map((ability) => `${ability.label} save`),
-      ...ABILITIES.map((ability) => `${ability.label} check`),
-    ];
-    askList.replaceChildren(...names.map((name) => h("option", { value: name })));
-  }
-  document.getElementById("dm-ask-form")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!code) return;
-    const field = document.getElementById("dm-ask");
-    const ask = field.value.trim();
-    if (!ask) {
-      setStatus("Name the roll first, like Perception.");
-      return;
-    }
-    const to = document.getElementById("dm-talk-to").value;
-    try {
-      await postTalk(code, { text: `Roll ${ask}.`, to, ask }, dmToken);
-      field.value = "";
-      setStatus(to ? `Asked ${to} for ${ask}.` : `Asked the table for ${ask}.`);
+  bootAsks({
+    code: () => code,
+    token: () => dmToken,
+    order: () => tableOrder,
+    status: setStatus,
+    async refresh() {
       signature = "";
       await poll();
-    } catch (error) {
-      setStatus(error.message);
-    }
+    },
   });
   document.getElementById("dm-talk-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1321,6 +1294,14 @@ function boot() {
   document.getElementById("copy-secret")?.addEventListener("click", () => {
     if (dmToken) void copyText(dmToken, document.getElementById("copy-secret"));
   });
+  bootCombat({
+    getOrder: () => tableOrder,
+    setOrder: (order) => { tableOrder = order; },
+    save: saveOrder,
+    room: () => lastRoom,
+    status: setStatus,
+    code: () => code,
+  });
   document.getElementById("dm-turn-next")?.addEventListener("click", () => dmStep(1));
   document.getElementById("dm-turn-back")?.addEventListener("click", () => dmStep(-1));
   document.getElementById("dm-seat-party")?.addEventListener("click", () => { void seatParty(); });
@@ -1348,6 +1329,7 @@ function boot() {
       exhaustion: 0,
       death: blankDeath(),
       order: sequence,
+      ...(form.elements.hidden?.checked ? { hidden: true } : {}),
     });
     form.elements.name.value = "";
     void saveOrder();

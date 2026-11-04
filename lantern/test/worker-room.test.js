@@ -420,3 +420,42 @@ test("a player ends only their own turn", async () => {
   ({ order } = await room.board(bram.token, { op: "end-turn" }));
   assert.equal(order.round, 2);
 });
+
+test("hidden rows stay off player views and the DM keeps them", async () => {
+  const room = new TableRoom(memoryStorage());
+  const dm = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  await room.setOrder(dm, {
+    started: true,
+    activeId: "g1",
+    combatants: [
+      { id: "g1", name: "Ghost", init: 15, hp: 10, hidden: true, attacks: [{ name: "Touch", hit: 5, damage: "4d6" }] },
+      { id: "o1", name: "Orc", init: 9, hp: 15, mods: { str: 3 } },
+    ],
+  });
+  const player = await room.view(mara.token);
+  assert.deepEqual(player.order.combatants.map((person) => person.name), ["Orc"]);
+  assert.equal(player.order.hiddenTurn, true);
+  assert.equal(player.order.combatants[0].mods, undefined);
+  const theirs = await room.view(dm);
+  assert.equal(theirs.order.combatants.length, 2);
+  assert.equal(theirs.order.combatants[0].attacks[0].damage, "4d6");
+  const vitals = await room.rollInitiative(mara.token, { name: "Mara", init: 12, hp: 10 });
+  assert.ok(!vitals.combatants.some((person) => person.name === "Ghost"));
+});
+
+test("answers to an ask carry its id and total, and the DM can roll for a player", async () => {
+  const room = new TableRoom(memoryStorage());
+  const dm = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  const ask = await room.talk(dm, { text: "Roll Stealth (DC 13).", ask: "Stealth", dc: 13 });
+  assert.equal(ask.dc, 13);
+  await assert.rejects(room.talk(mara.token, { text: "x", ask: "Stealth" }), TableError);
+  await room.update(mara.token, { summaries: [{ text: "Rolled 15 for Stealth.", ask: ask.id, total: 15 }] });
+  await assert.rejects(room.board(mara.token, { op: "dm-roll", name: "Mara", text: "x" }), TableError);
+  await room.board(dm, { op: "dm-roll", name: "Mara", text: "The DM rolled Stealth for Mara: 9.", ask: ask.id, total: 9 });
+  const view = await room.view(dm);
+  const answers = view.events.filter((event) => event.ask === ask.id);
+  assert.deepEqual(answers.map((event) => event.total), [9, 15]);
+  assert.equal(answers[0].by, DM_NAME);
+});

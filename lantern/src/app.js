@@ -118,6 +118,7 @@ import { bootTextSize } from "./textsize.js";
 import { bootDisplay } from "./display.js";
 import { cleanSpell, readLibraryFile, readPdfContent } from "./library.js";
 import { registerOffline } from "./pwa.js";
+import { turnTimerText } from "./combat.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -222,7 +223,7 @@ function currentIntent() {
   return document.getElementById("roll-for")?.value || "";
 }
 
-function persist(summary, { secret = false } = {}) {
+function persist(summary, { secret = false, ask = "", total } = {}) {
   if (gateMode === "play" && activeId) {
     const code = seatedCode();
     if (code) {
@@ -233,7 +234,15 @@ function persist(summary, { secret = false } = {}) {
   saveState(state);
   if (typeof summary === "string" && summary.trim()) {
     const text = summary.trim().slice(0, 300);
-    shareQueue.push(secret ? { text, secret: true } : text);
+    if (secret || ask) {
+      const entry = { text };
+      if (secret) entry.secret = true;
+      if (ask) {
+        entry.ask = ask;
+        if (Number.isInteger(total)) entry.total = total;
+      }
+      shareQueue.push(entry);
+    } else shareQueue.push(text);
   }
   clearTimeout(shareTimer);
   shareTimer = setTimeout(() => { void flushShare(); }, shareQueue.length ? 30 : 280);
@@ -2529,6 +2538,7 @@ function spendItem(id) {
 const ASK_KEY = "lantern.asks.done";
 const ASK_FRESH_MS = 15 * 60 * 1000;
 let pendingAsk = null;
+let answeringAsk = "";
 
 function answeredAsks() {
   try {
@@ -2562,7 +2572,7 @@ function paintAsk(messages, selfName) {
   if (!ask) return;
   const info = askBonus(state.character, ask.ask);
   const what = info ? `${info.label} (${formatMod(info.bonus)})` : ask.ask;
-  setText(document.getElementById("ask-text"), `The DM asks ${ask.to ? "you" : "the table"} for ${what}.`);
+  setText(document.getElementById("ask-text"), `The DM asks ${ask.to ? "you" : "the table"} for ${what}${ask.dc ? `, DC ${ask.dc}` : ""}.`);
 }
 
 function answerAsk() {
@@ -2578,6 +2588,7 @@ function answerAsk() {
   document.getElementById("dice-count").value = "1";
   if (purpose) purpose.value = info ? info.label : ask.ask;
   showTab("dice");
+  answeringAsk = /^[a-f0-9]{16}$/.test(ask.id || "") ? ask.id : "";
   if (info) {
     state.dice.modifier = info.bonus;
     document.getElementById("dice-mod").value = String(info.bonus);
@@ -3700,7 +3711,9 @@ function performRoll(setup) {
   state.dice.history = state.dice.history.slice(0, HISTORY_CAP);
   const forWhat = target ? `${purpose || "an attack"} at ${target}` : purpose;
   const summary = rollSummary({ purpose: forWhat, formula: line, total: result.total, detail, tag: result.tag });
-  persist(helped ? `${summary} Helped by ${helped}.` : summary, { secret });
+  const answering = answeringAsk;
+  answeringAsk = "";
+  persist(helped ? `${summary} Helped by ${helped}.` : summary, { secret, ask: answering, total: result.total });
   lastRoll = { setup: { ...setup, mode: setup.mode || "normal" }, result };
   paintDice();
   renderFreshResult(result);
@@ -4414,7 +4427,7 @@ function paintTurnHelper() {
   }
   const helper = document.getElementById("turn-helper");
   const strip = document.getElementById("turn-strip");
-  const inFight = Boolean(facts.active) && facts.list.some(isMine);
+  const inFight = Boolean(facts.active || facts.order.hiddenTurn) && facts.list.some(isMine);
   if (helper) {
     helper.replaceChildren(...present([
       facts.mine ? h("p", { class: "turn-banner is-mine" }, "Your turn") : facts.nextMine ? h("p", { class: "hint" }, "You are up next.") : null,
@@ -4435,7 +4448,8 @@ function paintTurnHelper() {
     strip.hidden = !inFight || gateMode !== "play";
     if (inFight) {
       strip.replaceChildren(...present([
-        h("p", {}, facts.mine ? `Your turn, round ${facts.order.round}.` : facts.nextMine ? `${facts.active.name} is acting. You are up next.` : `${facts.active.name} is acting.`),
+        h("p", {}, facts.mine ? `Your turn, round ${facts.order.round}.` : !facts.active ? "Something unseen is acting." : facts.nextMine ? `${facts.active.name} is acting. You are up next.` : `${facts.active.name} is acting.`),
+        h("span", { id: "turn-timer", class: "hint" }, turnTimerText(facts.order)),
         !facts.mine && !turn.reaction ? h("span", { class: "here-chip" }, "Reaction ready") : null,
         facts.mine ? h("button", { type: "button", class: "btn primary", "data-action": "end-turn", "aria-keyshortcuts": "E" }, "End turn") : null,
       ]));
@@ -5080,6 +5094,10 @@ function boot() {
   bootTextSize(document.getElementById("text-size"));
   bootDisplay({ contrast: document.getElementById("contrast-switch"), motion: document.getElementById("motion-switch") });
   registerOffline();
+  setInterval(() => {
+    const timer = document.getElementById("turn-timer");
+    if (timer) timer.textContent = turnTimerText(turnFacts().order);
+  }, 1000);
   document.addEventListener("visibilitychange", onVisibility);
   if (state.pauseReason === "hidden") {
     resumeLights();

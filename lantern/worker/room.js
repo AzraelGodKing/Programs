@@ -1,6 +1,6 @@
 /** Shared table rules. The local server and the Worker both use this module. */
 
-import { blankDeath, blankOrder, cleanOrder, sortOrder } from "../src/order.js";
+import { advanceTurn, blankDeath, blankOrder, cleanOrder, playerOrder } from "../src/order.js";
 import { MARKS } from "../src/marks.js";
 
 export const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -48,7 +48,15 @@ export function cleanSummaries(value) {
     if (raw === null) continue;
     const text = collapse(raw).slice(0, SUMMARY_LENGTH);
     if (!text) continue;
-    summaries.push(typeof item === "object" && item.secret === true ? { text, secret: true } : text);
+    if (typeof item !== "object") {
+      summaries.push(text);
+      continue;
+    }
+    const entry = { text };
+    if (item.secret === true) entry.secret = true;
+    if (typeof item.ask === "string" && /^[a-f0-9]{16}$/.test(item.ask)) entry.ask = item.ask;
+    if (Number.isInteger(item.total) && Math.abs(item.total) <= 999) entry.total = item.total;
+    summaries.push(Object.keys(entry).length > 1 ? entry : text);
   }
   return summaries;
 }
@@ -126,6 +134,7 @@ export function cleanTalk(payload) {
   const as = typeof payload.as === "string" ? collapse(payload.as).slice(0, 80) : "";
   const message = { name, text, to };
   if (ask) message.ask = ask;
+  if (ask && Number.isInteger(payload.dc) && payload.dc >= 1 && payload.dc <= 40) message.dc = payload.dc;
   if (kind) message.kind = kind;
   if (as && kind !== "ooc") message.as = as;
   return message;
@@ -230,6 +239,14 @@ export function cleanBuyback(payload) {
   }
   if (!cleanPrice(payload.cp)) throw new TableError("That price is not a price.");
   return { name, action: payload.action, id: payload.id, cp: payload.cp };
+}
+
+function rollTags(summary) {
+  const tags = {};
+  if (summary.secret) tags.secret = true;
+  if (summary.ask) tags.ask = summary.ask;
+  if (summary.total !== undefined) tags.total = summary.total;
+  return tags;
 }
 
 function hexId() {
@@ -341,7 +358,7 @@ export class TableRoom {
       shop,
       buybacks: buybacks.map((line) => ({ ...line })),
       messages,
-      order,
+      order: who.role === "dm" ? order : playerOrder(order),
       locked: false,
     };
   }
@@ -365,7 +382,7 @@ export class TableRoom {
       let events = (await this.storage.get("events")) || [];
       for (const summary of update.summaries) {
         if (typeof summary === "string") events.push({ id: hexId(), at: now, name: who.name, summary });
-        else events.push({ id: hexId(), at: now, name: who.name, summary: summary.text, secret: true });
+        else events.push({ id: hexId(), at: now, name: who.name, summary: summary.text, ...rollTags(summary) });
       }
       if (events.length > EVENT_CAP) events = events.slice(-EVENT_CAP);
       writes.events = events;
@@ -422,6 +439,7 @@ export class TableRoom {
     let messages = (await this.storage.get("messages")) || [];
     const stored = { id: hexId(), at: now, from: message.name, to: message.to, text: message.text };
     if (message.ask) stored.ask = message.ask;
+    if (message.dc) stored.dc = message.dc;
     if (message.kind) stored.kind = message.kind;
     if (message.as) stored.as = message.as;
     messages.push(stored);
@@ -498,7 +516,7 @@ export class TableRoom {
     const next = cleanOrder(order);
     await this.storage.put("order", next);
     await this.storage.setAlarm(Date.now() + IDLE_MS);
-    return next;
+    return playerOrder(next);
   }
 
   async setVitals(token, payload) {
@@ -525,7 +543,7 @@ export class TableRoom {
     const next = cleanOrder(order);
     await this.storage.put("order", next);
     await this.storage.setAlarm(Date.now() + IDLE_MS);
-    return next;
+    return playerOrder(next);
   }
   /** The party board: shared notes, glossary, quests, stash, polls, ready checks, the X-card, help, reactions, pins, typing, and ending your own turn. */
   async board(token, payload) {
@@ -563,20 +581,27 @@ export class TableRoom {
     }
     if (op === "end-turn") {
       const order = cleanOrder((await this.storage.get("order")) || blankOrder());
-      const turns = sortOrder(order.combatants);
-      const index = turns.findIndex((person) => person.id === order.activeId);
-      const active = turns[index];
-      if (!active || (who.role !== "dm" && active.seat.toLowerCase() !== who.name.toLowerCase())) {
+      const active = order.combatants.find((person) => person.id === order.activeId);
+      if (!order.started || !active || (who.role !== "dm" && active.seat.toLowerCase() !== who.name.toLowerCase())) {
         throw new TableError("It is not your turn.");
       }
-      const nextIndex = (index + 1) % turns.length;
-      if (nextIndex === 0) order.round = Math.min(999, order.round + 1);
-      order.activeId = turns[nextIndex].id;
-      order.started = true;
-      const next = cleanOrder(order);
+      const next = advanceTurn(order, 1, now).order;
       await this.storage.put("order", next);
       await this.storage.setAlarm(now + IDLE_MS);
-      return { ok: true, order: next };
+      return { ok: true, order: who.role === "dm" ? next : playerOrder(next) };
+    }
+    if (op === "dm-roll") {
+      if (who.role !== "dm") throw new TableError("Only the DM rolls for someone else.");
+      const name = cleanName(payload.name);
+      const [summary] = cleanSummaries([{ text: payload.text, secret: payload.secret === true, ask: payload.ask, total: payload.total }]);
+      if (!summary) throw new TableError("Say what was rolled.");
+      const entry = typeof summary === "string" ? { text: summary } : summary;
+      let events = (await this.storage.get("events")) || [];
+      events.push({ id: hexId(), at: now, name, summary: entry.text, by: DM_NAME, ...rollTags(entry) });
+      if (events.length > EVENT_CAP) events = events.slice(-EVENT_CAP);
+      await this.storage.put("events", events);
+      await this.storage.setAlarm(now + IDLE_MS);
+      return { ok: true };
     }
     const board = cleanBoard(await this.storage.get("board"));
     const by = who.name;
