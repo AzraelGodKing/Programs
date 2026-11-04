@@ -122,6 +122,7 @@ import { bootDisplay } from "./display.js";
 import { cleanSpell, readLibraryFile, readPdfContent } from "./library.js";
 import { registerOffline } from "./pwa.js";
 import { hourText, turnTimerText } from "./combat.js";
+import { downloadText, icsFor } from "./session.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -335,8 +336,20 @@ function paintPurposes() {
 
 function bootSeat() {
   const seat = loadSeat();
-  const fromUrl = normalizeCode(new URLSearchParams(location.search).get("room"));
+  const params = new URLSearchParams(location.search);
+  const fromUrl = normalizeCode(params.get("room"));
   if (fromUrl) seat.room = fromUrl;
+  const handed = params.get("seat") || "";
+  if (fromUrl && /^[a-f0-9]{32}$/.test(handed)) {
+    // A link from the DM that hands this device an existing seat.
+    seat.token = handed;
+    seat.solo = false;
+    if (params.get("name")) seat.name = params.get("name").trim().slice(0, 40);
+    const clean = new URL(location.href);
+    clean.searchParams.delete("seat");
+    clean.searchParams.delete("name");
+    history.replaceState(null, "", clean);
+  }
   document.getElementById("seat-name").value = seat.name;
   document.getElementById("seat-room").value = seat.room;
   if (fromUrl) saveSeat(seat);
@@ -4643,7 +4656,48 @@ function paintBoard(board) {
   paintHelp(board.helps);
   void takeGifts(board.gifts);
   paintHandouts(board.handouts);
-  paintWorld(board.world);
+  paintWorld(board.world, board.mood);
+  paintTableState(board);
+}
+
+function paintTableState(board) {
+  const overlay = document.getElementById("pause-overlay");
+  if (overlay) {
+    overlay.hidden = !board.pause || gateMode !== "play";
+    setText(document.getElementById("pause-text"), board.pause?.text || "Back soon.");
+  }
+  const mode = document.getElementById("talk-mode");
+  if (mode) {
+    const chat = board.chat || { mode: "open" };
+    mode.hidden = chat.mode === "open";
+    mode.textContent = chat.mode === "muted" ? "The DM has paused table talk. You can still whisper the DM." : chat.mode === "slow" ? `Slow chat: one message every ${chat.slow} seconds.` : "";
+  }
+  const rules = document.getElementById("party-rules");
+  if (rules) {
+    const safety = board.safety || { lines: [], veils: [] };
+    rules.replaceChildren(...present([
+      safety.lines.length || safety.veils.length ? h("h3", {}, "Lines and veils") : null,
+      safety.lines.length ? h("p", {}, [h("strong", {}, "Lines, never in the game: "), safety.lines.join(", ")]) : null,
+      safety.veils.length ? h("p", {}, [h("strong", {}, "Veils, off screen only: "), safety.veils.join(", ")]) : null,
+      board.rules ? h("h3", {}, "Table rules") : null,
+      ...(board.rules ? board.rules.split(/\n+/).map((line) => h("p", {}, line)) : []),
+    ]));
+  }
+  const next = document.getElementById("party-next");
+  if (next) {
+    const when = board.next;
+    next.replaceChildren(...present([
+      when ? h("p", { class: "turn-banner" }, `Next session: ${[when.label, when.at ? new Date(when.at).toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""].filter(Boolean).join(", ")}`) : null,
+      when?.at ? h("button", { type: "button", class: "btn", "data-action": "next-ics" }, "Add to my calendar") : null,
+    ]));
+  }
+}
+
+function nextIcs() {
+  const when = lastRoom?.board?.next;
+  if (!when?.at) return;
+  const seat = loadSeat();
+  downloadText(icsFor(when, `${location.origin}/player.html?room=${seat.room}`), "lantern-next-session.ics", "text/calendar");
 }
 
 // --- Rewards, handouts, and the world, from the DM.
@@ -4718,11 +4772,14 @@ async function openHandout(id) {
   if (!dialog.open) dialog.showModal();
 }
 
-function paintWorld(world) {
+function paintWorld(world, mood) {
   const line = document.getElementById("world-line");
   if (!line) return;
-  line.hidden = !world || gateMode !== "play";
-  if (world) line.textContent = `Day ${world.day} · ${String(world.hour).padStart(2, "0")}:00, ${hourText(world.hour)}${world.weather ? ` · ${world.weather}` : ""}`;
+  line.hidden = (!world && !mood) || gateMode !== "play";
+  const parts = [];
+  if (world) parts.push(`Day ${world.day} · ${String(world.hour).padStart(2, "0")}:00, ${hourText(world.hour)}${world.weather ? ` · ${world.weather}` : ""}`);
+  if (mood) parts.push(`Mood: ${mood.label}`);
+  line.textContent = parts.join(" · ");
 }
 
 function paintPoll(poll) {
@@ -4956,6 +5013,7 @@ function boardClick(action, button) {
     "quest-remove": () => void boardOp({ op: "quest-remove", id: button.dataset.id }),
     "stash-take": () => void takeFromStash(button.dataset.id),
     "open-handout": () => void openHandout(button.dataset.id),
+    "next-ics": () => nextIcs(),
     "close-handout": () => document.getElementById("handout-dialog").close(),
     "gift-ok": () => { document.getElementById("gift-banner").hidden = true; },
     "coin-put": () => void moveCoin("coin-put", readInt(document.getElementById("coin-amount"), 0, 0, 1_000_000) * 100),

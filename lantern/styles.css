@@ -1839,3 +1839,21 @@ html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-
 .handout-image { max-width: 100%; height: auto; border-radius: 8px; display: block; margin-bottom: 0.6rem; }
 .talk-row.is-read, .is-read .talk-body, .talk-log .is-read { font-family: var(--serif); }
 .talk-log .is-read { border-left: 3px solid var(--gold); padding-left: 0.6rem; background: var(--raise-2); border-radius: 6px; }
+
+/* Running the table */
+.pause-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(10, 8, 6, 0.86); display: grid; place-items: center; padding: 16px; }
+.pause-overlay[hidden] { display: none; }
+.pause-card { text-align: center; max-width: 28rem; }
+.pause-title { font-family: var(--serif); font-size: 2rem; color: var(--cream); margin: 0 0 0.4rem; }
+.layout-row { margin: 0.4rem 0; }
+.spot-row { display: grid; grid-template-columns: minmax(6rem, 10rem) 1fr auto; gap: 0.6rem; align-items: center; }
+.spot-row.is-quiet .spot-name { color: var(--gold); font-weight: 700; }
+.spot-bar { height: 8px; background: var(--raise-2); border-radius: 4px; overflow: hidden; }
+.spot-fill { display: block; height: 100%; background: var(--ash); }
+.seat-row input { width: 9rem; }
+.seat-link-field { width: 100%; }
+.text-btn.danger { color: var(--blood); }
+.talk-mode { color: var(--gold); }
+#module-table details { margin-top: 0.7rem; }
+#module-table summary { cursor: pointer; font-weight: 600; }
+#dm-slow { width: 4.5rem; }
