@@ -1,6 +1,7 @@
 /** Shared table rules. The local server and the Worker both use this module. */
 
 import { blankDeath, blankOrder, cleanOrder } from "../src/order.js";
+import { MARKS } from "../src/marks.js";
 
 export const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const EVENT_CAP = 500;
@@ -43,9 +44,11 @@ export function cleanSummaries(value) {
   if (!Array.isArray(value)) throw new TableError("The activity log has to be a list.");
   const summaries = [];
   for (const item of value.slice(0, SUMMARY_CAP)) {
-    if (typeof item !== "string") continue;
-    const text = collapse(item).slice(0, SUMMARY_LENGTH);
-    if (text) summaries.push(text);
+    const raw = typeof item === "string" ? item : item && typeof item === "object" && typeof item.text === "string" ? item.text : null;
+    if (raw === null) continue;
+    const text = collapse(raw).slice(0, SUMMARY_LENGTH);
+    if (!text) continue;
+    summaries.push(typeof item === "object" && item.secret === true ? { text, secret: true } : text);
   }
   return summaries;
 }
@@ -270,7 +273,8 @@ export class TableRoom {
         order: blankOrder(),
       };
     }
-    const events = (await this.storage.get("events")) || [];
+    const events = ((await this.storage.get("events")) || [])
+      .filter((event) => !event.secret || who.role === "dm" || event.name === who.name);
     const stored = await this.storage.list({ prefix: "seat:" });
     const players = [...stored.values()]
       .map((seat) => ({
@@ -310,7 +314,8 @@ export class TableRoom {
     if (update.summaries.length) {
       let events = (await this.storage.get("events")) || [];
       for (const summary of update.summaries) {
-        events.push({ id: hexId(), at: now, name: who.name, summary });
+        if (typeof summary === "string") events.push({ id: hexId(), at: now, name: who.name, summary });
+        else events.push({ id: hexId(), at: now, name: who.name, summary: summary.text, secret: true });
       }
       if (events.length > EVENT_CAP) events = events.slice(-EVENT_CAP);
       writes.events = events;
@@ -461,6 +466,9 @@ export class TableRoom {
     if (payload.maxHp != null && payload.maxHp !== "") person.maxHp = intField(payload.maxHp, person.maxHp, 1, 9999);
     if (payload.ac === null || payload.ac === "") person.ac = null;
     else if (payload.ac != null) person.ac = intField(payload.ac, person.ac ?? 10, 0, 40);
+    if (Array.isArray(payload.marks)) {
+      person.marks = [...new Set(payload.marks.filter((mark) => MARKS.includes(mark)))];
+    }
     if (person.hp > 0) person.death = blankDeath();
     const next = cleanOrder(order);
     await this.storage.put("order", next);
