@@ -1857,3 +1857,315 @@ html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-
 #module-table details { margin-top: 0.7rem; }
 #module-table summary { cursor: pointer; font-weight: 600; }
 #dm-slow { width: 4.5rem; }
+
+/* ------------------------------------------------------------------
+   Tidy pass: one spacing scale, grouped sections, aligned forms.
+   ------------------------------------------------------------------ */
+:root {
+  --space-1: 0.35rem;
+  --space-2: 0.6rem;
+  --space-3: 0.9rem;
+  --space-4: 1.3rem;
+  --radius: 0.8rem;
+}
+
+/* Module dialogs: a sticky title bar with Close, then evenly spaced sections. */
+dialog.gear-dialog { padding: 0 1.25rem 1.4rem; }
+dialog.gear-dialog > .module-head,
+dialog.gear-dialog > section > .module-head,
+dialog.gear-dialog > #kit > .module-head {
+  top: 0;
+  margin: 0 0 var(--space-1);
+  padding: 1rem 0 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+dialog.gear-dialog .module-head h2 { font-size: 1.55rem; }
+dialog.gear-dialog > section, dialog.gear-dialog > #kit { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); align-content: start; }
+dialog.gear-dialog > section > .module-head, dialog.gear-dialog > #kit > .module-head { margin-inline: 0; }
+dialog.gear-dialog:not(.module-dialog)[open] { display: grid; gap: var(--space-2); align-content: start; }
+dialog.module-dialog[open] { gap: var(--space-2); }
+
+/* Section headings inside a module read as dividers, so a long module scans in blocks. */
+dialog.gear-dialog h3 {
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  color: var(--gold);
+  font-size: 1.1rem;
+  letter-spacing: 0.01em;
+}
+dialog.gear-dialog .module-head + h3,
+dialog.gear-dialog .module-head + .lede + h3,
+dialog.gear-dialog .list-head h3,
+dialog.gear-dialog .card h3,
+dialog.gear-dialog .pack-card h3,
+dialog.gear-dialog details h3 { margin-top: 0; padding-top: 0; border-top: 0; }
+dialog.gear-dialog .list-head { margin-top: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+dialog.gear-dialog .list-head h3 { color: var(--gold); }
+#module-rewards h3 { margin-top: var(--space-2); }
+dialog .dm-log { margin-top: var(--space-2); padding-top: 0; border-top: 0; }
+
+/* Folding sections in a module become quiet cards. */
+dialog.gear-dialog details:not(.lib-row):not(.marks) {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raise);
+  padding: 0;
+  margin: 0;
+}
+#module-story details, #module-table details, dialog .dm-area { margin: 0; }
+dialog.gear-dialog details:not(.lib-row):not(.marks) > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.7rem 0.9rem;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: var(--radius);
+}
+dialog.gear-dialog details:not(.lib-row):not(.marks) > summary::-webkit-details-marker { display: none; }
+dialog.gear-dialog details:not(.lib-row):not(.marks) > summary::after {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 0.15s ease;
+  flex: none;
+}
+dialog.gear-dialog details[open]:not(.lib-row):not(.marks) > summary::after { transform: rotate(-135deg) translateY(-1px); }
+dialog.gear-dialog details:not(.lib-row):not(.marks) > summary:hover { background: var(--raise-2); }
+dialog.gear-dialog details[open]:not(.lib-row):not(.marks) {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 0.9rem 0.9rem;
+}
+dialog.gear-dialog details[open]:not(.lib-row):not(.marks) > summary {
+  margin: 0 -0.9rem;
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+#module-story > details + details, #module-table > details + details { margin-top: calc(var(--space-1) * -1); }
+dialog.gear-dialog details details:not(.lib-row):not(.marks) { background: var(--bg); }
+
+/* Forms line up on a grid: fields share widths, checkboxes sit on the input line, buttons keep their size. */
+dialog.gear-dialog .form,
+.dm-side .ask-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: var(--space-2) var(--space-3);
+  align-items: end;
+}
+dialog.gear-dialog .form > label:has(textarea),
+dialog.gear-dialog .form > .wide,
+dialog.gear-dialog .form > p,
+dialog.gear-dialog .form > div { grid-column: 1 / -1; }
+dialog.gear-dialog .form > .btn,
+.dm-side .ask-form > .btn,
+.dm-side .ask-form > .text-btn { justify-self: start; }
+dialog.gear-dialog .form > .check,
+dialog.gear-dialog .form > .check-line,
+.dm-side .ask-form > .check { min-height: 2.35rem; align-self: end; display: flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.9rem; }
+dialog.gear-dialog .form input:not([type="checkbox"]):not([type="radio"]),
+dialog.gear-dialog .form select,
+.dm-side .ask-form input:not([type="checkbox"]),
+.dm-side .ask-form select { width: 100%; }
+.dm-side .ask-form input[type="number"] { width: 100%; }
+.dm-side .ask-form label { flex: none; }
+.ask-form { margin-top: var(--space-3); }
+
+/* Labels read as small captions above their field. */
+label { gap: 0.3rem; font-size: 0.8rem; letter-spacing: 0.01em; }
+input, select { min-height: 2.35rem; }
+input[type="checkbox"], input[type="radio"] { min-height: 0; accent-color: var(--ember); width: 1rem; height: 1rem; }
+.dm-page input[type="checkbox"] { accent-color: var(--ash); }
+.btn, .modes button, .die { transition: background 0.12s ease, border-color 0.12s ease; }
+@media (hover: hover) {
+  .btn:not(.primary):hover, .modes button:not([aria-pressed="true"]):hover { border-color: var(--gold); }
+}
+.turn-actions, .save-actions, .kit-actions, .chip-row { gap: var(--space-1) var(--space-2); }
+.hint + .hint { margin-top: -0.2rem; }
+
+/* ---------------- Player seat ---------------- */
+.top { padding: 1.1rem 0 0.8rem; }
+.seat-wrap { display: grid; gap: var(--space-2); padding-bottom: var(--space-3); }
+body.is-seated .seat-wrap { align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); padding-bottom: var(--space-2); }
+.seat-form { gap: var(--space-2); }
+.seat-form label { flex: 0 1 15rem; }
+.save-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+.sticky-tools { padding-top: 0.15rem; }
+.tabs { gap: 0.25rem; }
+.tabs button { padding: 0.8rem 0.7rem; font-weight: 550; transition: color 0.12s ease, border-color 0.12s ease; }
+.tabs button:hover { color: var(--cream); }
+.wick { grid-template-columns: 1fr auto; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; }
+.wick > .flames, .wick > .sr-only { grid-column: 1 / -1; }
+.wick > .flames:empty { display: none; }
+.wick #pause-scene { padding: 0.45rem 1rem; }
+.wick > .wick-add { justify-self: end; }
+.wick > .wick-add[open] { grid-column: 1 / -1; justify-self: stretch; }
+.wick-add summary { padding: 0.35rem 0.2rem; }
+
+main { padding-top: var(--space-4); }
+#panel-dice { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+#panel-dice[hidden] { display: none; }
+#panel-dice > h2 + .lede { margin-top: calc(var(--space-2) * -1); }
+#panel-dice .readout { margin: 0; }
+#after-roll:empty { display: none; }
+#panel-dice .formula { margin: calc(var(--space-2) * -1) 0 0; color: var(--muted); font-size: 0.95rem; }
+.dice-setup {
+  display: grid;
+  grid-template-columns: 7rem 7rem minmax(12rem, 1fr);
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raise);
+}
+.dice-setup > .purposes, .dice-setup > .modes, .dice-setup > #target-field { grid-column: 1 / -1; }
+.dice-setup > .check-line { grid-column: 1 / -1; color: var(--muted); }
+.dice-setup input:not([type="checkbox"]) { width: 100%; }
+.dice-setup > .check-line { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; }
+.purposes, .modes { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.tray-row { gap: var(--space-2); align-items: center; justify-content: space-between; }
+.tray-row [data-action="roll"] { min-width: 7rem; padding-block: 0.65rem; font-size: 1.05rem; }
+.macros {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.macros h3, .history-head h3 { margin: 0; color: var(--gold); }
+.macros .hint, #macro-bar .hint { color: var(--faint); }
+.history-head { margin-top: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+footer { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--line); color: var(--faint); font-size: 0.9rem; }
+
+/* Character steps */
+.creator-nav { gap: var(--space-1); margin: var(--space-2) 0; }
+#panel-character { gap: var(--space-3); }
+#panel-character .form { gap: var(--space-2) var(--space-3); }
+
+/* The pack: numbers in tidy rows. */
+#kit-hp, #kit-purse { font-family: var(--serif); }
+#kit-meta { margin-top: calc(var(--space-1) * -1); }
+#kit > [data-action="revise-character"] { justify-self: start; }
+#kit > [data-action="open-gear"] { justify-self: start; }
+#kit > div:empty { display: none; }
+#kit .ability-rolls { gap: var(--space-2); }
+#kit-vitals {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raise);
+}
+#kit-vitals > .sheet-title { font-size: 1.35rem; }
+#kit-vitals .turn-actions { margin: 0; }
+#kit-vitals > label { max-width: 9rem; }
+#kit-vitals > .hint { margin-top: calc(var(--space-1) * -1); }
+.portrait-row { margin: 0; }
+.portrait-row .stack { justify-items: start; gap: var(--space-1); }
+.macros > .wick-add summary { color: var(--muted); }
+
+/* ---------------- DM screen ---------------- */
+.dm-shell { gap: var(--space-3); }
+.dm-shell > main { width: 100%; margin: 0; }
+#dm-main:not([hidden]) { display: grid; gap: var(--space-3); padding-top: 0; }
+.dm-head { align-items: center; padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
+.gate { width: min(980px, 100%); margin-inline: auto; display: grid; gap: var(--space-3); padding: 1.2rem 1.3rem; }
+
+.dm-command {
+  background: var(--raise);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-3) 1.1rem;
+  gap: var(--space-3) var(--space-4);
+  align-items: stretch;
+}
+.dm-command:not(.is-compact) > div:first-child {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  align-content: start;
+  flex: 1 1 36rem;
+}
+.dm-command:not(.is-compact) > div:first-child > .code-row { grid-column: 1; grid-row: 1 / span 6; margin: 0; align-self: center; }
+.dm-command:not(.is-compact) > div:first-child > :not(.code-row) { grid-column: 2; }
+.dm-command:not(.is-compact) > div:first-child > .dm-actions { margin-top: var(--space-1); }
+.dm-command-side {
+  justify-content: center;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--line);
+  min-width: 12rem;
+  flex: 0 1 17rem;
+}
+.dm-command-side .hint:empty { display: none; }
+.dm-command.is-compact { padding: var(--space-2) 1rem; }
+.dm-command.is-compact .dm-command-side { border-left: 0; padding-left: 0; min-width: 0; align-items: center; }
+.dm-actions { gap: var(--space-1) var(--space-2); }
+#room-secret { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+.dm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(26, 34, 44, 0.6);
+}
+.dm-toolbar .module-bar { gap: var(--space-1); }
+.dm-toolbar .module-bar .btn { padding: 0.42rem 0.9rem; }
+.dm-toolbar .layout-row { margin: 0; align-items: center; }
+.dm-toolbar .layout-row:not(:empty)::before { content: "Layouts"; color: var(--faint); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; margin-right: 0.2rem; }
+.party-strip:empty { display: none; }
+#party-strip > .hint { padding: 0.2rem 0.1rem; }
+
+.dm-layout { gap: var(--space-3); }
+.dm-feed, .player-board, .dm-side .dm-talk { border-radius: var(--radius); padding: var(--space-3) 1rem; }
+.dm-feed { gap: var(--space-2); }
+.dm-side { gap: var(--space-3); }
+.dm-side .dm-talk { display: grid; gap: var(--space-2); }
+.dm-side .dm-talk > .lede { margin-top: calc(var(--space-1) * -1); }
+.dm-side .dm-talk h2, .dm-feed h2 { font-size: 1.4rem; }
+.feed-head { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
+.feed-filters .btn { padding: 0.3rem 0.75rem; font-size: 0.9rem; }
+.talk-form { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: end; }
+.talk-form label { min-width: 0; flex: 0 1 11rem; }
+.talk-form label:has(input) { flex: 1 1 12rem; }
+dialog.gear-dialog > section > .btn, #kit > .btn, dialog.gear-dialog > section > .text-btn, #kit > .text-btn { justify-self: start; }
+#dm-turn-banner, dialog .turn-banner { font-size: 1.45rem; }
+.turn-timer-row:has(#dm-turn-timer:empty) { justify-content: flex-end; margin-top: calc(var(--space-2) * -1); }
+.talk-form input, .talk-form select { width: 100%; }
+#dm-talk-form, #talk-form { padding-top: var(--space-2); }
+.dm-side .ask-form { padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.dm-passive { margin-top: 0; padding-top: var(--space-2); border-top: 1px solid var(--line); }
+.dm-passive > summary { padding: 0.2rem 0; }
+
+@media (min-width: 1100px) {
+  .dm-layout { grid-template-columns: minmax(20rem, 0.85fr) minmax(0, 1.15fr); }
+}
+
+@media (max-width: 720px) {
+  .dm-command:not(.is-compact) > div:first-child { grid-template-columns: 1fr; }
+  .dm-command:not(.is-compact) > div:first-child > .code-row,
+  .dm-command:not(.is-compact) > div:first-child > :not(.code-row) { grid-column: 1; grid-row: auto; }
+  .dm-command-side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: var(--space-2); width: 100%; }
+  .talk-form label, .talk-form label:has(input) { flex: 1 1 100%; }
+  .talk-form > .btn { flex: 1 1 100%; }
+  .dice-setup { grid-template-columns: 1fr 1fr; }
+  .dice-setup > label:nth-of-type(3) { grid-column: 1 / -1; }
+  dialog.gear-dialog { padding: 0 0.9rem 1.1rem; }
+  dialog.gear-dialog .module-head h2 { font-size: 1.3rem; }
+  dialog.gear-dialog .form { grid-template-columns: 1fr 1fr; }
+  .wick { grid-template-columns: 1fr; }
+  .wick > .wick-add { justify-self: start; }
+}

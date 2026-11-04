@@ -87,6 +87,7 @@
         </div>
       </div>
 
+      <div class="dm-toolbar">
       <div class="module-bar" role="toolbar" aria-label="Modules">
         <button type="button" class="btn" data-module="order" aria-haspopup="dialog" aria-controls="module-order" aria-expanded="false">Order</button>
         <button type="button" class="btn" data-module="shop" aria-haspopup="dialog" aria-controls="module-shop" aria-expanded="false">Shop <span id="shop-summary" class="summary-note"></span></button>
@@ -100,6 +101,7 @@
         <button type="button" class="btn" data-module="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false">Table</button>
       </div>
       <div id="dm-layouts" class="chip-row layout-row" role="group" aria-label="Screen layouts"></div>
+      </div>
 
       <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
       <div id="party-strip" class="party-strip" aria-label="The party"></div>
@@ -676,7 +678,10 @@
     <div id="library-list" class="stack"></div>
   </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
-    <h2 id="keys-title">Keys</h2>
+    <div class="module-head">
+      <h2 id="keys-title">Keys</h2>
+      <button type="button" class="btn" id="close-keys">Close</button>
+    </div>
     <p class="lede">These work while you are not typing in a box.</p>
     <dl class="keys-list">
       <dt><kbd>C</kbd></dt><dd>Copy the table code</dd>
@@ -685,7 +690,6 @@
       <dt>Shop, Spark, Threat, Notes</dt><dd>Open that module. Esc closes it. The table stays underneath.</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
     </dl>
-    <button type="button" class="btn" id="close-keys">Close</button>
   </dialog>
   <script type="module" src="src/dm.js"></script>
 </body>
