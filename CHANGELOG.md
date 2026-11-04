@@ -9,6 +9,11 @@
 
 ### Added
 
+- Your turn at a shared table. A strip under the tabs says whose turn it is and when you are up next, the order marks the next row, and your turn can ping with a tone, a buzz, and a flashing tab title. A turn helper ticks off action, bonus action, movement, and an object, keeps your reaction for the round, and has End turn, which the room accepts only from the seat whose turn it is. E ends your turn.
+- Table talk can be in character, as the character's name and portrait, or out of character. /me writes an action. @name pings that player, [[Name]] links the glossary, and the table shows who is typing. Messages take reactions and pins. The Table module lists the table's rolls in each player's feed color, and a session recap gathers the talk and rolls of the last hours with a copy button.
+- A Party module shared by the table: party notes, quests, a glossary, a stash for items and a coin pot with an even split, the Help action that gives an ally advantage on their next d20, a poll for the next session, and a ready check.
+- An X-card in the header. It pauses the scene for everyone, the DM screen included, and does not record who tapped it.
+- The seat chips say here, away, or disconnected. A Display section under Keys has high contrast and reduced motion. Turn changes and table talk are announced to screen readers, and phone buttons are at least 44 pixels tall.
 - Saved rolls on the dice panel. Name an attack with its to hit and damage, and it is one tap. A natural 20 offers the damage with the dice doubled. A saved roll can count ammunition.
 - A secret roll is shared with the DM and nobody else at the table. The DM feed marks it.
 - Inspiration can be spent on the last roll to roll it again.

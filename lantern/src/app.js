@@ -43,6 +43,7 @@ import {
   coinCounts,
   counterFor,
   equipNewCharacter,
+  findGear,
   findOffer,
   formatCoin,
   buyBackItem,
@@ -103,16 +104,18 @@ import {
   parseFormula,
   potionHealing,
   restExtras,
+  splitCoin,
   syncAmmo,
   tickResource,
   tickSlot,
   toggleAttune,
 } from "./extras.js";
 import { armorClass } from "./armor.js";
-import { blankDeath, cleanDeath, cleanOrder } from "./order.js";
-import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
-import { paintHere, paintTalk, paintTargets } from "./talk.js";
+import { blankDeath, cleanDeath, cleanOrder, sortOrder } from "./order.js";
+import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBoard, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
+import { mentions, paintHere, paintPins, paintTalk, paintTargets, typingLine } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
+import { bootDisplay } from "./display.js";
 import { registerOffline } from "./pwa.js";
 
 const WORDS = {
@@ -426,6 +429,7 @@ const PLAYER_MODULES = {
   character: "module-pack",
   notes: "module-notes",
   table: "module-table",
+  party: "module-party",
 };
 
 let moduleSync = true;
@@ -440,7 +444,7 @@ function closePlayerModules() {
 }
 
 function paintPlayerTabs(tab) {
-  for (const name of ["dice", "order", "threat", "spark", "character", "notes", "table"]) {
+  for (const name of ["dice", "order", "threat", "spark", "character", "notes", "table", "party"]) {
     const button = document.getElementById(`tab-${name}`);
     if (!button) continue;
     const on = name === tab;
@@ -611,10 +615,17 @@ async function sendTalk() {
     return;
   }
   try {
+    const voiced = talkPayload(text);
+    if (!voiced.text) {
+      if (status) status.textContent = "Write a message first.";
+      return;
+    }
     await postTalk(seat.room, {
-      text,
+      ...voiced,
       to: document.getElementById("talk-to")?.value || "",
     }, seat.token);
+    typingSentAt = 0;
+    void postBoard(seat.room, { op: "typing", on: false }).catch(() => {});
     if (field) field.value = "";
     if (status) status.textContent = "";
     await watchShop();
@@ -880,7 +891,7 @@ function ensureActive() {
 }
 
 function showTab(tab, { save = true } = {}) {
-  if (!["dice", "order", "character", "notes", "table"].includes(tab)) tab = "dice";
+  if (!["dice", "order", "character", "notes", "table", "party"].includes(tab)) tab = "dice";
   state.tab = tab;
   if (gateMode !== "play") {
     paintPlayerTabs(tab);
@@ -1223,6 +1234,7 @@ function renderCombat() {
     if (banner) banner.textContent = current ? `${current.name} · round ${order.round}` : "The round has not started";
     if (meta) meta.textContent = "The DM moves the round.";
     mount.replaceChildren(...list.map((person) => readOnlyRow(person, person.id === active)));
+    paintTurnHelper();
     return;
   }
   ensureActive();
@@ -1233,6 +1245,7 @@ function renderCombat() {
     return;
   }
   mount.replaceChildren(...list.map((person) => combatRow(person, person.id === state.combat.activeId)));
+  paintTurnHelper();
   if (pendingScroll) {
     mount.querySelector(".is-active")?.scrollIntoView({ block: "nearest" });
     pendingScroll = false;
@@ -2330,7 +2343,7 @@ async function watchShop() {
   if (!room || room.locked) return;
   applyShop(room.shop, room.buybacks);
   if (room.order) applySharedOrder(room.order);
-  paintTalk(document.getElementById("talk-log"), room.messages || []);
+  paintRoomExtras(room, seat);
   paintHere(document.getElementById("table-here"), room.players || [], seat.name);
   paintAsk(room.messages || [], seat.name);
   paintTargets(
@@ -3062,6 +3075,7 @@ function onClick(event) {
   if (!button) return;
   const { action } = button.dataset;
   if (extraClick(action, button)) return;
+  if (boardClick(action, button)) return;
   if (action === "play-alone") startSolo(document.getElementById("seat-name")?.value || "");
   else if (action === "toggle-pause") togglePause();
   else if (action === "revise-character") beginRevise();
@@ -3164,6 +3178,7 @@ function onSubmit(event) {
   if (!(form instanceof HTMLFormElement)) return;
   event.preventDefault();
   if (extraSubmit(form)) return;
+  if (boardSubmit(form)) return;
   if (form.id === "seat-form") joinSeat(form);
   else if (form.id === "talk-form") void sendTalk();
   else if (form.dataset.form === "combatant") addCombatant(form);
@@ -3173,6 +3188,7 @@ function onSubmit(event) {
 
 function onInput(event) {
   const target = event.target;
+  if (boardInput(target)) return;
   if (target.dataset?.sheet) {
     updateSheet(target, { log: false });
     return;
@@ -3288,6 +3304,7 @@ function onInput(event) {
 
 function onChange(event) {
   const target = event.target;
+  if (boardChange(target)) return;
   if (extraChange(target)) {
     if (target.dataset?.slotMax) renderKit();
     return;
@@ -3393,7 +3410,7 @@ function onKey(event) {
   }
   if (gateMode !== "play") return;
   if (event.target.closest("button") && !event.target.closest("dialog")) return;
-  const tabs = { 1: "dice", 2: "order", 3: "character", 4: "notes", 5: "table" };
+  const tabs = { 1: "dice", 2: "order", 3: "character", 4: "notes", 5: "table", 6: "party" };
   if (tabs[event.key]) {
     event.preventDefault();
     const next = tabs[event.key];
@@ -3402,6 +3419,9 @@ function onKey(event) {
   } else if (event.key === "r" && !document.querySelector("dialog[open]")) {
     event.preventDefault();
     doRoll();
+  } else if (event.key === "e" && myTurn()) {
+    event.preventDefault();
+    void endMyTurn();
   } else if (event.key === "n" && document.getElementById("module-order")?.open) {
     event.preventDefault();
     stepTurn(1);
@@ -3599,9 +3619,6 @@ let lastRoll = null;
 let pendingDamage = null;
 let pendingHelp = null;
 
-function consumeHelp() {
-  pendingHelp = null;
-}
 
 function extras() {
   if (!state.character.extras) state.character.extras = blankExtras();
@@ -4264,8 +4281,678 @@ function extraChange(target) {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// The shared table: your turn, the party board, chat extras, help, X-card.
+
+let lastRoom = null;
+let lastActiveKey = "";
+const seenMessages = new Set();
+let messagesPrimed = false;
+const usedHelps = new Set();
+let partyNotesTimer = null;
+let typingSentAt = 0;
+let titleTimer = null;
+const baseTitle = document.title;
+const ALERT_KEY = "lantern.alerts";
+const TURN_KEY = "lantern.turn";
+
+function alertPrefs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ALERT_KEY) || "{}");
+    return { turn: raw.turn !== false, mention: raw.mention !== false };
+  } catch {
+    return { turn: true, mention: true };
+  }
+}
+
+function saveAlertPrefs(prefs) {
+  try { localStorage.setItem(ALERT_KEY, JSON.stringify(prefs)); } catch { /* the switch still works for this page */ }
+}
+
+function ping(message) {
+  try {
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (Context) {
+      const audio = new Context();
+      const tone = audio.createOscillator();
+      const gain = audio.createGain();
+      tone.frequency.value = 660;
+      gain.gain.setValueAtTime(0.0001, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, audio.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.35);
+      tone.connect(gain).connect(audio.destination);
+      tone.start();
+      tone.stop(audio.currentTime + 0.4);
+      tone.onended = () => audio.close();
+    }
+  } catch { /* no sound is fine */ }
+  try { navigator.vibrate?.([120, 60, 120]); } catch { /* no vibration either */ }
+  clearInterval(titleTimer);
+  if (document.hidden) {
+    let on = false;
+    titleTimer = setInterval(() => {
+      on = !on;
+      document.title = on ? `● ${message}` : baseTitle;
+      if (!document.hidden) {
+        clearInterval(titleTimer);
+        document.title = baseTitle;
+      }
+    }, 900);
+  }
+}
+
+function currentOrder() {
+  return atSharedTable() ? (sharedOrder || cleanOrder(null)) : cleanOrder(state.combat);
+}
+
+function isMine(person) {
+  if (!person) return false;
+  const seat = loadSeat();
+  if (atSharedTable()) return person.seat === seat.name || person.name === state.character.name;
+  return Boolean(state.character.name) && person.name === state.character.name;
+}
+
+function turnFacts() {
+  const order = currentOrder();
+  const list = sortOrder(order.combatants);
+  const active = order.started ? list.find((person) => person.id === order.activeId) : null;
+  const index = active ? list.indexOf(active) : -1;
+  const next = active && list.length > 1 ? list[(index + 1) % list.length] : null;
+  return { order, list, active, next, mine: isMine(active), nextMine: isMine(next) };
+}
+
+function myTurn() {
+  return gateMode === "play" && turnFacts().mine;
+}
+
+function loadTurn() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TURN_KEY) || "{}");
+    return { key: String(raw.key || ""), used: raw.used && typeof raw.used === "object" ? raw.used : {}, reaction: raw.reaction === true };
+  } catch {
+    return { key: "", used: {}, reaction: false };
+  }
+}
+
+function saveTurn(turn) {
+  try { localStorage.setItem(TURN_KEY, JSON.stringify(turn)); } catch { /* the helper still works for this page */ }
+}
+
+const ECONOMY = [["action", "Action"], ["bonus", "Bonus action"], ["move", "Movement"], ["object", "Object interaction"]];
+
+function paintTurnHelper() {
+  const facts = turnFacts();
+  const turn = loadTurn();
+  const key = facts.active ? `${facts.order.round}:${facts.active.id}` : "";
+  if (facts.mine && turn.key !== key) {
+    turn.key = key;
+    turn.used = {};
+    turn.reaction = false;
+    saveTurn(turn);
+  }
+  const helper = document.getElementById("turn-helper");
+  const strip = document.getElementById("turn-strip");
+  const inFight = Boolean(facts.active) && facts.list.some(isMine);
+  if (helper) {
+    helper.replaceChildren(...present([
+      facts.mine ? h("p", { class: "turn-banner is-mine" }, "Your turn") : facts.nextMine ? h("p", { class: "hint" }, "You are up next.") : null,
+      facts.mine ? h("div", { class: "chip-row", role: "group", "aria-label": "What you have used this turn" }, ECONOMY.map(([id, label]) => h("button", {
+        type: "button",
+        class: "chip",
+        "data-action": "turn-use",
+        "data-use": id,
+        "aria-pressed": turn.used[id] ? "true" : "false",
+      }, label))) : null,
+      inFight ? h("div", { class: "turn-actions" }, present([
+        h("button", { type: "button", class: "btn", "data-action": "use-reaction", disabled: turn.reaction ? "disabled" : null }, turn.reaction ? "Reaction used" : "Use your reaction"),
+        facts.mine ? h("button", { type: "button", class: "btn primary", "data-action": "end-turn" }, "End turn") : null,
+      ])) : null,
+    ]));
+  }
+  if (strip) {
+    strip.hidden = !inFight || gateMode !== "play";
+    if (inFight) {
+      strip.replaceChildren(...present([
+        h("p", {}, facts.mine ? `Your turn, round ${facts.order.round}.` : facts.nextMine ? `${facts.active.name} is acting. You are up next.` : `${facts.active.name} is acting.`),
+        !facts.mine && !turn.reaction ? h("span", { class: "here-chip" }, "Reaction ready") : null,
+        facts.mine ? h("button", { type: "button", class: "btn primary", "data-action": "end-turn", "aria-keyshortcuts": "E" }, "End turn") : null,
+      ]));
+    }
+    strip.classList.toggle("is-mine", facts.mine);
+  }
+  for (const row of document.querySelectorAll("#combat-list .combatant")) row.classList.remove("is-next");
+  if (facts.next) {
+    const rows = [...document.querySelectorAll("#combat-list .combatant")];
+    const index = facts.list.indexOf(facts.next);
+    rows[index]?.classList.add("is-next");
+  }
+  const activeKey = facts.active ? `${facts.order.round}:${facts.active.id}` : "";
+  if (activeKey !== lastActiveKey) {
+    const first = lastActiveKey === "";
+    lastActiveKey = activeKey;
+    const live = document.getElementById("roll-live");
+    if (facts.active && live) live.textContent = facts.mine ? "Your turn." : `${facts.active.name}'s turn.`;
+    if (!first && facts.mine && alertPrefs().turn) ping("Your turn");
+  }
+}
+
+function useEconomy(id) {
+  const turn = loadTurn();
+  turn.used[id] = !turn.used[id];
+  saveTurn(turn);
+  paintTurnHelper();
+}
+
+async function useReaction() {
+  const turn = loadTurn();
+  if (turn.reaction) return;
+  turn.reaction = true;
+  saveTurn(turn);
+  paintTurnHelper();
+  const seat = loadSeat();
+  const name = state.character.name || seat.name;
+  persist(`${name} uses a reaction.`);
+  if (atSharedTable()) {
+    try {
+      await postTalk(seat.room, { text: "uses a reaction.", kind: "emote", as: state.character.name }, seat.token);
+    } catch { /* the roll log still has it */ }
+  }
+}
+
+async function endMyTurn() {
+  if (!myTurn()) return;
+  if (!atSharedTable()) {
+    stepTurn(1);
+    paintTurnHelper();
+    return;
+  }
+  try {
+    const result = await postBoard(loadSeat().room, { op: "end-turn" });
+    if (result.order) applySharedOrder(result.order);
+    persist(`${state.character.name || "The hero"} ends the turn.`);
+  } catch (error) {
+    setSaveStatus(error.message);
+  }
+}
+
+// --- Help: another player's next d20 has advantage.
+
+function paintHelp(helps) {
+  const seat = loadSeat();
+  const mine = (helps || []).find((help) => help.to === seat.name && !usedHelps.has(help.id));
+  pendingHelp = mine ? { id: mine.id, from: mine.from } : null;
+  const banner = document.getElementById("help-banner");
+  if (!banner) return;
+  banner.hidden = !pendingHelp;
+  if (pendingHelp) setText(banner, `${pendingHelp.from} is helping you. Your next d20 roll has advantage.`);
+}
+
+function consumeHelp() {
+  if (!pendingHelp) return;
+  usedHelps.add(pendingHelp.id);
+  pendingHelp = null;
+  const banner = document.getElementById("help-banner");
+  if (banner) banner.hidden = true;
+  if (atSharedTable()) void postBoard(loadSeat().room, { op: "help-used" }).catch(() => {});
+};
+
+async function boardOp(body, success) {
+  const seat = loadSeat();
+  const status = document.getElementById("party-status");
+  if (!atSharedTable()) {
+    if (status) status.textContent = "Join a table to use the party board.";
+    return null;
+  }
+  try {
+    const result = await postBoard(seat.room, body);
+    if (status) status.textContent = success || "";
+    if (result.board && lastRoom) {
+      lastRoom.board = result.board;
+      paintBoard(result.board);
+    }
+    return result;
+  } catch (error) {
+    if (status) status.textContent = error.message;
+    setText(document.getElementById("talk-status"), error.message);
+    return null;
+  }
+}
+
+// --- The party board.
+
+function seatNames() {
+  return (lastRoom?.players || []).map((player) => player.name);
+}
+
+function paintBoard(board) {
+  if (!board) return;
+  const seat = loadSeat();
+  const notes = document.getElementById("party-notes");
+  if (notes && document.activeElement !== notes && !partyNotesTimer) notes.value = board.notes?.text || "";
+  setText(document.getElementById("party-notes-by"), board.notes?.by ? `Last written by ${board.notes.by}, ${new Date(board.notes.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "");
+  const quests = document.getElementById("party-quests");
+  if (quests && !typingInside(quests)) {
+    quests.replaceChildren(...(board.quests.length ? board.quests.map((quest) => h("div", { class: quest.done ? "gear-row is-done" : "gear-row" }, [
+      h("label", { class: "check-line" }, [
+        h("input", { type: "checkbox", "data-quest": quest.id, checked: quest.done ? "checked" : null }),
+        quest.title,
+      ]),
+      h("button", { type: "button", class: "text-btn", "data-action": "quest-remove", "data-id": quest.id }, "Remove"),
+    ])) : [h("p", { class: "empty" }, "No quests yet.")]));
+  }
+  const glossary = document.getElementById("party-glossary");
+  if (glossary) {
+    glossary.replaceChildren(...(board.glossary.length ? board.glossary.map((item) => h("article", { class: "glossary-row", id: `gloss-${item.id}`, "data-name": item.name.toLowerCase() }, [
+      h("p", { class: "sheet-title" }, item.name),
+      item.body ? h("p", {}, item.body) : null,
+      h("button", { type: "button", class: "text-btn", "data-action": "glossary-remove", "data-id": item.id }, "Remove"),
+    ])) : [h("p", { class: "empty" }, "Nobody named yet.")]));
+  }
+  const coin = document.getElementById("party-coin");
+  if (coin && !typingInside(coin)) {
+    const people = Math.max(1, seatNames().length);
+    const share = splitCoin(board.stash.cp, people);
+    coin.replaceChildren(
+      h("p", { class: "sheet-title" }, `Coin pot: ${formatCoin(board.stash.cp)}`),
+      h("p", { class: "hint" }, board.stash.cp ? `Split evenly between ${people} ${people === 1 ? "seat" : "seats"}: ${formatCoin(share.each)} each.` : "Put coin in to split it evenly."),
+      h("div", { class: "turn-actions amount-row" }, [
+        h("label", {}, ["Gold", h("input", { id: "coin-amount", type: "number", min: "0", step: "1", inputmode: "numeric", placeholder: "0" })]),
+        h("button", { type: "button", class: "btn", "data-action": "coin-put" }, "Put in"),
+        h("button", { type: "button", class: "btn", "data-action": "coin-take" }, "Take"),
+        board.stash.cp && share.each ? h("button", { type: "button", class: "btn", "data-action": "coin-share", "data-cp": String(share.each) }, "Take my share") : null,
+      ].filter(Boolean)),
+    );
+  }
+  const stash = document.getElementById("party-stash");
+  if (stash) {
+    stash.replaceChildren(...(board.stash.items.length ? board.stash.items.map((item) => h("div", { class: "gear-row" }, [
+      h("span", {}, `${item.name}${item.qty > 1 ? ` × ${item.qty}` : ""} · from ${item.by}`),
+      h("button", { type: "button", class: "btn", "data-action": "stash-take", "data-id": item.id }, "Take one"),
+    ])) : [h("p", { class: "empty" }, "The stash is empty.")]));
+  }
+  const pick = document.getElementById("stash-pick");
+  if (pick && document.activeElement !== pick) {
+    const items = state.character.items || [];
+    pick.replaceChildren(...(items.length ? items.map((item) => h("option", { value: item.id }, item.qty > 1 ? `${item.name} × ${item.qty}` : item.name)) : [h("option", { value: "" }, "The pack is empty")]));
+  }
+  const helpPick = document.getElementById("help-pick");
+  if (helpPick && document.activeElement !== helpPick) {
+    const others = seatNames().filter((name) => name !== seat.name);
+    helpPick.replaceChildren(...(others.length ? others.map((name) => h("option", { value: name }, name)) : [h("option", { value: "" }, "Nobody else is seated")]));
+  }
+  paintPoll(board.poll);
+  paintReady(board.ready);
+  const xcard = document.getElementById("xcard-banner");
+  if (xcard) {
+    const was = !xcard.hidden;
+    xcard.hidden = !board.xcard;
+    if (board.xcard && !was) ping("X-card");
+  }
+  paintHelp(board.helps);
+}
+
+function paintPoll(poll) {
+  const mount = document.getElementById("party-poll");
+  if (!mount || typingInside(mount)) return;
+  const seat = loadSeat();
+  if (!poll) {
+    mount.replaceChildren(h("form", { "data-form": "poll", class: "form", autocomplete: "off" }, [
+      h("label", {}, ["Question", h("input", { name: "question", maxlength: "120", required: "required", value: "When is the next session?", spellcheck: "true" })]),
+      h("label", {}, ["Choices, one per line", h("textarea", { name: "options", rows: "3", maxlength: "500", placeholder: "Friday 7pm\nSaturday 2pm\nSunday 6pm" })]),
+      h("button", { type: "submit", class: "btn" }, "Start the poll"),
+    ]));
+    return;
+  }
+  const most = Math.max(0, ...poll.options.map((option) => option.votes.length));
+  mount.replaceChildren(...present([
+    h("p", { class: "sheet-title" }, poll.question),
+    h("p", { class: "hint" }, `${poll.closed ? "Closed" : "Open"}, started by ${poll.by}. Tap a choice to vote, or tap it again to take the vote back. You can pick more than one.`),
+    ...poll.options.map((option) => h("button", {
+      type: "button",
+      class: option.votes.length && option.votes.length === most ? "btn poll-option is-best" : "btn poll-option",
+      "data-action": "poll-vote",
+      "data-option": option.id,
+      "aria-pressed": option.votes.includes(seat.name) ? "true" : "false",
+      disabled: poll.closed ? "disabled" : null,
+    }, `${option.label} · ${option.votes.length}${option.votes.length ? ` (${option.votes.join(", ")})` : ""}`)),
+    h("div", { class: "turn-actions" }, present([
+      poll.closed ? null : h("button", { type: "button", class: "text-btn", "data-action": "poll-close" }, "Close the poll"),
+      h("button", { type: "button", class: "text-btn", "data-action": "poll-clear" }, "Clear it"),
+    ])),
+  ]));
+}
+
+function paintReady(ready) {
+  const banner = document.getElementById("ready-banner");
+  const mount = document.getElementById("party-ready");
+  const seat = loadSeat();
+  if (mount) {
+    mount.replaceChildren(h("button", { type: "button", class: "btn", "data-action": "ready-call" }, "Call a ready check"));
+  }
+  if (!banner) return;
+  if (!ready || gateMode !== "play") {
+    banner.hidden = true;
+    return;
+  }
+  const names = [...new Set([...seatNames(), ...Object.keys(ready.answers)])];
+  const waiting = names.filter((name) => !ready.answers[name]);
+  const mine = ready.answers[seat.name];
+  const was = banner.hidden;
+  banner.hidden = false;
+  banner.replaceChildren(
+    h("p", {}, `${ready.by} called a ready check. ${names.map((name) => `${name}: ${ready.answers[name] === "ready" ? "ready" : ready.answers[name] === "wait" ? "wait" : "…"}`).join(" · ")}`),
+    h("div", { class: "ask-actions" }, present([
+      h("button", { type: "button", class: mine === "ready" ? "btn primary" : "btn", "data-action": "ready-answer", "data-answer": "ready" }, "Ready"),
+      h("button", { type: "button", class: mine === "wait" ? "btn primary" : "btn", "data-action": "ready-answer", "data-answer": "wait" }, "Wait"),
+      !waiting.length || ready.by === seat.name ? h("button", { type: "button", class: "text-btn", "data-action": "ready-clear" }, "Done") : null,
+    ])),
+  );
+  if (was && !mine && ready.by !== seat.name) ping("Ready check");
+}
+
+function queuePartyNotes(text) {
+  clearTimeout(partyNotesTimer);
+  partyNotesTimer = setTimeout(async () => {
+    partyNotesTimer = null;
+    await boardOp({ op: "notes", text }, "Saved for the party.");
+  }, 900);
+}
+
+function openGlossary(name) {
+  showTab("party");
+  const row = document.querySelector(`#party-glossary [data-name="${CSS.escape(name.toLowerCase())}"]`);
+  if (row) {
+    row.scrollIntoView({ block: "center" });
+    row.classList.add("is-found");
+    setTimeout(() => row.classList.remove("is-found"), 1600);
+  } else {
+    const form = document.querySelector("form[data-form='glossary']");
+    if (form) {
+      form.elements.name.value = name;
+      form.elements.body.focus();
+    }
+  }
+}
+
+async function putInStash(form) {
+  const id = form.elements.piece.value;
+  const item = (state.character.items || []).find((entry) => entry.id === id);
+  if (!item) return;
+  const result = await boardOp({ op: "stash-put", name: item.name, gearId: item.id, qty: 1 }, `Put ${item.name} in the stash.`);
+  if (!result) return;
+  state.character.items = item.qty > 1
+    ? state.character.items.map((entry) => (entry.id === id ? { ...entry, qty: entry.qty - 1 } : entry))
+    : state.character.items.filter((entry) => entry.id !== id);
+  persist(`Puts ${item.name} in the party stash.`);
+  renderKit();
+}
+
+async function takeFromStash(id) {
+  const result = await boardOp({ op: "stash-take", id }, "Taken.");
+  if (!result?.taken) return;
+  const { name, gearId } = result.taken;
+  if (gearId && findGear(gearId)) {
+    const found = state.character.items.find((entry) => entry.id === gearId);
+    state.character.items = found
+      ? state.character.items.map((entry) => (entry.id === gearId ? { ...entry, qty: Math.min(99, entry.qty + 1) } : entry))
+      : [...state.character.items, { id: gearId, name, qty: 1 }];
+  } else {
+    const ex = extras();
+    state.character.extras = cleanExtras({ ...ex, trinkets: [...ex.trinkets, { id: uid(), name, qty: 1 }] });
+  }
+  persist(`Takes ${name} from the party stash.`);
+  renderKit();
+}
+
+async function moveCoin(op, cp) {
+  if (!Number.isInteger(cp) || cp <= 0) return;
+  const purse = state.character.purse || 0;
+  if (op === "coin-put" && cp > purse) {
+    setText(document.getElementById("party-status"), "The purse does not hold that much.");
+    return;
+  }
+  const result = await boardOp({ op, cp }, op === "coin-put" ? `Put ${formatCoin(cp)} in the pot.` : `Took ${formatCoin(cp)}.`);
+  if (!result) return;
+  state.character.purse = op === "coin-put" ? purse - cp : purse + cp;
+  persist(op === "coin-put" ? `Puts ${formatCoin(cp)} in the party pot.` : `Takes ${formatCoin(cp)} from the party pot.`);
+  renderKit();
+  if (lastRoom?.board) paintBoard(lastRoom.board);
+}
+
+// --- Chat: voice, typing, mentions, and the table's rolls.
+
+function roomColors(players) {
+  const colors = {};
+  const portraits = {};
+  for (const player of players || []) {
+    const ex = player.snapshot?.character?.extras;
+    if (ex?.color) colors[player.name] = ex.color;
+    if (typeof ex?.portrait === "string" && ex.portrait.startsWith("data:image/")) portraits[player.name] = ex.portrait;
+  }
+  return { colors, portraits };
+}
+
+function paintTableRolls(events, players) {
+  const mount = document.getElementById("table-rolls");
+  if (!mount) return;
+  const { colors } = roomColors(players);
+  const rolls = (events || []).filter((event) => /^Rolled /.test(event.summary)).slice(0, 15);
+  mount.replaceChildren(...(rolls.length ? rolls.map((event) => h("p", { class: event.secret ? "roll-line is-secret" : "roll-line", style: colors[event.name] ? `--who:${colors[event.name]}` : null }, [
+    h("span", { class: "roll-who" }, event.secret ? `${event.name} (secret)` : event.name),
+    ` ${event.summary.replace(/^Rolled /, "rolled ")}`,
+  ])) : [h("p", { class: "hint" }, "No rolls at the table yet.")]));
+}
+
+function noticeMentions(messages, seat) {
+  const names = [seat.name, state.character.name].filter(Boolean);
+  let fresh = null;
+  for (const message of messages) {
+    if (seenMessages.has(message.id)) continue;
+    seenMessages.add(message.id);
+    if (messagesPrimed && message.from !== seat.name && mentions(message.text, names)) fresh = message;
+    if (messagesPrimed && message.from !== seat.name) {
+      const live = document.getElementById("talk-live");
+      if (live) live.textContent = `${message.as || message.from}${message.kind === "emote" ? " " : ": "}${message.text}`;
+    }
+  }
+  messagesPrimed = true;
+  if (fresh && alertPrefs().mention) {
+    ping("Mentioned");
+    setText(document.getElementById("talk-status"), `${fresh.as || fresh.from} mentioned you.`);
+  }
+}
+
+function paintRoomExtras(room, seat) {
+  lastRoom = room;
+  const { colors, portraits } = roomColors(room.players);
+  paintTalk(document.getElementById("talk-log"), room.messages || [], {
+    interactive: true,
+    selfName: seat.name,
+    mentionNames: [seat.name, state.character.name].filter(Boolean),
+    colors,
+    portraits,
+  });
+  paintPins(document.getElementById("talk-pins"), room.messages || []);
+  setText(document.getElementById("talk-typing"), typingLine(room.players, seat.name));
+  noticeMentions(room.messages || [], seat);
+  paintTableRolls(room.events, room.players);
+  if (room.board) paintBoard(room.board);
+  const xcard = document.getElementById("xcard");
+  if (xcard) xcard.hidden = false;
+  paintTurnHelper();
+}
+
+function sendTyping() {
+  if (!atSharedTable()) return;
+  const now = Date.now();
+  if (now - typingSentAt < 3000) return;
+  typingSentAt = now;
+  void postBoard(loadSeat().room, { op: "typing" }).catch(() => {});
+}
+
+function talkPayload(raw) {
+  let text = raw;
+  let kind = document.getElementById("talk-kind")?.value === "ooc" ? "ooc" : "ic";
+  if (/^\/me\s+/i.test(text)) {
+    kind = "emote";
+    text = text.replace(/^\/me\s+/i, "");
+  } else if (/^\/ooc\s+/i.test(text)) {
+    kind = "ooc";
+    text = text.replace(/^\/ooc\s+/i, "");
+  }
+  const as = kind === "ooc" ? "" : state.character.name || "";
+  return { text, kind, as };
+}
+
+function boardClick(action, button) {
+  const handlers = {
+    "end-turn": () => void endMyTurn(),
+    "open-recap": () => {
+      paintRecap();
+      document.getElementById("recap-dialog")?.showModal();
+    },
+    "close-recap": () => document.getElementById("recap-dialog")?.close(),
+    "copy-recap": () => void copyRecap(),
+    "turn-use": () => useEconomy(button.dataset.use),
+    "use-reaction": () => void useReaction(),
+    react: () => void boardOp({ op: "react", id: button.dataset.id, emoji: button.dataset.emoji }).then(() => watchShop()),
+    pin: () => void boardOp({ op: "pin", id: button.dataset.id, on: button.dataset.on === "true" }).then(() => watchShop()),
+    "glossary-open": () => openGlossary(button.dataset.name),
+    "glossary-remove": () => void boardOp({ op: "glossary-remove", id: button.dataset.id }),
+    "quest-remove": () => void boardOp({ op: "quest-remove", id: button.dataset.id }),
+    "stash-take": () => void takeFromStash(button.dataset.id),
+    "coin-put": () => void moveCoin("coin-put", readInt(document.getElementById("coin-amount"), 0, 0, 1_000_000) * 100),
+    "coin-take": () => void moveCoin("coin-take", readInt(document.getElementById("coin-amount"), 0, 0, 1_000_000) * 100),
+    "coin-share": () => void moveCoin("coin-take", Number(button.dataset.cp)),
+    "poll-vote": () => void boardOp({ op: "poll-vote", option: button.dataset.option }),
+    "poll-close": () => void boardOp({ op: "poll-close" }),
+    "poll-clear": () => void boardOp({ op: "poll-clear" }),
+    "ready-call": () => void boardOp({ op: "ready-call" }, "Ready check called."),
+    "ready-answer": () => void boardOp({ op: "ready-answer", answer: button.dataset.answer }),
+    "ready-clear": () => void boardOp({ op: "ready-clear" }),
+    xcard: () => void boardOp({ op: "xcard" }).then((result) => {
+      if (result) document.getElementById("xcard-banner").hidden = false;
+    }),
+    "xcard-clear": () => void boardOp({ op: "xcard-clear" }).then(() => {
+      document.getElementById("xcard-banner").hidden = true;
+    }),
+  };
+  const run = handlers[action];
+  if (!run) return false;
+  run();
+  return true;
+}
+
+function boardSubmit(form) {
+  const kind = form.dataset.form;
+  if (kind === "quest") {
+    const title = form.elements.title.value.trim();
+    if (title) void boardOp({ op: "quest-add", title }, "Added the quest.").then((ok) => ok && form.reset());
+  } else if (kind === "glossary") {
+    const name = form.elements.name.value.trim();
+    if (name) void boardOp({ op: "glossary-add", name, body: form.elements.body.value }, `Saved ${name}.`).then((ok) => ok && form.reset());
+  } else if (kind === "stash") void putInStash(form);
+  else if (kind === "help") {
+    const to = form.elements.to.value;
+    if (to) void boardOp({ op: "help", to }, `Helping ${to}. Their next d20 roll has advantage.`).then((ok) => ok && persist(`${state.character.name || loadSeat().name} helps ${to}.`));
+  } else if (kind === "poll") {
+    const options = form.elements.options.value.split("\n").map((line) => line.trim()).filter(Boolean);
+    void boardOp({ op: "poll-open", question: form.elements.question.value, options }, "Poll started.");
+  } else return false;
+  return true;
+}
+
+function boardChange(target) {
+  if (target.dataset?.quest) {
+    void boardOp({ op: "quest-toggle", id: target.dataset.quest });
+    return true;
+  }
+  if (target.id === "recap-since") {
+    paintRecap();
+    return true;
+  }
+  if (target.id === "alert-turn" || target.id === "alert-mention") {
+    saveAlertPrefs({ ...alertPrefs(), [target.id === "alert-turn" ? "turn" : "mention"]: target.checked });
+    return true;
+  }
+  return false;
+}
+
+function boardInput(target) {
+  if (target.id === "party-notes") {
+    queuePartyNotes(target.value);
+    return true;
+  }
+  if (target.id === "talk-text") {
+    sendTyping();
+    return false;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Session recap: the table's talk and rolls in one scroll.
+
+function recapEntries(room, hours) {
+  const since = Date.now() - hours * 60 * 60 * 1000;
+  const talk = (room?.messages || []).filter((message) => message.at >= since).map((message) => ({
+    at: message.at,
+    kind: "talk",
+    who: message.as || message.from,
+    text: message.kind === "emote" ? `${message.as || message.from} ${message.text}` : message.text,
+    whisper: Boolean(message.to),
+    ooc: message.kind === "ooc",
+  }));
+  const quiet = /^(Set |Named |Chose |Changed |Removed |Added |Saved |Cleared |Filled |Marked |Stopped |Counting |Using the suggested)/;
+  const rolls = (room?.events || []).filter((event) => event.at >= since && !quiet.test(event.summary)).map((event) => ({
+    at: event.at,
+    kind: /^Rolled /.test(event.summary) ? "roll" : "event",
+    who: event.name,
+    text: event.summary,
+    tag: /Natural 20/.test(event.summary) ? "natural-20" : /Natural 1\b/.test(event.summary) ? "natural-1" : "",
+    secret: event.secret === true,
+  }));
+  return [...talk, ...rolls].sort((a, b) => a.at - b.at);
+}
+
+function recapText(entries) {
+  return entries.map((entry) => {
+    const time = new Date(entry.at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+    return `[${time}] ${entry.who}: ${entry.text}${entry.whisper ? " (whisper)" : ""}${entry.secret ? " (secret)" : ""}`;
+  }).join("\n");
+}
+
+function paintRecap() {
+  const mount = document.getElementById("recap-list");
+  if (!mount) return;
+  if (!atSharedTable()) {
+    mount.replaceChildren(h("p", { class: "hint" }, "The recap gathers a shared table. Playing alone, your rolls are on the dice panel."));
+    return;
+  }
+  const hours = Number(document.getElementById("recap-since")?.value) || 6;
+  const entries = recapEntries(lastRoom, hours);
+  mount.replaceChildren(...(entries.length ? entries.map((entry) => h("article", {
+    class: ["recap-row", `is-${entry.kind}`, entry.tag, entry.ooc ? "is-ooc" : "", entry.whisper ? "is-whisper" : ""].filter(Boolean).join(" "),
+  }, [
+    h("time", { datetime: new Date(entry.at).toISOString() }, new Date(entry.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
+    h("p", {}, [h("strong", {}, entry.who), ` ${entry.text}`]),
+  ])) : [h("p", { class: "hint" }, "Nothing at the table in that time.")]));
+}
+
+async function copyRecap() {
+  const hours = Number(document.getElementById("recap-since")?.value) || 6;
+  const text = recapText(recapEntries(lastRoom, hours));
+  try {
+    await navigator.clipboard.writeText(text);
+    setText(document.getElementById("recap-status"), "Copied.");
+  } catch {
+    setText(document.getElementById("recap-status"), "This browser would not copy. Select the list and copy it by hand.");
+  }
+}
+
 function boot() {
   bootTextSize(document.getElementById("text-size"));
+  bootDisplay({ contrast: document.getElementById("contrast-switch"), motion: document.getElementById("motion-switch") });
   registerOffline();
   document.addEventListener("visibilitychange", onVisibility);
   if (state.pauseReason === "hidden") {
@@ -4295,6 +4982,11 @@ function boot() {
     if (file) void loadPortrait(file);
   });
   renderMacros();
+  const prefs = alertPrefs();
+  const turnBox = document.getElementById("alert-turn");
+  const mentionBox = document.getElementById("alert-mention");
+  if (turnBox) turnBox.checked = prefs.turn;
+  if (mentionBox) mentionBox.checked = prefs.mention;
   document.getElementById("import-file")?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (file) void restoreNight(file);

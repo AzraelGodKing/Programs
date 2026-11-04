@@ -19,7 +19,7 @@ import {
 } from "./screen.js";
 import { BASE_LIST, COUNTER_CAP, counterFor, findOffer, formatCoin, parseCoin, stallById, STALLS } from "./gear.js";
 import { normalize } from "./store.js";
-import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postOrder, postTalk, setShop } from "./table.js";
+import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postBoard, postOrder, postTalk, setShop } from "./table.js";
 import { paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { registerOffline } from "./pwa.js";
@@ -962,18 +962,39 @@ async function poll() {
     renderDmOrder();
   }
   setStatus("");
+  const xcard = document.getElementById("dm-xcard");
+  if (xcard) xcard.hidden = !room.board?.xcard;
   paintShopLive(room);
   ensureShopForm(room);
   const next = JSON.stringify(room);
   if (next === signature) return;
   signature = next;
   renderRoom(room);
-  paintTalk(document.getElementById("dm-talk-log"), room.messages || []);
+  paintTalk(document.getElementById("dm-talk-log"), room.messages || [], { colors: playerColors(room.players) });
   paintTargets(
     document.getElementById("dm-talk-to"),
     (room.players || []).map((player) => player.name),
     DM_NAME,
   );
+}
+
+function playerColors(players) {
+  const colors = {};
+  for (const player of players || []) {
+    const color = player.snapshot?.character?.extras?.color;
+    if (typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) colors[player.name] = color;
+  }
+  return colors;
+}
+
+async function clearXcard() {
+  if (!code || !dmToken) return;
+  try {
+    await postBoard(code, { op: "xcard-clear" }, dmToken);
+    document.getElementById("dm-xcard").hidden = true;
+  } catch (error) {
+    setStatus(error.message);
+  }
 }
 
 function chooseSeat(name) {
@@ -1255,6 +1276,7 @@ function boot() {
       setStatus(error.message);
     }
   });
+  document.querySelector("[data-action='dm-xcard-clear']")?.addEventListener("click", () => { void clearXcard(); });
   document.getElementById("copy-code").addEventListener("click", () => {
     if (code) void copyText(code, document.getElementById("copy-code"));
   });

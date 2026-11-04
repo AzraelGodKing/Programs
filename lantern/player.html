@@ -17,6 +17,8 @@
     try {
       var seat = JSON.parse(localStorage.getItem("lantern.seat") || "{}");
       if (seat.solo === true || (seat.name && seat.room)) document.body.classList.add("is-seated");
+      if (localStorage.getItem("lantern.contrast") === "high") document.documentElement.dataset.contrast = "high";
+      if (localStorage.getItem("lantern.motion") === "reduced") document.documentElement.dataset.motion = "reduced";
     } catch (e) {}
   </script>
   <a class="skip" href="#main">Skip to the table</a>
@@ -36,8 +38,9 @@
     </div>
     <div class="head-actions">
       <button type="button" class="text-btn" id="open-roster" data-action="open-roster" hidden>Characters</button>
+      <button type="button" class="text-btn xcard-btn" id="xcard" data-action="xcard" hidden title="Pause the scene, no questions asked">X-card</button>
       <button type="button" class="text-btn" id="text-size">Text: normal</button>
-      <button type="button" class="text-btn" data-action="open-keys" aria-keyshortcuts="?">Keys</button>
+      <button type="button" class="text-btn" data-action="open-keys" aria-keyshortcuts="?">Keys and display</button>
       <a class="text-btn" href="/">Change seat</a>
     </div>
   </header>
@@ -81,6 +84,14 @@
   </section>
 
   <div class="sticky-tools" role="region" aria-label="Tools and lights">
+    <div id="xcard-banner" class="ask-banner xcard-banner" hidden role="alert">
+      <p>Someone tapped the X-card. Change or skip what is happening. Nobody has to explain.</p>
+      <div class="ask-actions">
+        <button type="button" class="text-btn" data-action="xcard-clear">Clear it</button>
+      </div>
+    </div>
+    <div id="ready-banner" class="ask-banner" hidden role="alert"></div>
+    <div id="turn-strip" class="turn-strip" hidden role="status"></div>
     <div id="ask-banner" class="ask-banner" hidden role="alert">
       <p id="ask-text"></p>
       <div class="ask-actions">
@@ -94,6 +105,7 @@
       <button type="button" role="tab" id="tab-character" data-action="tab" data-tab="character" aria-haspopup="dialog" aria-controls="module-pack" aria-expanded="false" aria-selected="false" tabindex="-1">Pack</button>
       <button type="button" role="tab" id="tab-notes" data-action="tab" data-tab="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false" aria-selected="false" tabindex="-1">Notes</button>
       <button type="button" role="tab" id="tab-table" data-action="tab" data-tab="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false" aria-selected="false" tabindex="-1">Table</button>
+      <button type="button" role="tab" id="tab-party" data-action="tab" data-tab="party" aria-haspopup="dialog" aria-controls="module-party" aria-expanded="false" aria-selected="false" tabindex="-1">Party</button>
     </nav>
     <section class="wick" aria-label="Light sources">
       <p id="flame-live" class="sr-only" aria-live="polite"></p>
@@ -364,6 +376,8 @@
         <button type="button" class="btn primary" id="roll-initiative" data-action="roll-initiative">Roll for initiative</button>
       </div>
       <p id="initiative-result" class="hint" role="status"></p>
+      <div id="turn-helper" class="turn-helper"></div>
+      <label class="check-line"><input type="checkbox" id="alert-turn" checked> Ping me when my turn comes up</label>
       <div class="turn">
         <div>
           <p id="turn-banner" class="turn-banner">The round has not started</p>
@@ -419,17 +433,81 @@
       <h2 id="table-heading">Table</h2>
       <p class="lede">Say it to everyone, or whisper one person. A whisper shows only for the two of you. The DM can whisper you back.</p>
       <div id="table-here" class="here-list" aria-label="Who is at the table"></div>
-      <div id="talk-log" class="talk-log" aria-live="polite"></div>
+      <div id="talk-pins" class="talk-pins" hidden></div>
+      <div id="talk-log" class="talk-log"></div>
+      <p id="talk-live" class="sr-only" aria-live="polite"></p>
+      <p id="talk-typing" class="hint talk-typing"></p>
       <form id="talk-form" class="talk-form" autocomplete="off">
         <label>To
           <select id="talk-to" aria-label="Who hears this"></select>
         </label>
+        <label>Voice
+          <select id="talk-kind" aria-label="In or out of character">
+            <option value="ic">In character</option>
+            <option value="ooc">Out of character</option>
+          </select>
+        </label>
         <label>Message
-          <input id="talk-text" maxlength="400" placeholder="Say it, then send." spellcheck="true">
+          <input id="talk-text" maxlength="400" placeholder="Say it. /me for an action, @name to call someone, [[Name]] for the glossary." spellcheck="true">
         </label>
         <button class="btn primary" type="submit">Send</button>
       </form>
       <p id="talk-status" class="hint" role="status"></p>
+      <label class="check-line"><input type="checkbox" id="alert-mention" checked> Ping me when someone @mentions me</label>
+      <button type="button" class="btn" data-action="open-recap">Session recap</button>
+      <h3>Table rolls</h3>
+      <div id="table-rolls" class="table-rolls"></div>
+    </section>
+    <button type="button" class="btn" data-action="close-module">Close</button>
+  </dialog>
+  <dialog id="module-party" class="gear-dialog module-dialog" aria-labelledby="party-heading">
+    <section role="tabpanel" id="panel-party" aria-labelledby="tab-party" data-module-panel="party">
+      <h2 id="party-heading">Party</h2>
+      <p class="lede">Shared with everyone at the table, the DM too. Playing alone, the party board waits for a table.</p>
+      <p id="party-status" class="hint" role="status"></p>
+      <div id="party-ready"></div>
+      <h3>Party notes</h3>
+      <textarea id="party-notes" maxlength="8000" rows="5" placeholder="Quest leads, the shopping list, who owes whom."></textarea>
+      <p id="party-notes-by" class="hint"></p>
+      <h3>Quests</h3>
+      <div id="party-quests" class="stack"></div>
+      <form data-form="quest" class="form" autocomplete="off">
+        <label>New quest
+          <input name="title" maxlength="120" required placeholder="Find the miller's daughter" spellcheck="true">
+        </label>
+        <button type="submit" class="btn">Add</button>
+      </form>
+      <h3>Glossary</h3>
+      <p class="hint">People and places. Write [[Name]] in chat to link one.</p>
+      <div id="party-glossary" class="stack"></div>
+      <form data-form="glossary" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" maxlength="60" required placeholder="Old Wend" spellcheck="false">
+        </label>
+        <label>What we know
+          <input name="body" maxlength="600" placeholder="Ferryman. Lies about the tolls." spellcheck="true">
+        </label>
+        <button type="submit" class="btn">Save</button>
+      </form>
+      <h3>Party stash</h3>
+      <div id="party-coin"></div>
+      <div id="party-stash" class="stack"></div>
+      <form data-form="stash" class="form" autocomplete="off">
+        <label>From your pack
+          <select name="piece" id="stash-pick" aria-label="Item to put in the stash"></select>
+        </label>
+        <button type="submit" class="btn">Put one in</button>
+      </form>
+      <h3>Help an ally</h3>
+      <p class="hint">The Help action: their next d20 roll has advantage.</p>
+      <form data-form="help" class="form" autocomplete="off">
+        <label>Who
+          <select name="to" id="help-pick" aria-label="Who you help"></select>
+        </label>
+        <button type="submit" class="btn">Help</button>
+      </form>
+      <h3>Poll</h3>
+      <div id="party-poll"></div>
     </section>
     <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
@@ -475,16 +553,40 @@
     </div>
     <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
+  <dialog id="recap-dialog" class="gear-dialog" aria-labelledby="recap-title">
+    <h2 id="recap-title">Session recap</h2>
+    <p class="lede">What the table said and rolled, oldest first. Natural 20s and 1s stand out.</p>
+    <div class="turn-actions">
+      <label class="inline-field">Since
+        <select id="recap-since" aria-label="How far back">
+          <option value="6">The last 6 hours</option>
+          <option value="24">The last day</option>
+          <option value="168">The last week</option>
+        </select>
+      </label>
+      <button type="button" class="btn" data-action="copy-recap">Copy as text</button>
+    </div>
+    <p id="recap-status" class="hint" role="status"></p>
+    <div id="recap-list" class="recap-list"></div>
+    <button type="button" class="btn" data-action="close-recap">Close</button>
+  </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
     <h2 id="keys-title">Keys</h2>
     <p class="lede">These work while you are not typing in a box.</p>
     <dl class="keys-list">
-      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Dice, or Roll for initiative, Pack, Notes, and Table</dd>
+      <dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>Dice, or Roll for initiative, Pack, Notes, Table, and Party</dd>
+      <dt><kbd>E</kbd></dt><dd>End your turn, when it is yours</dd>
       <dt><kbd>R</kbd></dt><dd>Roll, while a module is closed</dd>
       <dt><kbd>N</kbd></dt><dd>Next turn, in Roll for initiative, when playing alone</dd>
       <dt><kbd>?</kbd></dt><dd>Show this list</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
     </dl>
+    <h3>Display</h3>
+    <p class="hint">These stay with this browser.</p>
+    <div class="turn-actions">
+      <button type="button" class="btn" id="contrast-switch" aria-pressed="false">Contrast: normal</button>
+      <button type="button" class="btn" id="motion-switch" aria-pressed="false">Motion: on</button>
+    </div>
     <button type="button" class="btn" data-action="close-keys">Close</button>
   </dialog>
   <dialog id="gear-dialog" class="gear-dialog">

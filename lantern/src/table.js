@@ -139,11 +139,15 @@ export async function postBuyback(code, body) {
   return response.json();
 }
 
-export async function postTalk(code, { text, to = "", ask = "" }, token = "") {
+export async function postTalk(code, { text, to = "", ask = "", kind = "", as = "" }, token = "") {
+  const body = { text, to };
+  if (ask) body.ask = ask;
+  if (kind) body.kind = kind;
+  if (as) body.as = as;
   const response = await fetch(`/api/rooms/${normalizeCode(code)}/talk`, {
     method: "POST",
     headers: tokenHeaders(token),
-    body: JSON.stringify(ask ? { text, to, ask } : { text, to }),
+    body: JSON.stringify(body),
   });
   if (response.status === 404) throw new Error("No table with that code.");
   if (!response.ok) throw new Error(await readError(response, "The table did not hear that."));
@@ -181,5 +185,16 @@ export async function postVitals(code, body) {
     body: JSON.stringify(body),
   });
   if (!response.ok) return null;
+  return response.json();
+}
+
+export async function postBoard(code, body, token = loadSeat().token) {
+  const response = await fetch(`/api/rooms/${normalizeCode(code)}/board`, {
+    method: "POST",
+    headers: tokenHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (response.status === 404) throw new Error("No table with that code.");
+  if (!response.ok) throw new Error(await readError(response, "The board did not take that."));
   return response.json();
 }

@@ -64,6 +64,7 @@ function facade(code) {
     setOrder: (token, body) => room.setOrder(token, body),
     rollInitiative: (token, body) => room.rollInitiative(token, body),
     setVitals: (token, body) => room.setVitals(token, body),
+    board: (token, body) => room.board(token, body),
   };
 }
 

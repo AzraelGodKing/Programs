@@ -1,6 +1,6 @@
 /** Shared table rules. The local server and the Worker both use this module. */
 
-import { blankDeath, blankOrder, cleanOrder } from "../src/order.js";
+import { blankDeath, blankOrder, cleanOrder, sortOrder } from "../src/order.js";
 import { MARKS } from "../src/marks.js";
 
 export const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -122,7 +122,51 @@ export function cleanTalk(payload) {
   const to = cleanTarget(payload.to);
   if (to === name) throw new TableError("Whisper someone else.");
   const ask = cleanAsk(payload.ask, name);
-  return ask ? { name, text, to, ask } : { name, text, to };
+  const kind = TALK_KINDS.includes(payload.kind) ? payload.kind : "";
+  const as = typeof payload.as === "string" ? collapse(payload.as).slice(0, 80) : "";
+  const message = { name, text, to };
+  if (ask) message.ask = ask;
+  if (kind) message.kind = kind;
+  if (as && kind !== "ooc") message.as = as;
+  return message;
+}
+
+export const TALK_KINDS = ["ic", "ooc", "emote"];
+export const REACTIONS = ["👍", "😂", "😮", "💀", "❤️", "🎲"];
+const BOARD_LIST_CAP = 60;
+const HELP_MS = 10 * 60 * 1000;
+const XCARD_MS = 30 * 60 * 1000;
+
+export function blankBoard() {
+  return {
+    notes: { text: "", by: "", at: 0 },
+    glossary: [],
+    quests: [],
+    stash: { items: [], cp: 0 },
+    poll: null,
+    ready: null,
+    xcard: null,
+    helps: [],
+  };
+}
+
+function boardText(value, max, what) {
+  if (typeof value !== "string") throw new TableError(`${what} has to be text.`);
+  const text = collapse(value).slice(0, max);
+  if (!text) throw new TableError(`${what} is empty.`);
+  return text;
+}
+
+function boardId(value) {
+  if (typeof value !== "string" || !/^[a-f0-9]{16}$/.test(value)) throw new TableError("That is not on the board.");
+  return value;
+}
+
+function cleanBoard(raw) {
+  const board = { ...blankBoard(), ...(raw && typeof raw === "object" ? raw : {}) };
+  board.helps = (board.helps || []).filter((help) => Date.now() - help.at < HELP_MS);
+  if (board.xcard && Date.now() - board.xcard.at > XCARD_MS) board.xcard = null;
+  return board;
 }
 
 /** A roll the DM asks for, like "Perception" or "Dexterity save". Only the DM can ask. */
@@ -270,6 +314,7 @@ export class TableRoom {
         shop,
         buybacks: [],
         messages: [],
+        board: blankBoard(),
         order: blankOrder(),
       };
     }
@@ -280,14 +325,18 @@ export class TableRoom {
       .map((seat) => ({
         name: seat.name,
         seen: seat.seen,
+        typing: seat.typing || 0,
         intent: seat.intent || "",
         snapshot: seat.snapshot || {},
       }))
       .sort((a, b) => b.seen - a.seen);
     const messages = ((await this.storage.get("messages")) || []).filter((message) => messageVisible(message, who.name));
     const buybacks = shopIsOpen(shop) ? ((await this.storage.get("buybacks")) || []) : [];
+    const board = cleanBoard(await this.storage.get("board"));
+    board.helps = board.helps.filter((help) => who.role === "dm" || help.to === who.name || help.from === who.name);
     return {
       events: [...events].reverse(),
+      board,
       players,
       shop,
       buybacks: buybacks.map((line) => ({ ...line })),
@@ -307,6 +356,7 @@ export class TableRoom {
       [`seat:${token}`]: {
         name: who.name,
         seen: now,
+        typing: (await this.storage.get(`seat:${token}`))?.typing || 0,
         intent: update.intent,
         snapshot: update.snapshot,
       },
@@ -372,6 +422,8 @@ export class TableRoom {
     let messages = (await this.storage.get("messages")) || [];
     const stored = { id: hexId(), at: now, from: message.name, to: message.to, text: message.text };
     if (message.ask) stored.ask = message.ask;
+    if (message.kind) stored.kind = message.kind;
+    if (message.as) stored.as = message.as;
     messages.push(stored);
     if (messages.length > MESSAGE_CAP) messages = messages.slice(-MESSAGE_CAP);
     await this.storage.put("messages", messages);
@@ -474,6 +526,186 @@ export class TableRoom {
     await this.storage.put("order", next);
     await this.storage.setAlarm(Date.now() + IDLE_MS);
     return next;
+  }
+  /** The party board: shared notes, glossary, quests, stash, polls, ready checks, the X-card, help, reactions, pins, typing, and ending your own turn. */
+  async board(token, payload) {
+    if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who) throw new TableError("Sit down before you use the board.");
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TableError("Expected an object.");
+    const now = Date.now();
+    const op = payload.op;
+    if (op === "typing") {
+      if (who.role !== "player") return { ok: true };
+      const seat = await this.storage.get(`seat:${token}`);
+      await this.storage.put(`seat:${token}`, { ...seat, typing: payload.on === false ? 0 : now, seen: now });
+      return { ok: true };
+    }
+    if (op === "react" || op === "pin") {
+      const messages = (await this.storage.get("messages")) || [];
+      const message = messages.find((item) => item.id === payload.id && messageVisible(item, who.name));
+      if (!message) throw new TableError("That message is gone.");
+      if (op === "react") {
+        if (!REACTIONS.includes(payload.emoji)) throw new TableError("Pick one of the table reactions.");
+        const reactions = message.reactions && typeof message.reactions === "object" ? message.reactions : {};
+        const names = new Set(reactions[payload.emoji] || []);
+        if (names.has(who.name)) names.delete(who.name);
+        else names.add(who.name);
+        reactions[payload.emoji] = [...names];
+        if (!names.size) delete reactions[payload.emoji];
+        message.reactions = reactions;
+      } else {
+        message.pinned = payload.on !== false;
+      }
+      await this.storage.put("messages", messages);
+      await this.storage.setAlarm(now + IDLE_MS);
+      return { ok: true, message: { ...message } };
+    }
+    if (op === "end-turn") {
+      const order = cleanOrder((await this.storage.get("order")) || blankOrder());
+      const turns = sortOrder(order.combatants);
+      const index = turns.findIndex((person) => person.id === order.activeId);
+      const active = turns[index];
+      if (!active || (who.role !== "dm" && active.seat.toLowerCase() !== who.name.toLowerCase())) {
+        throw new TableError("It is not your turn.");
+      }
+      const nextIndex = (index + 1) % turns.length;
+      if (nextIndex === 0) order.round = Math.min(999, order.round + 1);
+      order.activeId = turns[nextIndex].id;
+      order.started = true;
+      const next = cleanOrder(order);
+      await this.storage.put("order", next);
+      await this.storage.setAlarm(now + IDLE_MS);
+      return { ok: true, order: next };
+    }
+    const board = cleanBoard(await this.storage.get("board"));
+    const by = who.name;
+    switch (op) {
+      case "notes": {
+        if (typeof payload.text !== "string") throw new TableError("Notes have to be text.");
+        board.notes = { text: payload.text.slice(0, 8000), by, at: now };
+        break;
+      }
+      case "glossary-add": {
+        if (board.glossary.length >= BOARD_LIST_CAP) throw new TableError("The glossary is full.");
+        const name = boardText(payload.name, 60, "The name");
+        const body = typeof payload.body === "string" ? payload.body.trim().slice(0, 600) : "";
+        const found = board.glossary.find((item) => item.name.toLowerCase() === name.toLowerCase());
+        if (found) Object.assign(found, { body, by, at: now });
+        else board.glossary.push({ id: hexId(), name, body, by, at: now });
+        board.glossary.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      }
+      case "glossary-remove":
+        board.glossary = board.glossary.filter((item) => item.id !== boardId(payload.id));
+        break;
+      case "quest-add": {
+        if (board.quests.length >= BOARD_LIST_CAP) throw new TableError("The quest log is full.");
+        board.quests.push({ id: hexId(), title: boardText(payload.title, 120, "The quest"), done: false, by, at: now });
+        break;
+      }
+      case "quest-toggle": {
+        const quest = board.quests.find((item) => item.id === boardId(payload.id));
+        if (!quest) throw new TableError("That quest is gone.");
+        quest.done = !quest.done;
+        break;
+      }
+      case "quest-remove":
+        board.quests = board.quests.filter((item) => item.id !== boardId(payload.id));
+        break;
+      case "stash-put": {
+        if (who.role !== "player") throw new TableError("Sit down before you share the stash.");
+        const name = boardText(payload.name, 60, "The item");
+        const qty = intField(payload.qty, 1, 1, 99);
+        const gearId = typeof payload.gearId === "string" && /^[a-z0-9-]{1,40}$/.test(payload.gearId) ? payload.gearId : "";
+        const found = board.stash.items.find((item) => item.name === name && item.gearId === gearId);
+        if (found) found.qty = Math.min(999, found.qty + qty);
+        else if (board.stash.items.length >= BOARD_LIST_CAP) throw new TableError("The stash is full.");
+        else board.stash.items.push({ id: hexId(), name, gearId, qty, by, at: now });
+        break;
+      }
+      case "stash-take": {
+        if (who.role !== "player") throw new TableError("Sit down before you take from the stash.");
+        const item = board.stash.items.find((entry) => entry.id === boardId(payload.id));
+        if (!item) throw new TableError("Someone already took that.");
+        item.qty -= 1;
+        if (item.qty <= 0) board.stash.items = board.stash.items.filter((entry) => entry !== item);
+        await this.storage.put("board", board);
+        return { ok: true, board, taken: { name: item.name, gearId: item.gearId } };
+      }
+      case "coin-put": {
+        if (who.role !== "player") throw new TableError("Sit down before you share coin.");
+        board.stash.cp = Math.min(PRICE_CAP, board.stash.cp + intField(payload.cp, 0, 0, PRICE_CAP));
+        break;
+      }
+      case "coin-take": {
+        if (who.role !== "player") throw new TableError("Sit down before you take coin.");
+        const cp = intField(payload.cp, 0, 0, PRICE_CAP);
+        if (cp > board.stash.cp) throw new TableError("The pot does not hold that much.");
+        board.stash.cp -= cp;
+        await this.storage.put("board", board);
+        return { ok: true, board, cp };
+      }
+      case "poll-open": {
+        const question = boardText(payload.question, 120, "The question");
+        const labels = (Array.isArray(payload.options) ? payload.options : [])
+          .filter((label) => typeof label === "string" && collapse(label))
+          .map((label) => collapse(label).slice(0, 60))
+          .slice(0, 8);
+        if (labels.length < 2) throw new TableError("A poll needs two choices.");
+        board.poll = { id: hexId(), question, by, at: now, closed: false, options: labels.map((label, index) => ({ id: String(index), label, votes: [] })) };
+        break;
+      }
+      case "poll-vote": {
+        if (!board.poll || board.poll.closed) throw new TableError("There is no open poll.");
+        const option = board.poll.options.find((item) => item.id === payload.option);
+        if (!option) throw new TableError("That is not a choice.");
+        const had = option.votes.includes(by);
+        if (had) option.votes = option.votes.filter((name) => name !== by);
+        else option.votes.push(by);
+        break;
+      }
+      case "poll-close":
+        if (board.poll) board.poll.closed = true;
+        break;
+      case "poll-clear":
+        board.poll = null;
+        break;
+      case "ready-call":
+        board.ready = { id: hexId(), by, at: now, answers: { [by]: "ready" } };
+        break;
+      case "ready-answer": {
+        if (!board.ready) throw new TableError("Nobody called a ready check.");
+        board.ready.answers[by] = payload.answer === "wait" ? "wait" : "ready";
+        break;
+      }
+      case "ready-clear":
+        board.ready = null;
+        break;
+      case "xcard":
+        // Nobody's name is stored. The card is anonymous on purpose.
+        board.xcard = { at: now };
+        break;
+      case "xcard-clear":
+        board.xcard = null;
+        break;
+      case "help": {
+        if (who.role !== "player") throw new TableError("Only a player helps.");
+        const to = cleanTarget(payload.to);
+        if (!to || to === by) throw new TableError("Help someone else.");
+        board.helps = board.helps.filter((help) => help.to !== to);
+        board.helps.push({ id: hexId(), from: by, to, at: now });
+        break;
+      }
+      case "help-used":
+        board.helps = board.helps.filter((help) => help.to !== by);
+        break;
+      default:
+        throw new TableError("The board does not know that.");
+    }
+    await this.storage.put("board", board);
+    await this.storage.setAlarm(now + IDLE_MS);
+    return { ok: true, board };
   }
 }
 

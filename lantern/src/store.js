@@ -9,7 +9,7 @@ export const SAVE_VERSION = 1;
 export const SAVE_BYTES = 300_000;
 
 export const HISTORY_CAP = 50;
-const TABS = ["dice", "order", "character", "notes", "table"];
+const TABS = ["dice", "order", "character", "notes", "table", "party"];
 const MODES = ["normal", "advantage", "disadvantage"];
 const SIDES = new Set([4, 6, 8, 10, 12, 20, 100]);
 const LIGHT_IDS = new Set(LIGHTS.map((light) => light.id));
