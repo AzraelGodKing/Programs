@@ -171,6 +171,10 @@
         </label>
         <label class="check-line"><input type="checkbox" id="roll-secret"> Secret: only you and the DM see it</label>
       </div>
+      <div class="tray-row">
+        <div id="dice-tray" class="dice-tray"></div>
+        <button type="button" class="btn primary" data-action="roll">Roll</button>
+      </div>
       <section class="macros" aria-labelledby="macros-title">
         <h3 id="macros-title">Saved rolls</h3>
         <div id="macro-bar" class="kit-actions"></div>
@@ -193,10 +197,6 @@
           <div id="macro-list" class="stack"></div>
         </details>
       </section>
-      <div class="tray-row">
-        <div id="dice-tray" class="dice-tray"></div>
-        <button type="button" class="btn primary" data-action="roll">Roll</button>
-      </div>
       <div class="history-head">
         <h3>Recent</h3>
         <label class="inline-field">Show
@@ -377,7 +377,10 @@
   <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
   <dialog id="module-order" class="gear-dialog module-dialog" aria-labelledby="order-heading">
     <section role="tabpanel" id="panel-order" aria-labelledby="tab-order" data-module-panel="order">
-      <h2 id="order-heading">Roll for initiative</h2>
+      <div class="module-head">
+        <h2 id="order-heading">Roll for initiative</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p class="lede">Roll a d20 plus the Dexterity modifier on the sheet. At the table that joins the shared list. Playing alone, it stays in this browser. The Dungeon Master moves the shared round. Ties keep the earlier name.</p>
       <p id="order-shared-note" class="hint" hidden>Everyone at the table sees the same list. Rolling again updates your place.</p>
       <div class="save-actions">
@@ -421,11 +424,13 @@
       </div>
       <div id="combat-list" class="stack" aria-label="Initiative order"></div>
     </section>
-    <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
   <dialog id="module-notes" class="gear-dialog module-dialog" aria-labelledby="notes-heading">
     <section role="tabpanel" id="panel-notes" aria-labelledby="tab-notes" data-module-panel="notes">
-      <h2 id="notes-heading">Notes</h2>
+      <div class="module-head">
+        <h2 id="notes-heading">Notes</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p class="lede">Drafts stay in this browser. The DM does not see them. Scratch is the line the DM can read.</p>
       <label class="trait-label" for="notes">Scratch the DM can read</label>
       <textarea id="notes" maxlength="4000" rows="3" placeholder="Names, promises, the thing the rogue palmed."></textarea>
@@ -434,11 +439,13 @@
       </div>
       <div id="draft-list" class="stack"></div>
     </section>
-    <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
   <dialog id="module-table" class="gear-dialog module-dialog" aria-labelledby="table-heading">
     <section role="tabpanel" id="panel-table" aria-labelledby="tab-table" data-module-panel="table">
-      <h2 id="table-heading">Table</h2>
+      <div class="module-head">
+        <h2 id="table-heading">Table</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p class="lede">Say it to everyone, or whisper one person. A whisper shows only for the two of you. The DM can whisper you back.</p>
       <div id="table-here" class="here-list" aria-label="Who is at the table"></div>
       <div id="talk-pins" class="talk-pins" hidden></div>
@@ -467,11 +474,13 @@
       <h3>Table rolls</h3>
       <div id="table-rolls" class="table-rolls"></div>
     </section>
-    <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
   <dialog id="module-party" class="gear-dialog module-dialog" aria-labelledby="party-heading">
     <section role="tabpanel" id="panel-party" aria-labelledby="tab-party" data-module-panel="party">
-      <h2 id="party-heading">Party</h2>
+      <div class="module-head">
+        <h2 id="party-heading">Party</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p class="lede">Shared with everyone at the table, the DM too. Playing alone, the party board waits for a table.</p>
       <p id="party-status" class="hint" role="status"></p>
       <div id="party-ready"></div>
@@ -522,11 +531,13 @@
       <h3>Poll</h3>
       <div id="party-poll"></div>
     </section>
-    <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
   <dialog id="module-pack" class="gear-dialog module-dialog" aria-labelledby="kit-title">
     <div id="kit">
-      <h2 id="kit-title">Pack</h2>
+      <div class="module-head">
+        <h2 id="kit-title">Pack</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p id="kit-meta" class="math"></p>
       <p id="kit-hp"></p>
       <p id="kit-purse" class="sheet-title"></p>
@@ -571,10 +582,12 @@
       <div id="kit-level"></div>
       <button type="button" class="text-btn" id="mark-dead" data-action="mark-dead" hidden>This character died</button>
     </div>
-    <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
   <dialog id="recap-dialog" class="gear-dialog" aria-labelledby="recap-title">
-    <h2 id="recap-title">Session recap</h2>
+    <div class="module-head">
+      <h2 id="recap-title">Session recap</h2>
+      <button type="button" class="btn" data-action="close-recap">Close</button>
+    </div>
     <p class="lede">What the table said and rolled, oldest first. Natural 20s and 1s stand out.</p>
     <div class="turn-actions">
       <label class="inline-field">Since
@@ -588,15 +601,19 @@
     </div>
     <p id="recap-status" class="hint" role="status"></p>
     <div id="recap-list" class="recap-list"></div>
-    <button type="button" class="btn" data-action="close-recap">Close</button>
   </dialog>
   <dialog id="handout-dialog" class="gear-dialog" aria-labelledby="handout-title">
-    <h2 id="handout-title">Handout</h2>
+    <div class="module-head">
+      <h2 id="handout-title">Handout</h2>
+      <button type="button" class="btn" data-action="close-handout">Close</button>
+    </div>
     <div id="handout-body" class="handout-body"></div>
-    <button type="button" class="btn" data-action="close-handout">Close</button>
   </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
-    <h2 id="keys-title">Keys</h2>
+    <div class="module-head">
+      <h2 id="keys-title">Keys</h2>
+      <button type="button" class="btn" data-action="close-keys">Close</button>
+    </div>
     <p class="lede">These work while you are not typing in a box.</p>
     <dl class="keys-list">
       <dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>Dice, or Roll for initiative, Pack, Notes, Table, and Party</dd>
@@ -612,10 +629,12 @@
       <button type="button" class="btn" id="contrast-switch" aria-pressed="false">Contrast: normal</button>
       <button type="button" class="btn" id="motion-switch" aria-pressed="false">Motion: on</button>
     </div>
-    <button type="button" class="btn" data-action="close-keys">Close</button>
   </dialog>
   <dialog id="gear-dialog" class="gear-dialog">
-    <h2 id="gear-title">Market</h2>
+    <div class="module-head">
+      <h2 id="gear-title">Market</h2>
+      <button type="button" class="btn" data-action="close-gear">Close</button>
+    </div>
     <p class="hint">Coin purse</p>
     <div id="gear-purse" class="purse-coins" aria-label="Coin purse"></div>
     <p id="gear-lede" class="lede">Buying takes the price out of the purse. This counter buys those goods back at half price.</p>
@@ -635,7 +654,6 @@
     <div id="shop-sell" role="tabpanel" aria-labelledby="shop-tab-sell" hidden>
       <div id="gear-sell" class="stack"></div>
     </div>
-    <button type="button" class="btn" data-action="close-gear">Close</button>
   </dialog>
   <script type="module" src="src/app.js"></script>
 </body>
