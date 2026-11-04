@@ -115,8 +115,11 @@
   <main id="main">
     <section role="tabpanel" id="panel-dice" aria-labelledby="tab-dice">
       <h2>Dice</h2>
-      <p class="lede">Roll in front of the table. The last dozen stay here, and a joined table shares each one with the DM.</p>
-      <div id="dice-result" class="readout" aria-live="polite"></div>
+      <p class="lede">Roll in front of the table. The last fifty stay here, and a joined table shares each one with the DM.</p>
+      <div id="help-banner" class="ask-banner" hidden role="status"></div>
+      <div id="dice-result" class="readout"></div>
+      <p id="roll-live" class="sr-only" aria-live="polite"></p>
+      <div id="after-roll" class="kit-actions"></div>
       <p id="dice-formula" class="formula">1d20</p>
       <p id="dice-hint" class="hint" hidden>Advantage and disadvantage wait for a d20.</p>
       <div class="dice-setup">
@@ -143,13 +146,49 @@
           <button type="button" data-action="set-mode" data-mode="advantage" aria-pressed="false">Advantage</button>
           <button type="button" data-action="set-mode" data-mode="disadvantage" aria-pressed="false">Disadvantage</button>
         </div>
+        <label id="target-field" hidden>Target
+          <select id="roll-target" aria-label="Who this roll is aimed at"></select>
+        </label>
+        <label class="check-line"><input type="checkbox" id="roll-secret"> Secret: only you and the DM see it</label>
       </div>
+      <section class="macros" aria-labelledby="macros-title">
+        <h3 id="macros-title">Saved rolls</h3>
+        <div id="macro-bar" class="kit-actions"></div>
+        <details id="macro-editor" class="wick-add">
+          <summary>Save a roll</summary>
+          <form id="macro-form" data-form="macro" class="form" autocomplete="off">
+            <label>Name
+              <input name="label" maxlength="40" required placeholder="Longsword" spellcheck="false">
+            </label>
+            <label>To hit
+              <input name="hit" maxlength="12" placeholder="1d20+5" spellcheck="false">
+            </label>
+            <label>Damage
+              <input name="damage" maxlength="12" placeholder="1d8+3" spellcheck="false">
+            </label>
+            <label class="check-line"><input type="checkbox" name="ammo"> Uses ammo</label>
+            <button type="submit" class="btn primary">Save</button>
+          </form>
+          <p class="form-error" data-error-for="macro"></p>
+          <div id="macro-list" class="stack"></div>
+        </details>
+      </section>
       <div class="tray-row">
         <div id="dice-tray" class="dice-tray"></div>
         <button type="button" class="btn primary" data-action="roll">Roll</button>
       </div>
       <div class="history-head">
         <h3>Recent</h3>
+        <label class="inline-field">Show
+          <select id="history-filter" aria-label="Which rolls to show">
+            <option value="">All</option>
+            <option value="attack">Attacks</option>
+            <option value="damage">Damage</option>
+            <option value="check">Checks and skills</option>
+            <option value="save">Saves</option>
+            <option value="secret">Secret</option>
+          </select>
+        </label>
         <button type="button" class="text-btn" id="clear-rolls" data-action="clear-rolls">Clear rolls</button>
       </div>
       <div id="dice-history" class="history"></div>
@@ -401,7 +440,13 @@
       <p id="kit-hp"></p>
       <p id="kit-purse" class="sheet-title"></p>
       <p class="lede">Tap a skill to set the roll, then press Roll. Revise reopens the sheet and leaves the night where it is.</p>
+      <div id="kit-portrait" class="portrait-row"></div>
+      <input id="portrait-file" type="file" accept="image/*" hidden aria-label="Portrait image">
       <div id="kit-vitals"></div>
+      <div id="kit-conditions"></div>
+      <div id="kit-abilities"></div>
+      <div id="kit-resources"></div>
+      <div id="kit-slots"></div>
       <div id="kit-tonight"></div>
       <button type="button" class="text-btn" data-action="revise-character">Revise</button>
       <button type="button" class="btn primary" data-action="open-gear">Market</button>
@@ -409,7 +454,23 @@
       <h3>Skills</h3>
       <div id="kit-skills" class="kit-actions"></div>
       <h3>Pack</h3>
+      <p id="kit-weight" class="hint"></p>
       <div id="kit-items" class="kit-actions"></div>
+      <div id="kit-ammo"></div>
+      <h3>Magic items</h3>
+      <p class="hint">Mark an item that needs attunement. Three can be attuned at once.</p>
+      <div id="kit-trinkets" class="stack"></div>
+      <form id="trinket-form" data-form="trinket" class="form" autocomplete="off">
+        <label>Item
+          <input name="name" maxlength="60" required placeholder="Cloak of protection" spellcheck="false">
+        </label>
+        <label>Weight, lb
+          <input name="weight" type="number" min="0" max="500" value="0" inputmode="numeric">
+        </label>
+        <label class="check-line"><input type="checkbox" name="attune"> Needs attunement</label>
+        <button type="submit" class="btn">Add</button>
+      </form>
+      <div id="kit-level"></div>
       <button type="button" class="text-btn" id="mark-dead" data-action="mark-dead" hidden>This character died</button>
     </div>
     <button type="button" class="btn" data-action="close-module">Close</button>

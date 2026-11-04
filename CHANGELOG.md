@@ -9,6 +9,13 @@
 
 ### Added
 
+- Saved rolls on the dice panel. Name an attack with its to hit and damage, and it is one tap. A natural 20 offers the damage with the dice doubled. A saved roll can count ammunition.
+- A secret roll is shared with the DM and nobody else at the table. The DM feed marks it.
+- Inspiration can be spent on the last roll to roll it again.
+- The roll history keeps fifty rolls and can show only attacks, damage, checks, saves, or secret rolls. A roll can name its target from the order.
+- The pack has checks and saves for every ability, damage, healing, and temporary hit points, a long rest, and your own conditions, which the DM sees on the order. Taking damage while concentrating sets up the Constitution save with its DC.
+- Spell slots as pips, filled from the class tables or set by hand. Class resources such as Rage, Ki, and Channel Divinity, with short and long rest resets.
+- A portrait and a feed color for the character. The pack shows carried weight against Strength. Arrows and bolts can be counted shot by shot. A potion of healing rolls its healing when you drink it. Magic items can be added, with three attunement slots. Level up walks through the steps for the new level.
 - A QR code beside the table code opens the player seat with the room filled in. The DM secret stays on the DM screen.
 - Each character step shows what the choice gives before you move on: ancestry traits and darkvision, class features, the one subclass in this subset, hit points, and proficiencies. Ability modifiers stay visible as the scores change. A starting kit is chosen on Sit down, and Sit down is what saves.
 - One initiative list for the table. The DM seats the party and moves the round. Players see the same list. At 0 hit points the row has three success pips, three failure pips, and Stable on the third success. Exhaustion is a count from 0 to 6.

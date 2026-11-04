@@ -77,7 +77,37 @@ import {
   saveRoster,
   writeSheet,
 } from "./roster.js";
-import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
+import { HISTORY_CAP, SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
+import {
+  AMMO_IDS,
+  ATTUNE_CAP,
+  COLORS,
+  MACRO_CAP,
+  PORTRAIT_CHARS,
+  TRINKET_CAP,
+  ammoPerBundle,
+  applyDamage,
+  applyHealing,
+  applyTemp,
+  attunedCount,
+  blankExtras,
+  carriedWeight,
+  classResources,
+  classSlots,
+  cleanExtras,
+  concentrationDc,
+  critDamage,
+  encumbrance,
+  formulaText,
+  levelUpSteps,
+  parseFormula,
+  potionHealing,
+  restExtras,
+  syncAmmo,
+  tickResource,
+  tickSlot,
+  toggleAttune,
+} from "./extras.js";
 import { armorClass } from "./armor.js";
 import { blankDeath, cleanDeath, cleanOrder } from "./order.js";
 import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
@@ -188,7 +218,7 @@ function currentIntent() {
   return document.getElementById("roll-for")?.value || "";
 }
 
-function persist(summary) {
+function persist(summary, { secret = false } = {}) {
   if (gateMode === "play" && activeId) {
     const code = seatedCode();
     if (code) {
@@ -198,7 +228,8 @@ function persist(summary) {
   }
   saveState(state);
   if (typeof summary === "string" && summary.trim()) {
-    shareQueue.push(summary.trim().slice(0, 300));
+    const text = summary.trim().slice(0, 300);
+    shareQueue.push(secret ? { text, secret: true } : text);
   }
   clearTimeout(shareTimer);
   shareTimer = setTimeout(() => { void flushShare(); }, shareQueue.length ? 30 : 280);
@@ -964,9 +995,16 @@ function renderFreshResult(result) {
 
 function renderHistory() {
   const mount = document.getElementById("dice-history");
-  mount.replaceChildren(...state.dice.history.map((item) => h("article", { class: item.tag ? `ticket ${item.tag}` : "ticket" }, present([
+  const filter = document.getElementById("history-filter")?.value || "";
+  const shown = state.dice.history.filter((item) => (!filter ? true : filter === "secret" ? item.secret : rollKind(item) === filter));
+  if (!shown.length && state.dice.history.length) {
+    mount.replaceChildren(h("p", { class: "hint" }, "No rolls of that kind yet."));
+    return;
+  }
+  mount.replaceChildren(...shown.map((item) => h("article", { class: item.tag ? `ticket ${item.tag}` : "ticket" }, present([
     h("p", { class: "ticket-total" }, String(item.total)),
-    item.purpose ? h("p", { class: "ticket-detail" }, item.purpose) : null,
+    item.purpose || item.target ? h("p", { class: "ticket-detail" }, [item.purpose, item.target && `at ${item.target}`].filter(Boolean).join(" ")) : null,
+    item.secret ? h("p", { class: "ticket-secret" }, "Secret") : null,
     h("p", {}, item.formula),
     h("p", { class: "ticket-detail" }, item.detail),
   ]))));
@@ -974,29 +1012,16 @@ function renderHistory() {
 
 function doRoll() {
   syncDiceNumbers();
-  const mode = state.dice.sides === 20 ? state.dice.mode : "normal";
-  const result = roll({
+  pendingDamage = null;
+  return performRoll({
     count: state.dice.count,
     sides: state.dice.sides,
     modifier: state.dice.modifier,
-    mode,
+    mode: state.dice.mode,
+    purpose: currentIntent(),
+    secret: secretChecked(),
+    target: currentTarget(),
   });
-  const purpose = currentIntent().trim().slice(0, 60);
-  const line = formula(result);
-  const detail = facesLabel(result);
-  state.dice.history.unshift({
-    id: uid(),
-    formula: line,
-    total: result.total,
-    detail,
-    purpose,
-    tag: result.tag,
-  });
-  state.dice.history = state.dice.history.slice(0, 12);
-  persist(rollSummary({ purpose, formula: line, total: result.total, detail, tag: result.tag }));
-  paintDice();
-  renderFreshResult(result);
-  renderHistory();
 }
 
 function renderBanner() {
@@ -1170,6 +1195,7 @@ function readOnlyRow(person, active) {
 }
 
 function renderCombat() {
+  paintTargets2();
   const shared = atSharedTable();
   const note = document.getElementById("order-shared-note");
   const form = document.getElementById("combatant-form");
@@ -1928,9 +1954,20 @@ function renderKit() {
   setText(document.getElementById("kit-meta"), view ? view.meta : "");
   setText(document.getElementById("kit-hp"), "");
   setText(document.getElementById("kit-purse"), character.purse == null ? "" : formatCoin(character.purse));
+  paintPortrait(character);
   paintVitals(character);
+  paintConditions();
+  paintAbilities(character);
+  paintResources(character);
+  paintSlots();
   paintTonight(character);
   paintKitChoices();
+  paintWeight(character);
+  paintAmmo(character);
+  paintTrinkets();
+  paintLevelUp(character);
+  renderMacros();
+  paintAfterRoll();
   const skills = addBackgroundSkills(character);
   mountSkills.replaceChildren(...(skills.length
     ? skills.map((id) => {
@@ -1978,11 +2015,20 @@ function paintVitals(character) {
   const death = cleanDeath(heroDeath());
   const down = current <= 0;
   mount.replaceChildren(...present([
-    h("p", { class: "sheet-title" }, `Hit points ${current} / ${max}`),
+    h("p", { class: "sheet-title" }, `Hit points ${current} / ${max}${extras().tempHp ? ` · ${extras().tempHp} temporary` : ""}`),
     h("div", { class: "turn-actions" }, [
       h("button", { type: "button", class: "btn", "data-action": "hero-hp", "data-delta": "-1" }, "−1"),
       h("button", { type: "button", class: "btn", "data-action": "hero-hp", "data-delta": "1" }, "+1"),
+    ]),
+    h("div", { class: "turn-actions amount-row" }, [
+      h("label", {}, ["Amount", h("input", { id: "kit-amount", type: "number", min: "0", max: "999", inputmode: "numeric", placeholder: "0" })]),
+      h("button", { type: "button", class: "btn", "data-action": "hero-damage" }, "Damage"),
+      h("button", { type: "button", class: "btn", "data-action": "hero-heal" }, "Heal"),
+      h("button", { type: "button", class: "btn", "data-action": "hero-temp" }, "Temp HP"),
+    ]),
+    h("div", { class: "turn-actions" }, [
       h("button", { type: "button", class: "btn", "data-action": "short-rest" }, "Short rest"),
+      h("button", { type: "button", class: "btn", "data-action": "long-rest" }, "Long rest"),
       h("button", {
         type: "button",
         class: "btn",
@@ -2262,6 +2308,7 @@ function applySharedOrder(order) {
     state.character.hp = mine.hp;
     state.character.maxHp = mine.maxHp;
     state.character.death = mine.death;
+    if (!pushingVitals) state.character.extras = cleanExtras({ ...extras(), conditions: mine.marks });
   }
   renderCombat();
   renderKit();
@@ -2434,6 +2481,7 @@ async function buyBackPiece(id, cpText) {
 }
 
 function spendItem(id) {
+  if (drinkPotion(id)) return;
   const result = useItem(state.character, id);
   if (!result.ok) return;
   state.character = result.character;
@@ -3013,6 +3061,7 @@ function onClick(event) {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const { action } = button.dataset;
+  if (extraClick(action, button)) return;
   if (action === "play-alone") startSolo(document.getElementById("seat-name")?.value || "");
   else if (action === "toggle-pause") togglePause();
   else if (action === "revise-character") beginRevise();
@@ -3114,6 +3163,7 @@ function onSubmit(event) {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
   event.preventDefault();
+  if (extraSubmit(form)) return;
   if (form.id === "seat-form") joinSeat(form);
   else if (form.id === "talk-form") void sendTalk();
   else if (form.dataset.form === "combatant") addCombatant(form);
@@ -3238,6 +3288,10 @@ function onInput(event) {
 
 function onChange(event) {
   const target = event.target;
+  if (extraChange(target)) {
+    if (target.dataset?.slotMax) renderKit();
+    return;
+  }
   if (target.dataset?.sheet) {
     updateSheet(target, { log: true });
     return;
@@ -3361,13 +3415,22 @@ function mirrorHero(person) {
   state.character.death = person.death;
 }
 
+let pushingVitals = false;
+
 async function pushHeroVitals() {
   if (!atSharedTable()) return;
-  const order = await postVitals(loadSeat().room, {
-    hp: state.character.hp,
-    maxHp: maxHitPoints(state.character),
-    ac: armorClass(state.character),
-  });
+  pushingVitals = true;
+  let order = null;
+  try {
+    order = await postVitals(loadSeat().room, {
+      hp: state.character.hp,
+      maxHp: maxHitPoints(state.character),
+      ac: armorClass(state.character),
+      marks: extras().conditions,
+    });
+  } finally {
+    pushingVitals = false;
+  }
   if (order?.order) applySharedOrder(order.order);
 }
 
@@ -3406,6 +3469,7 @@ function shortRest() {
   state.character.hp = Math.min(max, current + gain);
   state.character.maxHp = max;
   state.character.hitDiceUsed += 1;
+  state.character.extras = restExtras(extras(), "short", state.character.classId);
   if (state.character.hp > 0) state.character.death = blankDeath();
   persist(`Short rest: ${gain} hit points from a d${info.hitDie}.`);
   void pushHeroVitals();
@@ -3528,6 +3592,678 @@ function setDeathPip(id, kind, index) {
   renderKit();
 }
 
+// ---------------------------------------------------------------------------
+// Player extras: saved rolls, secret rolls, inspiration rerolls, the fuller pack.
+
+let lastRoll = null;
+let pendingDamage = null;
+let pendingHelp = null;
+
+function consumeHelp() {
+  pendingHelp = null;
+}
+
+function extras() {
+  if (!state.character.extras) state.character.extras = blankExtras();
+  return state.character.extras;
+}
+
+function setExtras(next, summary) {
+  state.character.extras = cleanExtras(next);
+  persist(summary);
+  renderKit();
+}
+
+function secretChecked() {
+  return document.getElementById("roll-secret")?.checked === true;
+}
+
+function currentTarget() {
+  const field = document.getElementById("target-field");
+  if (!field || field.hidden) return "";
+  return document.getElementById("roll-target")?.value || "";
+}
+
+function rollKind(item) {
+  const what = String(item.purpose || "").toLowerCase();
+  if (/attack|to hit/.test(what)) return "attack";
+  if (/damage|breath|healing|potion/.test(what)) return "damage";
+  if (/save/.test(what)) return "save";
+  if (/check|initiative/.test(what) || SKILLS.some((skill) => skill.label.toLowerCase() === what)) return "check";
+  return "other";
+}
+
+function performRoll(setup) {
+  const sides = setup.sides;
+  let mode = sides === 20 ? (setup.mode || "normal") : "normal";
+  let helped = "";
+  if (sides === 20 && setup.count === 1 && pendingHelp && setup.help !== false) {
+    helped = pendingHelp.from;
+    mode = mode === "disadvantage" ? "normal" : "advantage";
+    consumeHelp();
+  }
+  const result = roll({ count: setup.count, sides, modifier: setup.modifier, mode });
+  const purpose = String(setup.purpose || "").trim().slice(0, 60);
+  const target = String(setup.target || "").trim().slice(0, 80);
+  const secret = setup.secret === true;
+  const line = formula(result);
+  const detail = facesLabel(result);
+  state.dice.history.unshift({
+    id: uid(),
+    formula: line,
+    total: result.total,
+    detail: helped ? `${detail} · helped by ${helped}` : detail,
+    purpose,
+    tag: result.tag,
+    secret,
+    target,
+  });
+  state.dice.history = state.dice.history.slice(0, HISTORY_CAP);
+  const forWhat = target ? `${purpose || "an attack"} at ${target}` : purpose;
+  const summary = rollSummary({ purpose: forWhat, formula: line, total: result.total, detail, tag: result.tag });
+  persist(helped ? `${summary} Helped by ${helped}.` : summary, { secret });
+  lastRoll = { setup: { ...setup, mode: setup.mode || "normal" }, result };
+  paintDice();
+  renderFreshResult(result);
+  renderHistory();
+  paintAfterRoll();
+  announceRoll(result, purpose, secret);
+  return result;
+}
+
+function announceRoll(result, purpose, secret) {
+  const live = document.getElementById("roll-live");
+  if (!live) return;
+  const tag = result.tag === "natural-20" ? ", natural 20" : result.tag === "natural-1" ? ", natural 1" : "";
+  live.textContent = `${secret ? "Secret roll: " : ""}${result.total}${tag}${purpose ? ` for ${purpose}` : ""}.`;
+}
+
+function paintAfterRoll() {
+  const mount = document.getElementById("after-roll");
+  if (!mount) return;
+  const buttons = [];
+  if (pendingDamage) {
+    const crit = pendingDamage.crit;
+    buttons.push(h("button", { type: "button", class: crit ? "btn primary is-crit" : "btn primary", "data-action": "macro-damage" },
+      crit ? `Roll ${pendingDamage.macro.label} damage, critical (${formulaText(critDamage(parseFormula(pendingDamage.macro.damage)))})` : `Roll ${pendingDamage.macro.label} damage (${pendingDamage.macro.damage})`));
+  }
+  if (lastRoll && state.character.inspiration && gateMode === "play") {
+    buttons.push(h("button", { type: "button", class: "btn", "data-action": "inspire-reroll" }, "Spend inspiration to reroll"));
+  }
+  mount.replaceChildren(...buttons);
+}
+
+function inspireReroll() {
+  if (!lastRoll || !state.character.inspiration) return;
+  state.character.inspiration = false;
+  const setup = { ...lastRoll.setup, purpose: `${lastRoll.setup.purpose || "a roll"} (inspiration reroll)`.slice(0, 60), help: false };
+  persist("Spends inspiration to reroll.");
+  lastRoll = null;
+  performRoll(setup);
+  renderKit();
+}
+
+function renderMacros() {
+  const bar = document.getElementById("macro-bar");
+  const list = document.getElementById("macro-list");
+  if (!bar || !list) return;
+  const macros = extras().macros;
+  bar.replaceChildren(...(macros.length
+    ? macros.map((macro) => h("button", { type: "button", class: "btn", "data-action": "run-macro", "data-id": macro.id },
+      `${macro.label}${macro.hit ? ` ${macro.hit.replace(/^1d20/, "")}` : ""}${macro.damage ? ` · ${macro.damage}` : ""}`))
+    : [h("p", { class: "hint" }, "Save the rolls you make every fight, like an attack and its damage, and they wait here as one tap.")]));
+  list.replaceChildren(...macros.map((macro) => h("div", { class: "gear-row" }, [
+    h("span", {}, `${macro.label}: ${[macro.hit && `to hit ${macro.hit}`, macro.damage && `damage ${macro.damage}`, macro.ammo && "uses ammo"].filter(Boolean).join(", ")}`),
+    h("button", { type: "button", class: "text-btn", "data-action": "remove-macro", "data-id": macro.id }, "Remove"),
+  ])));
+}
+
+function addMacro(form) {
+  const label = form.elements.label.value.trim();
+  const hit = form.elements.hit.value.trim();
+  const damage = form.elements.damage.value.trim();
+  if (!label) return showError("macro", "Name the roll.");
+  if (hit && !parseFormula(hit)) return showError("macro", "Write to hit like 1d20+5, or just +5.");
+  if (damage && !parseFormula(damage)) return showError("macro", "Write damage like 1d8+3.");
+  if (!hit && !damage) return showError("macro", "Give it a to hit or a damage roll.");
+  if (extras().macros.length >= MACRO_CAP) return showError("macro", `Twelve saved rolls is the most.`);
+  showError("macro", "");
+  const next = { ...extras(), macros: [...extras().macros, { id: uid().replace(/[^A-Za-z0-9_-]/g, ""), label, hit, damage, ammo: form.elements.ammo.checked }] };
+  form.reset();
+  state.character.extras = cleanExtras(next);
+  persist(`Saved a roll: ${label}.`);
+  renderMacros();
+}
+
+function removeMacro(id) {
+  state.character.extras = cleanExtras({ ...extras(), macros: extras().macros.filter((macro) => macro.id !== id) });
+  persist("Removed a saved roll.");
+  renderMacros();
+}
+
+function runMacro(id) {
+  const macro = extras().macros.find((item) => item.id === id);
+  if (!macro) return;
+  pendingDamage = null;
+  if (macro.ammo && !fireAmmo()) return;
+  const hit = parseFormula(macro.hit);
+  if (hit) {
+    const result = performRoll({ ...hit, mode: state.dice.mode, purpose: `${macro.label} attack`, target: currentTarget(), secret: secretChecked() });
+    if (macro.damage) {
+      pendingDamage = { macro, crit: result.tag === "natural-20" };
+      paintAfterRoll();
+    }
+    return;
+  }
+  const damage = parseFormula(macro.damage);
+  if (damage) performRoll({ ...damage, mode: "normal", purpose: `${macro.label} damage`, target: currentTarget(), secret: secretChecked() });
+}
+
+function rollMacroDamage() {
+  if (!pendingDamage) return;
+  const { macro, crit } = pendingDamage;
+  pendingDamage = null;
+  const base = parseFormula(macro.damage);
+  if (!base) return;
+  const dice = crit ? critDamage(base) : base;
+  performRoll({ ...dice, mode: "normal", purpose: `${macro.label} damage${crit ? " (critical)" : ""}`, target: currentTarget(), secret: secretChecked(), help: false });
+}
+
+function paintTargets2() {
+  const field = document.getElementById("target-field");
+  const select = document.getElementById("roll-target");
+  if (!field || !select || document.activeElement === select) return;
+  const people = (atSharedTable() && sharedOrder ? sharedOrder.combatants : state.combat.combatants)
+    .filter((person) => person.name !== state.character.name);
+  field.hidden = people.length === 0;
+  const current = select.value;
+  const names = [...new Set(people.map((person) => person.name))];
+  select.replaceChildren(h("option", { value: "" }, "No target"), ...names.map((name) => h("option", { value: name }, name)));
+  if (names.includes(current)) select.value = current;
+}
+
+// --- Pack: portrait, color, damage and healing, conditions, abilities, resources, slots.
+
+function paintPortrait(character) {
+  const mount = document.getElementById("kit-portrait");
+  if (!mount) return;
+  const ex = extras();
+  mount.replaceChildren(...present([
+    ex.portrait ? h("img", { class: "portrait", src: ex.portrait, alt: `${character.name || "Your hero"}'s portrait`, width: "72", height: "72" }) : null,
+    h("div", { class: "stack" }, [
+      h("button", { type: "button", class: "text-btn", "data-action": "pick-portrait" }, ex.portrait ? "Change portrait" : "Add a portrait"),
+      ex.portrait ? h("button", { type: "button", class: "text-btn", "data-action": "clear-portrait" }, "Remove portrait") : null,
+      h("div", { class: "swatches", role: "group", "aria-label": "Your color in the table feed" }, COLORS.map((color) => h("button", {
+        type: "button",
+        class: "swatch",
+        style: `--swatch:${color}`,
+        "data-action": "pick-color",
+        "data-color": color,
+        "aria-pressed": ex.color === color ? "true" : "false",
+        "aria-label": `Feed color ${color}`,
+      }, ""))),
+    ]),
+  ].filter(Boolean)));
+}
+
+async function loadPortrait(file) {
+  if (!file || !/^image\//.test(file.type)) return;
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const side = Math.min(image.naturalWidth, image.naturalHeight);
+    const sx = (image.naturalWidth - side) / 2;
+    const sy = (image.naturalHeight - side) / 2;
+    let data = "";
+    for (const [size, quality] of [[128, 0.82], [112, 0.7], [96, 0.6], [80, 0.5]]) {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      canvas.getContext("2d").drawImage(image, sx, sy, side, side, 0, 0, size, size);
+      data = canvas.toDataURL("image/jpeg", quality);
+      if (data.length <= PORTRAIT_CHARS) break;
+    }
+    if (data.length > PORTRAIT_CHARS) return;
+    setExtras({ ...extras(), portrait: data }, "Changed the portrait.");
+  } catch {
+    // An image the browser cannot read leaves the old portrait in place.
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function currentHp() {
+  return state.character.hp == null ? (suggestedHp(state.character) ?? 0) : state.character.hp;
+}
+
+function setHeroHp(next, summary) {
+  const max = maxHitPoints(state.character);
+  state.character.hp = Math.min(max, Math.max(0, next));
+  state.character.maxHp = max;
+  if (state.character.hp > 0) state.character.death = blankDeath();
+  const local = state.combat.combatants.find((person) => person.name === state.character.name);
+  if (local && !atSharedTable()) {
+    local.hp = state.character.hp;
+    local.maxHp = max;
+    if (local.hp > 0) local.death = blankDeath();
+  }
+  persist(summary);
+  void pushHeroVitals();
+  renderKit();
+  renderCombat();
+}
+
+function amountField() {
+  return readInt(document.getElementById("kit-amount"), 0, 0, 999);
+}
+
+function takeDamage() {
+  const amount = amountField();
+  if (!amount) return;
+  const ex = extras();
+  const after = applyDamage({ hp: currentHp(), tempHp: ex.tempHp }, amount);
+  state.character.extras = cleanExtras({ ...ex, tempHp: after.tempHp });
+  const soaked = ex.tempHp - after.tempHp;
+  setHeroHp(after.hp, `${state.character.name || "The hero"} takes ${amount} damage${soaked ? `, ${soaked} to temporary hit points` : ""}, and is at ${after.hp}.`);
+  if (ex.conditions.includes("concentrating") && after.hp > 0) {
+    const dc = concentrationDc(amount);
+    const info = askBonus(state.character, "Constitution save");
+    stageRoll({ count: 1, sides: 20, modifier: info ? info.bonus : 0, purpose: `Concentration, DC ${dc}` });
+    const hint = document.getElementById("dice-hint");
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = `You are concentrating. Roll a Constitution save against DC ${dc} to hold the spell.`;
+    }
+  }
+}
+
+function healDamage() {
+  const amount = amountField();
+  if (!amount) return;
+  const next = applyHealing({ hp: currentHp(), max: maxHitPoints(state.character) }, amount);
+  setHeroHp(next, `${state.character.name || "The hero"} heals ${amount}, and is at ${next}.`);
+}
+
+function gainTemp() {
+  const amount = amountField();
+  const ex = extras();
+  const next = applyTemp(ex.tempHp, amount);
+  setExtras({ ...ex, tempHp: next }, next === ex.tempHp && amount ? "Temporary hit points do not stack. The bigger number stays." : `${next} temporary hit points.`);
+}
+
+function paintConditions() {
+  const mount = document.getElementById("kit-conditions");
+  if (!mount || typingInside(mount)) return;
+  const on = new Set(extras().conditions);
+  mount.replaceChildren(
+    h("h3", {}, "Conditions"),
+    h("div", { class: "chip-row", role: "group", "aria-label": "Your conditions" }, MARKS.map((mark) => h("button", {
+      type: "button",
+      class: mark === "concentrating" ? "chip is-concentrating" : "chip",
+      "data-action": "toggle-condition",
+      "data-mark": mark,
+      "aria-pressed": on.has(mark) ? "true" : "false",
+    }, mark))),
+  );
+}
+
+async function toggleCondition(mark) {
+  if (!MARKS.includes(mark)) return;
+  const ex = extras();
+  const list = ex.conditions.includes(mark) ? ex.conditions.filter((item) => item !== mark) : [...ex.conditions, mark];
+  list.sort((a, b) => MARKS.indexOf(a) - MARKS.indexOf(b));
+  state.character.extras = cleanExtras({ ...ex, conditions: list });
+  const local = state.combat.combatants.find((person) => person.name === state.character.name);
+  if (local) local.marks = [...list];
+  persist(`${state.character.name || "The hero"}: ${list.join(", ") || "no conditions"}.`);
+  renderKit();
+  renderCombat();
+  void pushHeroVitals();
+}
+
+function paintAbilities(character) {
+  const mount = document.getElementById("kit-abilities");
+  if (!mount) return;
+  if (!classInfo(character)) {
+    mount.replaceChildren();
+    return;
+  }
+  const totals = abilityTotals(character);
+  mount.replaceChildren(
+    h("h3", {}, "Checks and saves"),
+    h("div", { class: "ability-rolls" }, ABILITIES.map((ability) => {
+      const check = askBonus(character, `${ability.label} check`);
+      const save = askBonus(character, `${ability.label} save`);
+      return h("div", { class: "ability-roll" }, [
+        h("p", { class: "sheet-title" }, `${ability.short} ${totals[ability.id]}`),
+        h("button", { type: "button", class: "btn", "data-action": "roll-ask", "data-ask": `${ability.label} check` }, `Check ${formatMod(check.bonus)}`),
+        h("button", { type: "button", class: "btn", "data-action": "roll-ask", "data-ask": `${ability.label} save` }, `Save ${formatMod(save.bonus)}`),
+      ]);
+    })),
+  );
+}
+
+function rollAsk(name) {
+  const info = askBonus(state.character, name);
+  if (!info || gateMode !== "play") return;
+  stageRoll({ count: 1, sides: 20, modifier: info.bonus, purpose: info.label });
+}
+
+function paintResources(character) {
+  const mount = document.getElementById("kit-resources");
+  if (!mount || typingInside(mount)) return;
+  const list = extras().resources;
+  mount.replaceChildren(...present([
+    h("h3", {}, "Class resources"),
+    ...list.map((item) => h("div", { class: "gear-row resource-row" }, [
+      h("span", { class: "resource-name" }, `${item.label} ${item.max - item.used} / ${item.max}`),
+      h("span", { class: "hint" }, item.reset === "short" ? "short rest" : "long rest"),
+      h("button", { type: "button", class: "btn", "data-action": "resource", "data-id": item.id, "data-delta": "1", disabled: item.used >= item.max ? "disabled" : null }, "Use"),
+      h("button", { type: "button", class: "btn", "data-action": "resource", "data-id": item.id, "data-delta": "-1", disabled: item.used <= 0 ? "disabled" : null }, "Regain"),
+      h("button", { type: "button", class: "text-btn", "data-action": "remove-resource", "data-id": item.id }, "Remove"),
+    ])),
+    list.length ? null : h("p", { class: "hint" }, "Rage, Ki, Channel Divinity and the rest. Fill them from the class, or add your own."),
+    h("div", { class: "turn-actions" }, [
+      character.classId && character.classId !== "custom"
+        ? h("button", { type: "button", class: "btn", "data-action": "class-resources" }, "Fill from the class")
+        : null,
+    ].filter(Boolean)),
+    h("details", { class: "wick-add" }, [
+      h("summary", {}, "Add your own"),
+      h("form", { id: "resource-form", "data-form": "resource", class: "form", autocomplete: "off" }, [
+        h("label", {}, ["Resource", h("input", { name: "label", maxlength: "40", required: "required", placeholder: "Superiority dice", spellcheck: "false" })]),
+        h("label", {}, ["Uses", h("input", { name: "max", type: "number", min: "1", max: "100", value: "1", inputmode: "numeric" })]),
+        h("label", {}, ["Back on", h("select", { name: "reset" }, [h("option", { value: "short" }, "Short rest"), h("option", { value: "long" }, "Long rest")])]),
+        h("button", { type: "submit", class: "btn" }, "Add"),
+      ]),
+    ]),
+  ].filter(Boolean)));
+}
+
+function chaMod() {
+  return abilityMod(abilityTotals(state.character).cha);
+}
+
+function fillClassResources() {
+  const fresh = classResources(state.character.classId, state.character.level, chaMod());
+  const ex = extras();
+  const custom = ex.resources.filter((item) => !fresh.some((entry) => entry.id === item.id));
+  const kept = fresh.map((entry) => {
+    const old = ex.resources.find((item) => item.id === entry.id);
+    return old ? { ...entry, used: Math.min(old.used, entry.max) } : entry;
+  });
+  setExtras({ ...ex, resources: [...kept, ...custom], slots: classSlots(state.character.classId, state.character.level).map((slot, index) => ({ max: slot.max, used: Math.min(ex.slots[index]?.used || 0, slot.max) })) }, "Filled class resources and spell slots.");
+}
+
+function addResource(form) {
+  const label = form.elements.label.value.trim();
+  if (!label) return;
+  const max = readInt(form.elements.max, 1, 1, 100);
+  const ex = extras();
+  setExtras({ ...ex, resources: [...ex.resources, { id: uid().replace(/[^A-Za-z0-9_-]/g, ""), label, max, used: 0, reset: form.elements.reset.value }] }, `Added ${label}.`);
+}
+
+function paintSlots() {
+  const mount = document.getElementById("kit-slots");
+  if (!mount || typingInside(mount)) return;
+  const slots = extras().slots;
+  const any = slots.some((slot) => slot.max > 0);
+  const ordinal = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th"];
+  mount.replaceChildren(...present([
+    h("h3", {}, "Spell slots"),
+    any ? h("div", { class: "slot-grid" }, slots.flatMap((slot, index) => (slot.max ? [h("div", { class: "slot-line" }, [
+      h("span", { class: "slot-level" }, ordinal[index]),
+      ...Array.from({ length: slot.max }, (_, pip) => h("button", {
+        type: "button",
+        class: pip < slot.max - slot.used ? "pip is-open" : "pip",
+        "data-action": "slot",
+        "data-level": String(index + 1),
+        "data-delta": pip < slot.max - slot.used ? "1" : "-1",
+        "aria-label": `${ordinal[index]} level slot ${pip + 1}, ${pip < slot.max - slot.used ? "ready, tap to spend" : "spent, tap to get back"}`,
+      }, "")),
+    ])] : []))) : null,
+    h("details", { class: "wick-add" }, [
+      h("summary", {}, "Set slots by hand"),
+      h("div", { class: "slot-edit" }, slots.map((slot, index) => h("label", {}, [
+        ordinal[index],
+        h("input", { type: "number", min: "0", max: "9", value: String(slot.max), inputmode: "numeric", "data-slot-max": String(index + 1), "aria-label": `${ordinal[index]} level slots` }),
+      ]))),
+    ]),
+  ]));
+}
+
+function longRest() {
+  const character = state.character;
+  const max = maxHitPoints(character);
+  character.hp = max;
+  character.maxHp = max;
+  character.death = blankDeath();
+  character.hitDiceUsed = Math.max(0, character.hitDiceUsed - Math.max(1, Math.floor(character.level / 2)));
+  character.spells = (character.spells || []).map((spell) => ({ ...spell, used: false }));
+  character.extras = restExtras(extras(), "long", character.classId);
+  persist(`Long rest: ${character.name || "the hero"} is back to ${max} hit points.`);
+  void pushHeroVitals();
+  renderKit();
+  renderCombat();
+}
+
+// --- Inventory: weight, ammo, potions, magic items, level up.
+
+function paintWeight(character) {
+  const node = document.getElementById("kit-weight");
+  if (!node) return;
+  const weight = carriedWeight(character.items, extras().trinkets);
+  const load = encumbrance(weight, abilityTotals(character).str);
+  const words = { light: "", encumbered: " Under the variant rule that is encumbered: speed drops by 10 feet.", heavy: " Under the variant rule that is heavily encumbered: speed drops by 20 feet, with disadvantage on Strength, Dexterity, and Constitution rolls.", over: " That is more than you can carry." };
+  node.textContent = `Carrying ${weight} lb of ${load.capacity} lb.${words[load.level]}`;
+  node.dataset.load = load.level;
+}
+
+function paintAmmo(character) {
+  const mount = document.getElementById("kit-ammo");
+  if (!mount || typingInside(mount)) return;
+  const held = character.items.filter((item) => AMMO_IDS.includes(item.id));
+  if (!held.length) {
+    mount.replaceChildren();
+    return;
+  }
+  const ex = extras();
+  const chosen = held.find((item) => item.id === ex.ammoId);
+  if (chosen) {
+    const per = ammoPerBundle(chosen.id);
+    const synced = syncAmmo(ex.ammoLeft, chosen.qty, per);
+    if (synced !== ex.ammoLeft) state.character.extras = cleanExtras({ ...ex, ammoLeft: synced });
+  }
+  const left = extras().ammoLeft;
+  mount.replaceChildren(h("div", { class: "gear-row" }, present([
+    h("label", {}, ["Ammo", h("select", { id: "ammo-pick", "aria-label": "Ammunition to count" }, [
+      h("option", { value: "" }, "Not counting"),
+      ...held.map((item) => h("option", { value: item.id, selected: item.id === ex.ammoId ? "selected" : null }, item.name)),
+    ])]),
+    chosen ? h("span", { class: "sheet-title" }, `${left} left`) : null,
+    chosen ? h("button", { type: "button", class: "btn", "data-action": "fire-ammo", disabled: left <= 0 ? "disabled" : null }, "Fire one") : null,
+    chosen ? h("button", { type: "button", class: "text-btn", "data-action": "recover-ammo" }, "Pick one up") : null,
+  ])));
+}
+
+function pickAmmo(id) {
+  const item = state.character.items.find((entry) => entry.id === id);
+  setExtras({ ...extras(), ammoId: item ? id : "", ammoLeft: item ? item.qty * ammoPerBundle(id) : 0 }, item ? `Counting ${item.name}.` : "Stopped counting ammo.");
+}
+
+function fireAmmo() {
+  const ex = extras();
+  const item = state.character.items.find((entry) => entry.id === ex.ammoId);
+  if (!item) return true;
+  if (ex.ammoLeft <= 0) {
+    setSaveStatus(`Out of ${item.name.replace(/ \(.*\)$/, "").toLowerCase()}.`);
+    return false;
+  }
+  const per = ammoPerBundle(item.id);
+  const left = ex.ammoLeft - 1;
+  const bundles = Math.ceil(left / per);
+  state.character.items = bundles > 0
+    ? state.character.items.map((entry) => (entry.id === item.id ? { ...entry, qty: bundles } : entry))
+    : state.character.items.filter((entry) => entry.id !== item.id);
+  state.character.extras = cleanExtras({ ...ex, ammoLeft: left, ammoId: bundles > 0 ? ex.ammoId : "" });
+  persist(left > 0 ? `Fires one. ${left} left.` : "Fires the last one.");
+  renderKit();
+  return true;
+}
+
+function recoverAmmo() {
+  const ex = extras();
+  const item = state.character.items.find((entry) => entry.id === ex.ammoId);
+  if (!item) return;
+  const per = ammoPerBundle(item.id);
+  const left = ex.ammoLeft + 1;
+  const bundles = Math.ceil(left / per);
+  state.character.items = state.character.items.map((entry) => (entry.id === item.id ? { ...entry, qty: Math.min(99, bundles) } : entry));
+  setExtras({ ...ex, ammoLeft: left }, `Picks one up. ${left} left.`);
+}
+
+function drinkPotion(id) {
+  const dice = potionHealing(id);
+  if (!dice) return false;
+  const result = useItem(state.character, id);
+  if (!result.ok) return true;
+  state.character = result.character;
+  const rolled = performRoll({ ...dice, mode: "normal", purpose: "Potion of healing", help: false });
+  const next = applyHealing({ hp: currentHp(), max: maxHitPoints(state.character) }, rolled.total);
+  setHeroHp(next, `Drinks a potion of healing for ${rolled.total}, and is at ${next}.`);
+  return true;
+}
+
+function paintTrinkets() {
+  const mount = document.getElementById("kit-trinkets");
+  if (!mount || typingInside(mount)) return;
+  const list = extras().trinkets;
+  const count = attunedCount(extras());
+  mount.replaceChildren(...present([
+    list.some((item) => item.attune) ? h("p", { class: "sheet-title" }, `Attuned ${count} of ${ATTUNE_CAP}`) : null,
+    ...list.map((item) => h("div", { class: item.attuned ? "gear-row is-attuned" : "gear-row" }, present([
+      h("span", {}, `${item.name}${item.weight ? ` · ${item.weight} lb` : ""}`),
+      item.attune ? h("button", {
+        type: "button",
+        class: "btn",
+        "data-action": "attune",
+        "data-id": item.id,
+        "aria-pressed": item.attuned ? "true" : "false",
+        disabled: !item.attuned && count >= ATTUNE_CAP ? "disabled" : null,
+      }, item.attuned ? "Attuned" : "Attune") : null,
+      h("button", { type: "button", class: "text-btn", "data-action": "remove-trinket", "data-id": item.id }, "Remove"),
+    ]))),
+    list.length ? null : h("p", { class: "empty" }, "No magic items yet."),
+  ]));
+}
+
+function addTrinket(form) {
+  const name = form.elements.name.value.trim();
+  if (!name) return;
+  const ex = extras();
+  if (ex.trinkets.length >= TRINKET_CAP) return;
+  form.reset();
+  setExtras({ ...ex, trinkets: [...ex.trinkets, { id: uid().replace(/[^A-Za-z0-9_-]/g, ""), name, qty: 1, weight: Number(form.elements.weight?.value) || 0, attune: form.elements.attune.checked }] }, `Added ${name}.`);
+}
+
+function paintLevelUp(character) {
+  const mount = document.getElementById("kit-level");
+  if (!mount) return;
+  const info = classInfo(character);
+  const ex = extras();
+  const steps = ex.levelSeen && ex.levelSeen === character.level && info ? levelUpSteps(character.classId, character.level, info.hitDie) : [];
+  mount.replaceChildren(...present([
+    h("h3", {}, "Level"),
+    character.level < 20 && info ? h("button", { type: "button", class: "btn", "data-action": "level-up" }, `Level up to ${character.level + 1}`) : null,
+    steps.length ? h("p", { class: "lede" }, `Level ${character.level}. Work down the list, then close it.`) : null,
+    steps.length ? h("ul", { class: "checklist" }, steps.map((step) => h("li", {}, [h("label", { class: "check-line" }, [h("input", { type: "checkbox" }), step])]))) : null,
+    steps.length ? h("div", { class: "turn-actions" }, [
+      h("button", { type: "button", class: "btn", "data-action": "class-resources" }, "Update slots and resources"),
+      h("button", { type: "button", class: "text-btn", "data-action": "level-done" }, "Done"),
+    ]) : null,
+  ]));
+}
+
+function levelUp() {
+  const character = state.character;
+  const info = classInfo(character);
+  if (!info || character.level >= 20) return;
+  character.level += 1;
+  if (Number.isInteger(character.maxHp) && character.maxHp > 0) {
+    const gain = Math.max(1, Math.floor(info.hitDie / 2) + 1 + abilityMod(abilityTotals(character).con));
+    character.maxHp += gain;
+    if (Number.isInteger(character.hp)) character.hp += gain;
+  }
+  character.extras = cleanExtras({ ...extras(), levelSeen: character.level });
+  persist(`${character.name || "The hero"} reaches level ${character.level}.`);
+  void pushHeroVitals();
+  renderKit();
+}
+
+function extraClick(action, button) {
+  const handlers = {
+    "run-macro": () => runMacro(button.dataset.id),
+    "remove-macro": () => removeMacro(button.dataset.id),
+    "macro-damage": () => rollMacroDamage(),
+    "inspire-reroll": () => inspireReroll(),
+    "pick-portrait": () => document.getElementById("portrait-file")?.click(),
+    "clear-portrait": () => setExtras({ ...extras(), portrait: "" }, "Removed the portrait."),
+    "pick-color": () => setExtras({ ...extras(), color: button.dataset.color }, "Changed the feed color."),
+    "hero-damage": () => takeDamage(),
+    "hero-heal": () => healDamage(),
+    "hero-temp": () => gainTemp(),
+    "long-rest": () => longRest(),
+    "toggle-condition": () => void toggleCondition(button.dataset.mark),
+    "roll-ask": () => rollAsk(button.dataset.ask),
+    resource: () => setExtras(tickResource(extras(), button.dataset.id, Number(button.dataset.delta)), "Changed a class resource."),
+    "remove-resource": () => setExtras({ ...extras(), resources: extras().resources.filter((item) => item.id !== button.dataset.id) }, "Removed a class resource."),
+    "class-resources": () => fillClassResources(),
+    slot: () => setExtras(tickSlot(extras(), Number(button.dataset.level), Number(button.dataset.delta)), Number(button.dataset.delta) > 0 ? "Spent a spell slot." : "Got a spell slot back."),
+    "fire-ammo": () => fireAmmo(),
+    "recover-ammo": () => recoverAmmo(),
+    attune: () => {
+      const next = toggleAttune(extras(), button.dataset.id);
+      if (next) setExtras(next, "Changed attunement.");
+    },
+    "remove-trinket": () => setExtras({ ...extras(), trinkets: extras().trinkets.filter((item) => item.id !== button.dataset.id) }, "Removed a magic item."),
+    "level-up": () => levelUp(),
+    "level-done": () => setExtras({ ...extras(), levelSeen: 0 }),
+  };
+  const run = handlers[action];
+  if (!run) return false;
+  run();
+  return true;
+}
+
+function extraSubmit(form) {
+  if (form.dataset.form === "macro") addMacro(form);
+  else if (form.dataset.form === "resource") addResource(form);
+  else if (form.dataset.form === "trinket") addTrinket(form);
+  else return false;
+  return true;
+}
+
+function extraChange(target) {
+  if (target.id === "history-filter") {
+    renderHistory();
+    return true;
+  }
+  if (target.id === "ammo-pick") {
+    pickAmmo(target.value);
+    return true;
+  }
+  if (target.dataset?.slotMax) {
+    const level = Number(target.dataset.slotMax);
+    const slots = extras().slots.map((slot, index) => (index === level - 1 ? { max: readInt(target, slot.max, 0, 9), used: slot.used } : slot));
+    state.character.extras = cleanExtras({ ...extras(), slots });
+    persist("Set spell slots.");
+    return true;
+  }
+  return false;
+}
+
 function boot() {
   bootTextSize(document.getElementById("text-size"));
   registerOffline();
@@ -3553,6 +4289,12 @@ function boot() {
     event.target.value = "";
     if (file) void importCharacter(file);
   });
+  document.getElementById("portrait-file")?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void loadPortrait(file);
+  });
+  renderMacros();
   document.getElementById("import-file")?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (file) void restoreNight(file);

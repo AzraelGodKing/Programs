@@ -1593,3 +1593,62 @@ button.mark-chip.is-on,
 @media (max-width: 640px) {
   .room-qr, .dm-command.is-compact .room-qr { width: 6.5rem; height: 6.5rem; }
 }
+
+/* Player extras: saved rolls, the fuller pack, magic items. */
+.check-line { display: flex; align-items: center; gap: 0.45rem; }
+.check-line input { width: auto; margin: 0; }
+.inline-field { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
+.macros { margin-top: 0.9rem; }
+.macros h3 { margin-bottom: 0.35rem; }
+#after-roll { margin: 0.4rem 0; min-height: 0; }
+#after-roll:empty { display: none; }
+.btn.is-crit { box-shadow: 0 0 0 2px var(--gold); }
+.ticket-secret { color: var(--ash); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+.portrait-row { display: flex; gap: 0.8rem; align-items: center; margin: 0.4rem 0; }
+.portrait { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 2px solid var(--gold); }
+.swatches { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.swatch {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--swatch);
+  padding: 0;
+}
+.swatch[aria-pressed="true"] { border-color: var(--cream); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--swatch); }
+.amount-row { align-items: end; }
+.amount-row label { max-width: 7rem; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.chip {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.88rem;
+}
+.chip[aria-pressed="true"] { border-color: var(--blood); color: var(--cream); background: rgba(227, 139, 124, 0.16); }
+.chip.is-concentrating[aria-pressed="true"] { border-color: var(--gold); background: rgba(230, 194, 122, 0.16); }
+.ability-rolls { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.5rem; }
+.ability-roll { display: grid; gap: 0.3rem; padding: 0.5rem; border: 1px solid var(--line); border-radius: 0.6rem; background: var(--raise); }
+.ability-roll .sheet-title { margin: 0; }
+.resource-row { justify-content: flex-start; }
+.resource-name { font-weight: 600; min-width: 9rem; }
+.slot-grid { display: grid; gap: 0.35rem; }
+.slot-line { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.slot-level { min-width: 2.6rem; color: var(--muted); }
+.pip {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  background: transparent;
+  padding: 0;
+}
+.pip.is-open { background: var(--gold); }
+.slot-edit { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); gap: 0.4rem; margin-top: 0.4rem; }
+.gear-row.is-attuned span { color: var(--gold); }
+.checklist { list-style: none; padding: 0; display: grid; gap: 0.35rem; }
+#kit-weight[data-load="encumbered"], #kit-weight[data-load="heavy"] { color: var(--gold); }
+#kit-weight[data-load="over"] { color: var(--blood); }

@@ -80,7 +80,7 @@ function soonestLight(lights) {
 function feedRow(event) {
   const natural = naturalTag(event.summary);
   return h("article", { class: natural ? `feed-row ${natural}` : "feed-row" }, [
-    h("p", { class: "feed-name" }, event.name),
+    h("p", { class: "feed-name" }, event.secret ? `${event.name} · secret` : event.name),
     h("p", { class: "feed-summary" }, event.summary),
     h("p", { class: "feed-time" }, clock(event.at)),
   ]);

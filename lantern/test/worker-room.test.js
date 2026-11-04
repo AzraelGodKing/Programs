@@ -297,3 +297,26 @@ test("the DM owns the order and a player can only change their own hit points", 
   assert.equal(next.combatants[0].hp, 7);
   assert.equal((await table.view(dmToken)).order.combatants[0].name, "Mara");
 });
+
+test("a secret roll reaches the DM and the roller, not the other players", async () => {
+  const room = new TableRoom(memoryStorage());
+  const dm = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  const bram = await room.join("", { name: "Bram" });
+  await room.update(mara.token, { summaries: ["Rolled 12 for Stealth.", { text: "Rolled 19 for Insight.", secret: true }] });
+  const dmView = await room.view(dm);
+  assert.equal(dmView.events.length, 2);
+  assert.equal(dmView.events.find((event) => event.secret).summary, "Rolled 19 for Insight.");
+  assert.equal((await room.view(mara.token)).events.length, 2);
+  const other = await room.view(bram.token);
+  assert.deepEqual(other.events.map((event) => event.summary), ["Rolled 12 for Stealth."]);
+});
+
+test("a player sets their own conditions on the order", async () => {
+  const room = new TableRoom(memoryStorage());
+  await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  await room.rollInitiative(mara.token, { name: "Mara", init: 12, hp: 10, maxHp: 10 });
+  const order = await room.setVitals(mara.token, { marks: ["prone", "concentrating", "made-up"] });
+  assert.deepEqual(order.combatants[0].marks, ["prone", "concentrating"]);
+});
