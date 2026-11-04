@@ -23,6 +23,9 @@ function memoryStorage() {
       }
       return out;
     },
+    async delete(key) {
+      return data.delete(key);
+    },
     async setAlarm() {},
     async deleteAll() {
       data.clear();
@@ -504,4 +507,42 @@ test("rewards, handouts, hidden entries, the world, and deals", async () => {
   await assert.rejects(room.talk(mara.token, { text: "Hear ye", kind: "read" }), TableError);
   const read = await room.talk(dm, { text: "The door creaks.", kind: "read" });
   assert.equal(read.kind, "read");
+});
+
+test("pause, mood, chat control, safety, the X-card log, the next session, and seats", async () => {
+  const room = new TableRoom(memoryStorage());
+  const dm = await room.create();
+  const mara = await room.join("", { name: "Mara" });
+  await room.join("", { name: "Bram" });
+  await assert.rejects(room.board(mara.token, { op: "pause" }), TableError);
+  await room.board(dm, { op: "pause", text: "Snacks" });
+  await room.board(dm, { op: "mood", label: "Storm" });
+  await room.board(dm, { op: "safety", lines: "spiders\ndrowning", veils: "torture" });
+  await room.board(dm, { op: "rules", text: "Crits roll max plus a die." });
+  await room.board(dm, { op: "next", at: 1800000000000, label: "Night 5" });
+  await room.board(mara.token, { op: "xcard" });
+  let view = await room.view(mara.token);
+  assert.equal(view.board.pause.text, "Snacks");
+  assert.equal(view.board.mood.label, "Storm");
+  assert.deepEqual(view.board.safety, { lines: ["spiders", "drowning"], veils: ["torture"] });
+  assert.equal(view.board.next.label, "Night 5");
+  assert.deepEqual(view.board.xlog, []);
+  assert.equal((await room.view(dm)).board.xlog.length, 1);
+
+  await room.board(dm, { op: "chat-mode", mode: "muted" });
+  await assert.rejects(room.talk(mara.token, { text: "hi" }), TableError);
+  await room.talk(mara.token, { text: "brb", to: DM_NAME });
+  await room.board(dm, { op: "chat-mode", mode: "slow", slow: 60 });
+  await room.talk(mara.token, { text: "one" });
+  await assert.rejects(room.talk(mara.token, { text: "two" }), TableError);
+  await room.talk(dm, { text: "The DM is never slowed." });
+
+  const link = await room.board(dm, { op: "seat-link", name: "Mara" });
+  assert.equal(link.token, mara.token);
+  await room.board(dm, { op: "seat-rename", name: "Mara", to: "Mira" });
+  assert.equal((await room.view(mara.token)).players.some((player) => player.name === "Mira"), true);
+  await assert.rejects(room.board(dm, { op: "seat-rename", name: "Mira", to: "Bram" }), TableError);
+  await room.board(dm, { op: "seat-kick", name: "Mira" });
+  assert.equal((await room.view(mara.token)).locked, true);
+  assert.deepEqual((await room.view(dm)).players.map((player) => player.name), ["Bram"]);
 });

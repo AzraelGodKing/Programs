@@ -26,6 +26,7 @@ import { asksTableChanged, bootAsks, paintAsks } from "./dmasks.js";
 import { glanceNodes, paintPacks } from "./dmparty.js";
 import { bootRewards, paintRewards, rewardsTableChanged } from "./dmrewards.js";
 import { bootStory, paintStoryRoom } from "./dmstory.js";
+import { bootTable, paintTableModule } from "./dmtable.js";
 import { knownMonsters } from "./dmcombat.js";
 import { monsterRows } from "./monsters.js";
 import { paintTalk, paintTargets } from "./talk.js";
@@ -1048,6 +1049,7 @@ async function poll() {
   paintPacks(room);
   paintRewards(room);
   paintStoryRoom(room);
+  paintTableModule(room);
   paintDeals(room);
   paintTalk(document.getElementById("dm-talk-log"), room.messages || [], { colors: playerColors(room.players) });
   paintTargets(
@@ -1272,6 +1274,28 @@ function boot() {
   };
   document.getElementById("module-packs")?.addEventListener("toggle", () => paintPacks(lastRoom));
   document.getElementById("dm-pack-search")?.addEventListener("input", () => paintPacks(lastRoom));
+  bootTable({
+    code: () => code,
+    token: () => dmToken,
+    room: () => lastRoom,
+    status: setStatus,
+    refresh,
+    prep: () => prep(),
+    setPrep(next) {
+      if (!code) throw new Error("Open a table first, then open the notebook.");
+      Object.assign(prep(), cleanPrep(next));
+      saveTools();
+      paintTools();
+    },
+    openModule: (name) => {
+      if (!document.getElementById(`module-${name}`)?.open) openDmModule(name);
+    },
+    setFeed(name) {
+      tools.feed = ["rolls", "table", "secret"].includes(name) ? name : "all";
+      saveTools();
+      if (lastRoom) renderRoom(lastRoom);
+    },
+  });
   bootRewards({ code: () => code, token: () => dmToken, room: () => lastRoom, status: setStatus, refresh });
   bootStory({
     code: () => code,

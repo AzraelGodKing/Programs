@@ -160,7 +160,23 @@ export function blankBoard() {
     gifts: [],
     handouts: [],
     world: null,
+    pause: null,
+    mood: null,
+    chat: { mode: "open", slow: 0 },
+    rules: "",
+    safety: { lines: [], veils: [] },
+    xlog: [],
+    next: null,
   };
+}
+
+export const CHAT_MODES = ["open", "slow", "muted"];
+
+function cleanList(value, cap, max) {
+  return (Array.isArray(value) ? value : String(value || "").split(/\n|,/))
+    .map((item) => collapse(String(item)).slice(0, max))
+    .filter(Boolean)
+    .slice(0, cap);
 }
 
 export const GIFT_KINDS = ["item", "coin", "inspiration", "xp", "identify"];
@@ -178,6 +194,7 @@ export function boardFor(board, who) {
     helps: board.helps.filter((help) => help.to === who.name || help.from === who.name),
     gifts: board.gifts.filter((gift) => gift.to === who.name),
     handouts: board.handouts.filter((item) => !item.to || item.to === who.name),
+    xlog: [],
   };
 }
 
@@ -419,6 +436,7 @@ export class TableRoom {
         name: who.name,
         seen: now,
         typing: (await this.storage.get(`seat:${token}`))?.typing || 0,
+        lastTalk: (await this.storage.get(`seat:${token}`))?.lastTalk || 0,
         intent: update.intent,
         snapshot: update.snapshot,
       },
@@ -481,6 +499,16 @@ export class TableRoom {
     if (!who) throw new TableError("Sit down before you speak.");
     const message = cleanTalk({ ...payload, name: who.name });
     const now = Date.now();
+    if (who.role === "player") {
+      const chat = cleanBoard(await this.storage.get("board")).chat || { mode: "open" };
+      if (chat.mode === "muted" && message.to !== DM_NAME) throw new TableError("The DM has paused table talk. You can still whisper the DM.");
+      if (chat.mode === "slow") {
+        const seat = await this.storage.get(`seat:${token}`);
+        const wait = (seat?.lastTalk || 0) + chat.slow * 1000 - now;
+        if (wait > 0) throw new TableError(`Slow chat: wait ${Math.ceil(wait / 1000)} more seconds.`);
+        if (seat) await this.storage.put(`seat:${token}`, { ...seat, lastTalk: now });
+      }
+    }
     let messages = (await this.storage.get("messages")) || [];
     const stored = { id: hexId(), at: now, from: message.name, to: message.to, text: message.text };
     if (message.ask) stored.ask = message.ask;
@@ -716,7 +744,7 @@ export class TableRoom {
         board.handouts.push({ id, to, title, at: now, image: Boolean(image) });
         if (board.handouts.length > HANDOUT_CAP) {
           const gone = board.handouts.shift();
-          await this.storage.put(`handout:${gone.id}`, null);
+          await this.storage.delete(`handout:${gone.id}`);
         }
         await this.storage.put({ board, [`handout:${id}`]: { text: body, image } });
         await this.storage.setAlarm(now + IDLE_MS);
@@ -733,7 +761,8 @@ export class TableRoom {
         dmOnly("takes back handouts");
         const id = boardId(payload.id);
         board.handouts = board.handouts.filter((item) => item.id !== id);
-        await this.storage.put({ board, [`handout:${id}`]: null });
+        await this.storage.put("board", board);
+        await this.storage.delete(`handout:${id}`);
         return { ok: true, board };
       }
       case "glossary-reveal": {
@@ -756,6 +785,62 @@ export class TableRoom {
         dmOnly("sets the weather and the hour");
         board.world = payload.clear === true ? null : { ...cleanWorld(payload), at: now };
         break;
+      }
+      case "pause":
+        dmOnly("pauses the table");
+        board.pause = payload.on === false ? null : { at: now, text: typeof payload.text === "string" ? collapse(payload.text).slice(0, 120) : "" };
+        break;
+      case "mood":
+        dmOnly("sets the mood");
+        board.mood = typeof payload.label === "string" && collapse(payload.label) ? { label: collapse(payload.label).slice(0, 40), at: now } : null;
+        break;
+      case "chat-mode": {
+        dmOnly("sets the chat");
+        const mode = CHAT_MODES.includes(payload.mode) ? payload.mode : "open";
+        board.chat = { mode, slow: mode === "slow" ? intField(payload.slow, 30, 5, 600) : 0 };
+        break;
+      }
+      case "rules":
+        dmOnly("writes the table rules");
+        board.rules = typeof payload.text === "string" ? payload.text.trim().slice(0, 4000) : "";
+        break;
+      case "safety":
+        dmOnly("sets lines and veils");
+        board.safety = { lines: cleanList(payload.lines, 30, 80), veils: cleanList(payload.veils, 30, 80) };
+        break;
+      case "xlog-clear":
+        dmOnly("clears the X-card history");
+        board.xlog = [];
+        break;
+      case "next": {
+        dmOnly("sets the next session");
+        const at = Number(payload.at);
+        const label = typeof payload.label === "string" ? collapse(payload.label).slice(0, 80) : "";
+        board.next = (Number.isFinite(at) && at > 0) || label ? { at: Number.isFinite(at) && at > 0 ? at : 0, label } : null;
+        break;
+      }
+      case "seat-kick":
+      case "seat-rename":
+      case "seat-link": {
+        dmOnly("manages seats");
+        const name = cleanName(payload.name);
+        const stored = await this.storage.list({ prefix: "seat:" });
+        const entry = [...stored.entries()].find(([, seat]) => seat.name === name);
+        if (!entry) throw new TableError("Nobody by that name is seated.");
+        const [key, seat] = entry;
+        if (op === "seat-link") return { ok: true, token: key.slice("seat:".length), name };
+        if (op === "seat-kick") {
+          await this.storage.delete(key);
+          await this.storage.setAlarm(now + IDLE_MS);
+          return { ok: true, board };
+        }
+        const to = cleanName(payload.to);
+        if (to.toLowerCase() === DM_NAME.toLowerCase()) throw new TableError("That name is the DM's.");
+        if ([...stored.values()].some((other) => other !== seat && other.name.toLowerCase() === to.toLowerCase())) throw new TableError("That name is already at the table.");
+        const order = cleanOrder((await this.storage.get("order")) || blankOrder());
+        for (const person of order.combatants) if (person.seat === name) person.seat = to;
+        await this.storage.put({ [key]: { ...seat, name: to }, order: cleanOrder(order) });
+        return { ok: true, board };
       }
       case "notes": {
         if (typeof payload.text !== "string") throw new TableError("Notes have to be text.");
@@ -859,6 +944,7 @@ export class TableRoom {
       case "xcard":
         // Nobody's name is stored. The card is anonymous on purpose.
         board.xcard = { at: now };
+        board.xlog = [...(board.xlog || []), now].slice(-40);
         break;
       case "xcard-clear":
         board.xcard = null;

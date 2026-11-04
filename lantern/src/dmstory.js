@@ -30,7 +30,7 @@ const uid = () => crypto.randomUUID();
 const clip = (value, max) => String(value ?? "").trim().slice(0, max);
 
 export function blankStory() {
-  return { boxes: [], npcs: [], scenes: [], stopAt: "", encounters: [] };
+  return { boxes: [], npcs: [], scenes: [], stopAt: "", encounters: [], sets: [] };
 }
 
 /** Keeps a story notebook in shape, whatever was stored. */
@@ -49,7 +49,16 @@ export function cleanStory(raw) {
       count: Math.max(1, Math.min(12, Math.floor(Number(row.count)) || 1)),
       weight: Math.max(1, Math.min(20, Math.floor(Number(row.weight)) || 1)),
     } : null)),
+    sets: list(source.sets, (set) => (set?.name && set?.lines ? { id: clip(set.id, 60) || uid(), name: clip(set.name, 80), lines: clip(set.lines, 300) } : null)),
   };
+}
+
+/** "3 Wolf, 1 Dire wolf" to [{count: 3, name: "Wolf"}, ...]. */
+export function parseSet(lines) {
+  return String(lines || "").split(/[,\n]/).map((part) => part.trim()).filter(Boolean).map((part) => {
+    const match = part.match(/^(\d{1,2})\s*[x×]?\s+(.+)$/i);
+    return match ? { count: Math.min(12, Math.max(1, Number(match[1]))), name: match[2].trim() } : { count: 1, name: part };
+  });
 }
 
 /** Picks a row from the encounter table, each row as likely as its weight. */
@@ -148,6 +157,16 @@ function paintEncounters() {
   ])) : [h("p", { class: "empty" }, "Add a few rows, then roll. A heavier row comes up more often.")]));
 }
 
+function paintSets() {
+  const mount = document.getElementById("dm-sets");
+  if (!mount) return;
+  mount.replaceChildren(...(story.sets.length ? story.sets.map((set) => h("div", { class: "gear-row" }, [
+    h("span", {}, `${set.name}: ${set.lines}`),
+    h("button", { type: "button", class: "btn", "data-story": "set-drop", "data-id": set.id }, "Drop into the order"),
+    h("button", { type: "button", class: "text-btn", "data-story": "set-remove", "data-id": set.id }, "Remove"),
+  ])) : [h("p", { class: "empty" }, "Ready an encounter ahead, like 3 Wolf, 1 Dire wolf, and drop it in when the fight starts.")]));
+}
+
 function paintBoard(room) {
   const board = room?.board;
   const quests = document.getElementById("dm-quests");
@@ -198,6 +217,7 @@ function paintStory() {
   paintNpcs();
   paintScenes();
   paintEncounters();
+  paintSets();
 }
 
 /** Called after each poll. */
@@ -296,6 +316,17 @@ async function onClick(event) {
         hooks.status(error.message);
       }
     }
+  } else if (kind === "set-remove") story.sets = story.sets.filter((item) => item.id !== id);
+  else if (kind === "set-drop") {
+    const set = story.sets.find((item) => item.id === id);
+    if (!set) return;
+    try {
+      for (const part of parseSet(set.lines)) await hooks.addToOrder(part.name, part.count);
+      hooks.status(`${set.name} is in the order.`);
+    } catch (error) {
+      hooks.status(error.message);
+    }
+    return;
   } else if (kind === "enc-remove") story.encounters = story.encounters.filter((item) => item.id !== id);
   else if (kind === "enc-roll") {
     const row = rollEncounter(story.encounters);
@@ -369,6 +400,7 @@ export function bootStory(next) {
     "dm-npc-form": (form) => addTo("npcs", { name: form.elements.name.value, voice: form.elements.voice.value, shown: form.elements.shown.value, secrets: form.elements.secrets.value }, form),
     "dm-scene-form": (form) => addTo("scenes", { title: form.elements.title.value, warning: form.elements.warning.value }, form),
     "dm-enc-form": (form) => addTo("encounters", { text: form.elements.text.value, monster: form.elements.monster.value, count: form.elements.count.value, weight: form.elements.weight.value }, form),
+    "dm-set-form": (form) => addTo("sets", { name: form.elements.name.value, lines: form.elements.lines.value }, form),
     "dm-handout-form": (form) => void sendHandout(form),
     "dm-quest-form": (form) => void board({ op: "quest-add", title: form.elements.title.value, hidden: form.elements.hidden.checked }, "Quest added.").then((ok) => ok && form.reset()),
     "dm-gloss-form": (form) => void board({ op: "glossary-add", name: form.elements.name.value, body: form.elements.body.value, hidden: form.elements.hidden.checked }, "Glossary entry added.").then((ok) => ok && form.reset()),

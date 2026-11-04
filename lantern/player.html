@@ -92,6 +92,12 @@
     </div>
     <div id="ready-banner" class="ask-banner" hidden role="alert"></div>
     <p id="world-line" class="world-line" hidden></p>
+    <div id="pause-overlay" class="pause-overlay" hidden role="alert">
+      <div class="pause-card">
+        <p class="pause-title">The table is paused</p>
+        <p id="pause-text" class="hint"></p>
+      </div>
+    </div>
     <div id="gift-banner" class="ask-banner gift-banner" hidden role="status"></div>
     <div id="turn-strip" class="turn-strip" hidden role="status"></div>
     <div id="ask-banner" class="ask-banner" hidden role="alert">
@@ -439,6 +445,7 @@
       <div id="talk-log" class="talk-log"></div>
       <p id="talk-live" class="sr-only" aria-live="polite"></p>
       <p id="talk-typing" class="hint talk-typing"></p>
+      <p id="talk-mode" class="hint talk-mode" hidden></p>
       <form id="talk-form" class="talk-form" autocomplete="off">
         <label>To
           <select id="talk-to" aria-label="Who hears this"></select>
@@ -468,8 +475,10 @@
       <p class="lede">Shared with everyone at the table, the DM too. Playing alone, the party board waits for a table.</p>
       <p id="party-status" class="hint" role="status"></p>
       <div id="party-ready"></div>
+      <div id="party-next"></div>
       <h3>Handouts</h3>
       <div id="party-handouts" class="stack"></div>
+      <div id="party-rules"></div>
       <h3>Party notes</h3>
       <textarea id="party-notes" maxlength="8000" rows="5" placeholder="Quest leads, the shopping list, who owes whom."></textarea>
       <p id="party-notes-by" class="hint"></p>
