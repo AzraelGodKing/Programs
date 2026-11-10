@@ -199,3 +199,39 @@ export async function postBoard(code, body, token = loadSeat().token) {
   if (!response.ok) throw new Error(await readError(response, "The board did not take that."));
   return response.json();
 }
+
+export async function postMap(code, body, token = loadSeat().token) {
+  const response = await fetch(`/api/rooms/${normalizeCode(code)}/map`, {
+    method: "POST",
+    headers: tokenHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (response.status === 404) throw new Error("No table with that code.");
+  if (!response.ok) throw new Error(await readError(response, "The map did not take that."));
+  return response.json();
+}
+
+const mapImages = new Map();
+
+/** The map picture for one revision, fetched once and kept for the page. */
+export function mapImage(code, rev, token = loadSeat().token) {
+  const key = `${normalizeCode(code)}:${rev}`;
+  if (!mapImages.has(key)) {
+    mapImages.set(key, postMap(code, { op: "image-get" }, token).then((result) => result.image || "").catch((error) => {
+      mapImages.delete(key);
+      throw error;
+    }));
+  }
+  return mapImages.get(key);
+}
+
+export async function postRecap(code, body, token) {
+  const response = await fetch(`/api/rooms/${normalizeCode(code)}/recap`, {
+    method: "POST",
+    headers: tokenHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (response.status === 404) throw new Error("No table with that code.");
+  if (!response.ok) throw new Error(await readError(response, "The recap did not post."));
+  return response.json();
+}

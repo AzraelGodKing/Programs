@@ -2,6 +2,8 @@
 
 import { advanceTurn, blankDeath, blankOrder, cleanOrder, playerOrder } from "../src/order.js";
 import { MARKS } from "../src/marks.js";
+import { TOKEN_CAP, cleanMap, cleanToken, fogged, freeCell, mapFor, paintFog, resizeMap } from "../src/mapgrid.js";
+import { discordRecap, validWebhook } from "../src/recap.js";
 
 export const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const EVENT_CAP = 500;
@@ -183,10 +185,27 @@ export const GIFT_KINDS = ["item", "coin", "inspiration", "xp", "identify"];
 const GIFT_CAP = 40;
 const HANDOUT_CAP = 12;
 export const HANDOUT_IMAGE_CHARS = 120_000;
+export const MAP_IMAGE_CHARS = 280_000;
 
 /** What one viewer may see of the board. Hidden quests and glossary entries, and other people's gifts and handouts, stay with the DM. */
 export function boardFor(board, who) {
   if (who.role === "dm") return board;
+  if (who.role === "watch") {
+    // A spectator reads the public board: no party notes, stash, handouts, or anything addressed to one seat.
+    return {
+      ...board,
+      notes: { text: "", by: "", at: 0 },
+      glossary: board.glossary.filter((item) => !item.hidden),
+      quests: board.quests.filter((item) => !item.hidden),
+      stash: { items: [], cp: 0 },
+      helps: [],
+      gifts: [],
+      handouts: [],
+      rules: "",
+      safety: { lines: [], veils: [] },
+      xlog: [],
+    };
+  }
   return {
     ...board,
     glossary: board.glossary.filter((item) => !item.hidden),
@@ -336,6 +355,12 @@ export class TableRoom {
     return { role: "player", name: seat.name, token };
   }
 
+  /** The spectator link's token opens a read-only view and nothing else. */
+  async watching(token) {
+    const meta = await this.storage.get("meta");
+    return Boolean(meta && validToken(token) && meta.watchToken && token === meta.watchToken);
+  }
+
   async create() {
     if (await this.storage.get("meta")) return null;
     const now = Date.now();
@@ -382,7 +407,8 @@ export class TableRoom {
 
   async view(token = "") {
     if (!await this.storage.get("meta")) return null;
-    const who = await this.role(token);
+    let who = await this.role(token);
+    if (!who && await this.watching(token)) who = { role: "watch", name: "" };
     const storedShop = await this.storage.get("shop");
     const shop = storedShop === undefined || storedShop === null ? true : storedShop;
     const order = cleanOrder((await this.storage.get("order")) || blankOrder());
@@ -396,6 +422,25 @@ export class TableRoom {
         messages: [],
         board: blankBoard(),
         order: blankOrder(),
+        map: null,
+      };
+    }
+    const map = mapFor(await this.storage.get("map"), who);
+    if (who.role === "watch") {
+      const seats = await this.storage.list({ prefix: "seat:" });
+      const open = shopFor(shop, who);
+      return {
+        watching: true,
+        locked: false,
+        events: ((await this.storage.get("events")) || []).filter((event) => !event.secret).reverse(),
+        // Only what the table already says out loud: the name, the hero, and how hurt they look.
+        players: [...seats.values()].map((seat) => ({ name: seat.name, seen: seat.seen, typing: 0, intent: "", snapshot: watchSnapshot(seat.snapshot) })).sort((a, b) => b.seen - a.seen),
+        shop: typeof open === "object" && open ? { open: open.open !== false } : open,
+        buybacks: [],
+        messages: ((await this.storage.get("messages")) || []).filter((message) => !message.to),
+        board: boardFor(cleanBoard(await this.storage.get("board")), who),
+        order: playerOrder(order),
+        map,
       };
     }
     const events = ((await this.storage.get("events")) || [])
@@ -421,8 +466,132 @@ export class TableRoom {
       buybacks: buybacks.map((line) => ({ ...line })),
       messages,
       order: who.role === "dm" ? order : playerOrder(order),
+      map,
+      watch: who.role === "dm" ? Boolean((await this.storage.get("meta")).watchToken) : undefined,
       locked: false,
     };
+  }
+
+  /** The battle map. The DM draws it; a player moves only their own token. */
+  async map(token, payload) {
+    const meta = await this.storage.get("meta");
+    if (!meta) return null;
+    let who = await this.role(token);
+    if (!who && await this.watching(token)) who = { role: "watch", name: "" };
+    if (!who) throw new TableError("Sit down before you use the map.");
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TableError("Expected an object.");
+    const now = Date.now();
+    let map = cleanMap(await this.storage.get("map"));
+    const op = payload.op;
+    if (op === "image-get") {
+      if (who.role !== "dm" && !map.on) throw new TableError("The map is not out yet.");
+      return { ok: true, image: map.image ? (await this.storage.get("mapimage")) || "" : "", rev: map.image };
+    }
+    if (who.role === "watch") throw new TableError("A spectator only watches.");
+    const find = () => {
+      const found = map.tokens.find((item) => item.id === payload.id);
+      if (!found) throw new TableError("That token is gone.");
+      return found;
+    };
+    if (op === "token-move") {
+      const piece = find();
+      const { x, y } = payload;
+      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= map.cols || y >= map.rows) throw new TableError("That is off the map.");
+      if (who.role !== "dm") {
+        if (!map.on || piece.hidden || (piece.seat || "").toLowerCase() !== who.name.toLowerCase()) throw new TableError("Move your own token.");
+        if (fogged(map, x, y)) throw new TableError("You cannot see that far yet.");
+      }
+      piece.x = x;
+      piece.y = y;
+    } else {
+      if (who.role !== "dm") throw new TableError("Only the DM draws the map.");
+      switch (op) {
+        case "show":
+          map.on = payload.on !== false;
+          break;
+        case "size":
+          map = resizeMap(map, payload.cols, payload.rows);
+          break;
+        case "image": {
+          const image = payload.image === "" || payload.image === null ? "" : payload.image;
+          if (image !== "" && !(typeof image === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image))) {
+            throw new TableError("The map picture has to be a PNG, JPEG, or WebP.");
+          }
+          if (image.length > MAP_IMAGE_CHARS) throw new TableError("That picture is too large. Try a smaller one.");
+          if (image) await this.storage.put("mapimage", image);
+          else await this.storage.delete("mapimage");
+          map.image = image ? now : 0;
+          break;
+        }
+        case "token-add": {
+          if (map.tokens.length >= TOKEN_CAP) throw new TableError("The map is full of tokens.");
+          const spot = freeCell(map);
+          const piece = cleanToken({ ...payload, id: hexId(), x: payload.x ?? spot.x, y: payload.y ?? spot.y }, map.cols, map.rows);
+          if (!piece) throw new TableError("Name the token.");
+          map.tokens.push(piece);
+          break;
+        }
+        case "party": {
+          // One token for every seat that has none yet.
+          const seats = [...(await this.storage.list({ prefix: "seat:" })).values()];
+          for (const seat of seats) {
+            if (map.tokens.length >= TOKEN_CAP) break;
+            if (map.tokens.some((item) => (item.seat || "").toLowerCase() === seat.name.toLowerCase())) continue;
+            const hero = typeof seat.snapshot?.character?.name === "string" ? collapse(seat.snapshot.character.name).slice(0, NAME_LENGTH) : "";
+            map.tokens.push(cleanToken({ id: hexId(), name: hero || seat.name, kind: "pc", seat: seat.name, ...freeCell(map) }, map.cols, map.rows));
+          }
+          break;
+        }
+        case "token-edit": {
+          const piece = find();
+          const next = cleanToken({ ...piece, ...(typeof payload.name === "string" ? { name: payload.name } : {}), ...(typeof payload.hidden === "boolean" ? { hidden: payload.hidden } : {}), ...(payload.size ? { size: payload.size } : {}) }, map.cols, map.rows);
+          if (!next) throw new TableError("Name the token.");
+          map.tokens = map.tokens.map((item) => (item.id === piece.id ? next : item));
+          break;
+        }
+        case "token-remove":
+          find();
+          map.tokens = map.tokens.filter((item) => item.id !== payload.id);
+          break;
+        case "fog":
+          map.fog = paintFog(map, payload.all === true ? "all" : payload.cells, payload.hidden !== false);
+          break;
+        case "clear":
+          await this.storage.delete("mapimage");
+          map = cleanMap({ cols: map.cols, rows: map.rows });
+          break;
+        default:
+          throw new TableError("The map does not know that.");
+      }
+    }
+    await this.storage.put("map", map);
+    await this.storage.setAlarm(now + IDLE_MS);
+    return { ok: true, map: mapFor(map, who) };
+  }
+
+  /** Posts the recap and the next session to a Discord channel. The webhook address is used once and not kept. */
+  async recap(token, payload, fetchImpl = globalThis.fetch) {
+    if (!await this.storage.get("meta")) return null;
+    const who = await this.role(token);
+    if (!who || who.role !== "dm") throw new TableError("Only the DM posts the recap.");
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TableError("Expected an object.");
+    if (!validWebhook(payload.webhook)) throw new TableError("That is not a Discord webhook address. Copy it from the channel's Integrations settings.");
+    const board = cleanBoard(await this.storage.get("board"));
+    const body = discordRecap({
+      recap: typeof payload.recap === "string" ? payload.recap : "",
+      next: payload.next === false ? null : board.next,
+      title: typeof payload.title === "string" ? collapse(payload.title) : "",
+      link: typeof payload.link === "string" ? payload.link : "",
+    });
+    if (!body) throw new TableError("Write a recap or set the next session first.");
+    let response;
+    try {
+      response = await fetchImpl(payload.webhook.trim(), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    } catch {
+      throw new TableError("Discord did not answer. Try again in a moment.");
+    }
+    if (!response.ok) throw new TableError(response.status === 404 || response.status === 401 ? "Discord does not know that webhook. It may have been deleted." : `Discord refused the post (${response.status}).`);
+    return { ok: true, next: Boolean(body.embeds[0].fields?.some((field) => field.name === "Next session")) };
   }
 
   async update(token, payload) {
@@ -675,6 +844,14 @@ export class TableRoom {
       await this.storage.put("events", events);
       await this.storage.setAlarm(now + IDLE_MS);
       return { ok: true };
+    }
+    if (op === "watch-link" || op === "watch-off") {
+      if (who.role !== "dm") throw new TableError("Only the DM shares a spectator link.");
+      const meta = await this.storage.get("meta");
+      // Turning the link off forgets the token, so an old link stops working.
+      const watchToken = op === "watch-off" ? "" : meta.watchToken || randomToken();
+      await this.storage.put("meta", { ...meta, watchToken });
+      return { ok: true, token: watchToken };
     }
     const board = cleanBoard(await this.storage.get("board"));
     const by = who.name;
@@ -967,6 +1144,17 @@ export class TableRoom {
     await this.storage.setAlarm(now + IDLE_MS);
     return { ok: true, board: boardFor(board, who) };
   }
+}
+
+/** What a spectator may know about a seat's hero. */
+function watchSnapshot(snapshot) {
+  const character = snapshot?.character;
+  if (!character || typeof character !== "object") return {};
+  const pick = {};
+  for (const key of ["name", "raceId", "classId", "level"]) {
+    if (typeof character[key] === "string" || Number.isInteger(character[key])) pick[key] = character[key];
+  }
+  return { character: pick };
 }
 
 function intField(value, fallback, min, max) {
