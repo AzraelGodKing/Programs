@@ -98,6 +98,7 @@
         <button type="button" class="btn" data-module="packs" aria-haspopup="dialog" aria-controls="module-packs" aria-expanded="false">Packs</button>
         <button type="button" class="btn" data-module="rewards" aria-haspopup="dialog" aria-controls="module-rewards" aria-expanded="false">Rewards</button>
         <button type="button" class="btn" data-module="story" aria-haspopup="dialog" aria-controls="module-story" aria-expanded="false">Story</button>
+        <button type="button" class="btn" data-module="map" aria-haspopup="dialog" aria-controls="module-map" aria-expanded="false">Map</button>
         <button type="button" class="btn" data-module="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false">Table</button>
       </div>
       <div id="dm-layouts" class="chip-row layout-row" role="group" aria-label="Screen layouts"></div>
@@ -458,6 +459,59 @@
       <div id="dm-encounter-result" class="stack" aria-live="polite"></div>
     </details>
   </dialog>
+  <dialog id="module-map" class="gear-dialog module-dialog module-map" aria-labelledby="map-title">
+    <div class="module-head">
+      <h2 id="map-title">Battle map</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p id="dm-map-now" class="hint"></p>
+    <div class="turn-actions">
+      <button type="button" class="btn primary" id="dm-map-show" aria-pressed="false">Show the map to players</button>
+      <div class="chip-row" role="group" aria-label="Map tool">
+        <button type="button" class="chip" data-map-tool="move" aria-pressed="true">Move tokens</button>
+        <button type="button" class="chip" data-map-tool="hide" aria-pressed="false">Add fog</button>
+        <button type="button" class="chip" data-map-tool="reveal" aria-pressed="false">Clear fog</button>
+      </div>
+    </div>
+    <p id="dm-map-hint" class="hint"></p>
+    <div id="dm-map" role="group" aria-label="Battle map"></div>
+    <p id="dm-map-status" class="hint" role="status"></p>
+    <details open>
+      <summary>Tokens</summary>
+      <div class="turn-actions">
+        <button type="button" class="btn" id="dm-map-party">Add the party</button>
+        <button type="button" class="btn" id="dm-map-order">Add everyone in the order</button>
+      </div>
+      <form id="dm-map-add" class="form" autocomplete="off">
+        <label>Name <input name="name" maxlength="40" required placeholder="Goblin 2"></label>
+        <label>Kind
+          <select name="kind"><option value="foe">Foe</option><option value="ally">Ally</option><option value="thing">Object</option><option value="pc">Hero</option></select>
+        </label>
+        <label class="inline-field"><input name="hidden" type="checkbox"> Hidden from players</label>
+        <button class="btn primary" type="submit">Add a token</button>
+      </form>
+      <div id="dm-map-tokens" class="stack"></div>
+    </details>
+    <details>
+      <summary>Grid, picture, and fog</summary>
+      <form id="dm-map-size" class="form" autocomplete="off">
+        <label>Squares across <input name="cols" type="number" min="4" max="40" value="20" required></label>
+        <label>Squares down <input name="rows" type="number" min="4" max="40" value="15" required></label>
+        <button class="btn" type="submit">Resize the grid</button>
+      </form>
+      <div class="turn-actions">
+        <label class="btn">Choose a map picture <input id="dm-map-image" type="file" accept="image/png,image/jpeg,image/webp" hidden></label>
+        <button type="button" class="text-btn" id="dm-map-image-clear">Remove the picture</button>
+      </div>
+      <p class="hint">The picture is stretched to the grid, so set the squares to match it. A large picture is shrunk to fit the table.</p>
+      <div class="turn-actions">
+        <button type="button" class="btn" id="dm-map-fog-all">Fog the whole map</button>
+        <button type="button" class="btn" id="dm-map-fog-none">Clear all fog</button>
+        <button type="button" class="text-btn danger" id="dm-map-clear">Clear the map</button>
+      </div>
+      <p class="hint">A creature standing in the fog is not sent to players at all. Heroes always see their own token.</p>
+    </details>
+  </dialog>
   <dialog id="module-table" class="gear-dialog module-dialog" aria-labelledby="table-title">
     <div class="module-head">
       <h2 id="table-title">Table</h2>
@@ -540,6 +594,34 @@
       <p class="hint">Players get an Add to my calendar button with the table link in it.</p>
     </details>
     <details>
+      <summary>Post the recap to Discord</summary>
+      <form id="dm-discord-form" class="form" autocomplete="off">
+        <label class="wide">Discord webhook address
+          <input name="webhook" type="password" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…">
+        </label>
+        <label class="wide">Recap
+          <textarea name="recap" rows="6" maxlength="3500" placeholder="What happened tonight, in a few lines."></textarea>
+        </label>
+        <label class="inline-field"><input name="next" type="checkbox" checked> Include the next session</label>
+        <label class="inline-field"><input name="link" type="checkbox" checked> Include the link to join the table</label>
+        <div class="turn-actions">
+          <button type="button" class="btn" id="dm-discord-draft">Draft it from tonight</button>
+          <button class="btn primary" type="submit">Post to Discord</button>
+        </div>
+      </form>
+      <p id="dm-discord-status" class="hint" role="status"></p>
+      <p class="hint">In Discord, open the channel's settings, then Integrations, then Webhooks, and copy the webhook address. It stays in this browser. The next session shows in each reader's own time zone, and the post cannot ping anyone.</p>
+    </details>
+    <details>
+      <summary>Spectator link</summary>
+      <p class="hint">A read-only page for someone who wants to watch: the order, the map, table talk, public rolls, and open quests. No whispers, secret rolls, sheets, or notes, and nothing on it can be changed.</p>
+      <div class="turn-actions">
+        <button type="button" class="btn primary" id="dm-watch-make">Make a spectator link</button>
+        <button type="button" class="text-btn danger" id="dm-watch-off" hidden>Turn the link off</button>
+      </div>
+      <div id="dm-watch-link" class="stack" hidden></div>
+    </details>
+    <details>
       <summary>Prep and the session log</summary>
       <div class="turn-actions">
         <button type="button" class="btn" id="dm-export-notebook">Save the notebook</button>
@@ -568,7 +650,7 @@
             <option value="">No module</option>
             <option value="order">Order</option><option value="shop">Shop</option><option value="spark">Spark</option>
             <option value="threat">Threat</option><option value="notes">Notes</option><option value="library">Library</option>
-            <option value="packs">Packs</option><option value="rewards">Rewards</option><option value="story">Story</option><option value="table">Table</option>
+            <option value="packs">Packs</option><option value="rewards">Rewards</option><option value="story">Story</option><option value="map">Map</option><option value="table">Table</option>
           </select>
         </label>
         <label>Feed

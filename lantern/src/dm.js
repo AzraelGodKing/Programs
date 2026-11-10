@@ -27,6 +27,7 @@ import { glanceNodes, paintPacks } from "./dmparty.js";
 import { bootRewards, paintRewards, rewardsTableChanged } from "./dmrewards.js";
 import { bootStory, paintStoryRoom } from "./dmstory.js";
 import { bootTable, paintTableModule } from "./dmtable.js";
+import { bootMap, paintMapModule } from "./dmmap.js";
 import { knownMonsters } from "./dmcombat.js";
 import { monsterRows } from "./monsters.js";
 import { paintTalk, paintTargets } from "./talk.js";
@@ -1045,6 +1046,7 @@ async function poll() {
   if (next === signature) return;
   signature = next;
   renderRoom(room);
+  paintMapModule(room);
   paintAsks(room);
   paintPacks(room);
   paintRewards(room);
@@ -1297,6 +1299,7 @@ function boot() {
     },
   });
   bootRewards({ code: () => code, token: () => dmToken, room: () => lastRoom, status: setStatus, refresh });
+  bootMap({ code: () => code, token: () => dmToken, room: () => lastRoom, order: () => tableOrder });
   bootStory({
     code: () => code,
     token: () => dmToken,

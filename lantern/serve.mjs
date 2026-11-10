@@ -68,6 +68,8 @@ function facade(code) {
     rollInitiative: (token, body) => room.rollInitiative(token, body),
     setVitals: (token, body) => room.setVitals(token, body),
     board: (token, body) => room.board(token, body),
+    map: (token, body) => room.map(token, body),
+    recap: (token, body) => room.recap(token, body),
   };
 }
 

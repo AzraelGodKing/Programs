@@ -123,6 +123,7 @@ import { cleanSpell, readLibraryFile, readPdfContent } from "./library.js";
 import { registerOffline } from "./pwa.js";
 import { hourText, turnTimerText } from "./combat.js";
 import { downloadText, icsFor } from "./session.js";
+import { bootPlayerMap, paintPlayerMap } from "./playermap.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -4968,6 +4969,7 @@ function paintRoomExtras(room, seat) {
   noticeMentions(room.messages || [], seat);
   paintTableRolls(room.events, room.players);
   if (room.board) paintBoard(room.board);
+  paintPlayerMap(room, seat);
   const xcard = document.getElementById("xcard");
   if (xcard) xcard.hidden = false;
   paintTurnHelper();
@@ -5328,6 +5330,7 @@ function boot() {
   }, { passive: true });
   setInterval(renderFlames, 1000);
   setInterval(() => { void flushShare(); }, 8000);
+  bootPlayerMap();
   setInterval(() => { void watchShop(); }, 2000);
   void watchShop();
 }

@@ -115,6 +115,7 @@
       <button type="button" role="tab" id="tab-table" data-action="tab" data-tab="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false" aria-selected="false" tabindex="-1">Table</button>
       <button type="button" role="tab" id="tab-party" data-action="tab" data-tab="party" aria-haspopup="dialog" aria-controls="module-party" aria-expanded="false" aria-selected="false" tabindex="-1">Party</button>
     </nav>
+    <button type="button" class="btn map-open" id="open-map" aria-haspopup="dialog" aria-controls="map-dialog" hidden>Battle map</button>
     <section class="wick" aria-label="Light sources">
       <p id="flame-live" class="sr-only" aria-live="polite"></p>
       <div id="flames" class="flames"></div>
@@ -582,6 +583,15 @@
       <div id="kit-level"></div>
       <button type="button" class="text-btn" id="mark-dead" data-action="mark-dead" hidden>This character died</button>
     </div>
+  </dialog>
+  <dialog id="map-dialog" class="gear-dialog module-map" aria-labelledby="map-title">
+    <div class="module-head">
+      <h2 id="map-title">Battle map</h2>
+      <button type="button" class="btn" id="close-map">Close</button>
+    </div>
+    <p id="map-hint" class="hint"></p>
+    <div id="player-map" role="group" aria-label="Battle map"></div>
+    <p id="map-status" class="hint" role="status"></p>
   </dialog>
   <dialog id="recap-dialog" class="gear-dialog" aria-labelledby="recap-title">
     <div class="module-head">

@@ -138,6 +138,28 @@ export async function handleRequest(request, env) {
       return rejected(error);
     }
   }
+  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/map\/?$/i.test(path)) {
+    const code = roomCode(path, /\/map\/?$/i);
+    if (!validCode(code)) return json(404, { error: "No table with that code." });
+    try {
+      const result = await stubFor(env, code).map(token, await readJson(request));
+      if (!result) return json(404, { error: "No table with that code." });
+      return json(200, result);
+    } catch (error) {
+      return rejected(error);
+    }
+  }
+  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/recap\/?$/i.test(path)) {
+    const code = roomCode(path, /\/recap\/?$/i);
+    if (!validCode(code)) return json(404, { error: "No table with that code." });
+    try {
+      const result = await stubFor(env, code).recap(token, await readJson(request));
+      if (!result) return json(404, { error: "No table with that code." });
+      return json(200, result);
+    } catch (error) {
+      return rejected(error);
+    }
+  }
   if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/talk\/?$/i.test(path)) {
     const code = roomCode(path, /\/talk\/?$/i);
     if (!validCode(code)) return json(404, { error: "No table with that code." });

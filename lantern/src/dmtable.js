@@ -4,11 +4,13 @@
 // screen layouts.
 
 import { spotlight, sessionLog, downloadText } from "./session.js";
-import { postBoard, postTalk } from "./table.js";
+import { postBoard, postRecap, postTalk } from "./table.js";
+import { recapDraft } from "./recap.js";
 import { replaceStory, storyNotebook } from "./dmstory.js";
 
 const LAYOUT_KEY = "lantern.dm.layouts";
 const SINCE_MS = 6 * 60 * 60 * 1000;
+const WEBHOOK_KEY = "lantern.dm.discord";
 let hooks = null;
 
 function h(tag, props = {}, children = []) {
@@ -120,6 +122,14 @@ function paintState(room) {
   filled(document.getElementById("dm-safety-form"), "veils", (b.safety?.veils || []).join("\n"));
   const next = document.getElementById("dm-next-now");
   if (next) next.textContent = b.next ? `Players see: ${[b.next.label, b.next.at ? new Date(b.next.at).toLocaleString() : ""].filter(Boolean).join(", ")}` : "No next session is set.";
+  const off = document.getElementById("dm-watch-off");
+  if (off) off.hidden = !room.watch;
+  const make = document.getElementById("dm-watch-make");
+  if (make) make.textContent = room.watch ? "Show the spectator link" : "Make a spectator link";
+  if (!room.watch) {
+    const out = document.getElementById("dm-watch-link");
+    if (out) out.hidden = true;
+  }
   const leader = document.getElementById("dm-poll-leader");
   if (leader) {
     const options = b.poll?.options || [];
@@ -189,6 +199,47 @@ async function seatAction(op, name) {
   }
 }
 
+// --- Spectator link and the Discord recap -----------------------------------------
+
+async function watchLink() {
+  const result = await board({ op: "watch-link" });
+  const out = document.getElementById("dm-watch-link");
+  if (!result?.token || !out) return;
+  // The token rides in the fragment, which browsers never send to a server or a log.
+  const url = `${location.origin}/watch.html#${hooks.code()}.${result.token}`;
+  out.hidden = false;
+  out.replaceChildren(
+    h("p", {}, "Anyone with this link can watch the table. Turn the link off to stop every copy of it."),
+    h("input", { readonly: true, value: url, class: "seat-link-field", "aria-label": "Spectator link" }),
+  );
+  out.querySelector("input")?.select();
+  try {
+    await navigator.clipboard.writeText(url);
+    hooks.status("The spectator link is copied.");
+  } catch {
+    hooks.status("The spectator link is ready to copy.");
+  }
+}
+
+async function postDiscord(form) {
+  const status = document.getElementById("dm-discord-status");
+  const webhook = form.elements.webhook.value.trim();
+  try { localStorage.setItem(WEBHOOK_KEY, webhook); } catch { /* kept for this page */ }
+  status.textContent = "Posting…";
+  try {
+    const result = await postRecap(hooks.code(), {
+      webhook,
+      recap: form.elements.recap.value,
+      next: form.elements.next.checked,
+      link: form.elements.link.checked ? `${location.origin}/player.html?room=${hooks.code()}` : "",
+      title: `Session recap, table ${hooks.code()}`,
+    }, hooks.token());
+    status.textContent = result.next ? "Posted to Discord, with the next session." : form.elements.next.checked ? "Posted to Discord. No next session is set, so it was left out." : "Posted to Discord.";
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+
 function exportNotebook() {
   const file = { lantern: 1, kind: "notebook", story: storyNotebook(), prep: hooks.prep() };
   downloadText(JSON.stringify(file, null, 2), "lantern-notebook.json", "application/json");
@@ -230,6 +281,17 @@ function onClick(event) {
   if (id === "dm-xlog-clear") return void board({ op: "xlog-clear" }, "The X-card history is cleared.");
   if (id === "dm-poll-leader") return void board({ op: "next", label: t.dataset.label, at: hooks.room()?.board?.next?.at || 0 }, "The poll result is the next session.");
   if (id === "dm-next-clear") return void board({ op: "next", label: "", at: 0 }, "No next session is set.");
+  if (id === "dm-watch-make") return void watchLink();
+  if (id === "dm-watch-off") {
+    if (confirm("Turn the spectator link off? Everyone watching is shut out, and a new link is needed to watch again.")) void board({ op: "watch-off" }, "The spectator link is off.");
+    return;
+  }
+  if (id === "dm-discord-draft") {
+    const field = document.getElementById("dm-discord-form")?.elements.recap;
+    const draft = recapDraft(hooks.room(), Date.now() - SINCE_MS);
+    if (field) field.value = [field.value.trim(), draft].filter(Boolean).join("\n\n").slice(0, 3500);
+    return;
+  }
   if (id === "dm-export-notebook") return exportNotebook();
   if (id === "dm-export-log") return exportLog();
 }
@@ -255,6 +317,14 @@ export function bootTable(next) {
     const at = form.elements.at.value ? new Date(form.elements.at.value).getTime() : 0;
     void board({ op: "next", at, label: form.elements.label.value }, "Players can see the next session and add it to their calendar.");
   });
+  const discord = document.getElementById("dm-discord-form");
+  if (discord) {
+    try { discord.elements.webhook.value = localStorage.getItem(WEBHOOK_KEY) || ""; } catch { /* nothing kept */ }
+    discord.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void postDiscord(discord);
+    });
+  }
   document.getElementById("dm-notebook-file")?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (file) void importNotebook(file);
