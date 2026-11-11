@@ -27,13 +27,6 @@ function dexPart(mode, dex) {
   return 0;
 }
 
-export function armorLabel(character) {
-  const ids = wornIds(character);
-  const pieces = Object.keys(ARMOR).filter((id) => ids.has(id));
-  if (ids.has("shield")) pieces.push("shield");
-  return pieces;
-}
-
 export function armorClass(character) {
   if (Number.isInteger(character.acOverride)) return character.acOverride;
   const ids = wornIds(character);
