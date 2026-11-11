@@ -86,6 +86,7 @@ fun CabinetScreen(
     onScanBarcode: () -> Unit = {},
 ) {
     val items by vm.cabinet.collectAsStateWithLifecycle()
+    val storeOrder by vm.layout.order.collectAsStateWithLifecycle()
     var newName by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
@@ -220,7 +221,7 @@ fun CabinetScreen(
                         stickyHeader(key = "h_soon") { CabinetHeader("Use soon") }
                         items(soon.sortedBy { it.expiresOn }, key = { it.id }) { item -> cabinetRow(item, Modifier.animateItem()) }
                     }
-                    rest.groupBy { it.categoryEnum }.toSortedMap().forEach { (category, rows) ->
+                    rest.groupBy { it.categoryEnum }.toSortedMap(compareBy { storeOrder.rank(it) }).forEach { (category, rows) ->
                         stickyHeader(key = "h_${category.name}") { CabinetHeader(category.label) }
                         items(rows, key = { it.id }) { item -> cabinetRow(item, Modifier.animateItem()) }
                     }

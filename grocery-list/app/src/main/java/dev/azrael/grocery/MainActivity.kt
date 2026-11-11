@@ -33,6 +33,7 @@ import dev.azrael.grocery.ui.GroceryTheme
 import dev.azrael.grocery.ui.GroceryViewModel
 import dev.azrael.grocery.ui.MealPlanScreen
 import dev.azrael.grocery.ui.RecipeBoxScreen
+import dev.azrael.grocery.ui.StoreLayoutScreen
 import dev.azrael.grocery.update.UpdateDialog
 import dev.azrael.grocery.update.UpdateViewModel
 
@@ -75,7 +76,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Screen {
-    LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX, SODIUM, LOG_RECIPE, BARCODE, MEAL_PLAN,
+    LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX, SODIUM, LOG_RECIPE, BARCODE, MEAL_PLAN, STORE_LAYOUT,
 }
 
 @Composable
@@ -137,6 +138,7 @@ private fun AppRoot(
             onOpenRecipeBox = { screen = Screen.RECIPE_BOX },
             onOpenMealPlan = { screen = Screen.MEAL_PLAN },
             onCheckForUpdates = { updates.check(manual = true) },
+            onOpenStoreLayout = { screen = Screen.STORE_LAYOUT },
             claudeEnabled = claudeConfig.enabled,
             onAskClaude = { screen = Screen.ASK_CLAUDE },
             onOpenSodium = { screen = Screen.SODIUM },
@@ -211,6 +213,7 @@ private fun AppRoot(
             onOpenRecipeBox = { screen = Screen.RECIPE_BOX },
             onAddedToList = { screen = Screen.LIST },
         )
+        Screen.STORE_LAYOUT -> StoreLayoutScreen(layout = vm.layout, onBack = { screen = Screen.LIST })
         Screen.CABINET_SCAN -> CabinetScanScreen(
             vm = scan,
             cabinetKeys = cabinetKeys,

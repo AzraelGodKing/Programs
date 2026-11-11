@@ -11,7 +11,7 @@ import dev.azrael.grocery.parse.ParsedIngredient
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
-class GroceryRepository(private val db: GroceryDatabase) {
+class GroceryRepository(private val db: GroceryDatabase, private val layout: StoreLayout? = null) {
     private val dao = db.groceryDao()
     private val cabinetDao = db.cabinetDao()
     private val recipeDao = db.recipeDao()
@@ -60,7 +60,7 @@ class GroceryRepository(private val db: GroceryDatabase) {
                 key = key,
                 quantity = quantity,
                 unit = unit,
-                category = categoryOverride ?: Categorizer.categorize(name, unit).name,
+                category = categoryOverride ?: sectionFor(name, unit).name,
                 note = note,
                 sources = source,
             ),
@@ -179,8 +179,12 @@ class GroceryRepository(private val db: GroceryDatabase) {
     private fun cabinetItemFor(name: String, category: String?) = CabinetItem(
         name = name.replaceFirstChar { it.uppercase() },
         key = NameKey.of(name),
-        category = category ?: Categorizer.categorize(name, null).name,
+        category = category ?: sectionFor(name, null).name,
     )
+
+    /** A section you moved this item to before, else the built-in guess. */
+    private fun sectionFor(name: String, unit: String?) =
+        layout?.order?.value?.sectionFor(name, unit) ?: Categorizer.categorize(name, unit)
 
     private fun joinDistinct(a: String?, b: String?, sep: String): String? {
         val parts = (a?.split(sep).orEmpty() + listOfNotNull(b)).map { it.trim() }.filter { it.isNotEmpty() }.distinct()

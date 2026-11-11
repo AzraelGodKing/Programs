@@ -36,6 +36,7 @@ import androidx.glance.text.TextStyle
 import dev.azrael.grocery.GroceryApp
 import dev.azrael.grocery.MainActivity
 import dev.azrael.grocery.data.GroceryItem
+import dev.azrael.grocery.parse.StoreOrder
 
 /**
  * Home-screen widget: the grocery list in store-section order, with checkboxes that tick items off
@@ -43,10 +44,12 @@ import dev.azrael.grocery.data.GroceryItem
  */
 class GroceryWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val repo = (context.applicationContext as GroceryApp).repository
+        val app = context.applicationContext as GroceryApp
+        val repo = app.repository
         provideContent {
             val items by repo.items.collectAsState(initial = null)
-            GlanceTheme { WidgetContent(items) }
+            val order by app.storeLayout.order.collectAsState()
+            GlanceTheme { WidgetContent(items, order) }
         }
     }
 }
@@ -71,8 +74,8 @@ class ToggleItemAction : ActionCallback {
 }
 
 @Composable
-private fun WidgetContent(items: List<GroceryItem>?) {
-    val toBuy = items.orEmpty().filter { !it.checked }.sortedBy { it.categoryEnum.ordinal }
+private fun WidgetContent(items: List<GroceryItem>?, order: StoreOrder) {
+    val toBuy = items.orEmpty().filter { !it.checked }.sortedBy { order.rank(it.categoryEnum) }
     val inCart = items.orEmpty().filter { it.checked }
     Column(
         modifier = GlanceModifier

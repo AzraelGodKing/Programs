@@ -74,6 +74,7 @@ fun GroceryListScreen(
     onOpenRecipeBox: () -> Unit,
     onOpenMealPlan: () -> Unit,
     onCheckForUpdates: () -> Unit,
+    onOpenStoreLayout: () -> Unit,
     versionLabel: String,
     claudeEnabled: Boolean = false,
     onAskClaude: () -> Unit = {},
@@ -81,6 +82,7 @@ fun GroceryListScreen(
     onClaudeSettings: () -> Unit = {},
 ) {
     val items by vm.items.collectAsStateWithLifecycle()
+    val storeOrder by vm.layout.order.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<GroceryItem?>(null) }
     var adding by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -157,6 +159,10 @@ fun GroceryListScreen(
                                 text = { Text("Clear whole list") },
                                 onClick = { menuOpen = false; confirmClearAll = true },
                             )
+                            DropdownMenuItem(
+                                text = { Text("Store layout") },
+                                onClick = { menuOpen = false; onOpenStoreLayout() },
+                            )
                             HorizontalDivider()
                             if (claudeEnabled) {
                                 DropdownMenuItem(
@@ -204,7 +210,7 @@ fun GroceryListScreen(
             else -> {
                 val open = list.filter { !it.checked }
                     .groupBy { it.categoryEnum }
-                    .toSortedMap()
+                    .toSortedMap(compareBy { storeOrder.rank(it) })
                 val done = list.filter { it.checked }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -214,7 +220,7 @@ fun GroceryListScreen(
                     ),
                 ) {
                     open.forEach { (category, rows) ->
-                        stickyHeader(key = "h_${category.name}") { SectionHeader(category.label) }
+                        stickyHeader(key = "h_${category.name}") { SectionHeader(storeOrder.header(category)) }
                         items(rows, key = { it.id }) { item ->
                             SwipeableRow(
                                 item = item,
@@ -258,7 +264,8 @@ fun GroceryListScreen(
             onDismiss = { editing = null },
             onSave = { name, q, unit, category, note ->
                 editing = null
-                vm.update(
+                vm.edit(
+                    item,
                     item.copy(
                         name = name,
                         quantity = q,
