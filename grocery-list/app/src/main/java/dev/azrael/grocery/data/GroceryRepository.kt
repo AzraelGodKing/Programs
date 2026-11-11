@@ -11,9 +11,11 @@ import kotlinx.coroutines.flow.Flow
 class GroceryRepository(private val db: GroceryDatabase) {
     private val dao = db.groceryDao()
     private val cabinetDao = db.cabinetDao()
+    private val recipeDao = db.recipeDao()
 
     val items: Flow<List<GroceryItem>> = dao.observeAll()
     val cabinet: Flow<List<CabinetItem>> = cabinetDao.observeAll()
+    val recipes: Flow<List<Recipe>> = recipeDao.observeAll()
 
     /** Adds recipe ingredients, folding each into a matching unchecked line when the units allow. */
     suspend fun addIngredients(ingredients: List<ParsedIngredient>, source: String?) = db.withTransaction {
@@ -94,6 +96,21 @@ class GroceryRepository(private val db: GroceryDatabase) {
         checked.forEach { cabinetDao.insert(cabinetItemFor(it.name, it.category)) }
         dao.deleteChecked()
         checked.size
+    }
+
+    // Recipe box.
+
+    suspend fun saveRecipe(title: String, servings: Int, text: String): Long =
+        recipeDao.insert(Recipe(title = title.trim(), servings = servings.coerceAtLeast(1), text = text.trim()))
+
+    suspend fun updateRecipe(recipe: Recipe) = recipeDao.update(recipe)
+    suspend fun deleteRecipe(recipe: Recipe) = recipeDao.delete(recipe)
+    suspend fun restoreRecipe(recipe: Recipe) { recipeDao.insert(recipe) }
+
+    /** Puts a saved recipe's chosen (already scaled) ingredients on the list. */
+    suspend fun addRecipeToList(recipe: Recipe, ingredients: List<ParsedIngredient>) = db.withTransaction {
+        ingredients.forEach { addOne(it.name, it.quantity, it.unit, it.note, recipe.title) }
+        recipeDao.markAdded(recipe.id, System.currentTimeMillis())
     }
 
     private fun cabinetItemFor(name: String, category: String?) = CabinetItem(

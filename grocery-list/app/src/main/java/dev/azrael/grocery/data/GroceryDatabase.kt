@@ -7,10 +7,11 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [GroceryItem::class, CabinetItem::class], version = 2, exportSchema = false)
+@Database(entities = [GroceryItem::class, CabinetItem::class, Recipe::class], version = 3, exportSchema = false)
 abstract class GroceryDatabase : RoomDatabase() {
     abstract fun groceryDao(): GroceryDao
     abstract fun cabinetDao(): CabinetDao
+    abstract fun recipeDao(): RecipeDao
 
     companion object {
         /** Builds before the Cabinet had only the grocery list; this adds the Cabinet and keeps the list. */
@@ -26,9 +27,21 @@ abstract class GroceryDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds the recipe box. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `recipes` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL, `servings` INTEGER NOT NULL, `text` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, `lastAddedAt` INTEGER)",
+                )
+            }
+        }
+
         fun create(context: Context): GroceryDatabase =
             Room.databaseBuilder(context, GroceryDatabase::class.java, "grocery.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }
