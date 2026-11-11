@@ -46,6 +46,16 @@ class CabinetScanTest {
         }
     }
 
+    @Test fun recipePhotoRequestSendsImageThenRecipePrompt() {
+        ClaudeRecipeClient("sk-test", ClaudeModel.SONNET).use { c ->
+            val p = c.buildRecipePhotoParams(byteArrayOf(1, 2, 3))
+            val blocks = p.messages().single().content().contentBlockParams().get()
+            assertTrue(blocks[0].isImage())
+            assertEquals(dev.azrael.grocery.photo.RecipePhoto.AI_PROMPT, blocks[1].asText().text())
+            assertFalse(p.tools().isPresent)
+        }
+    }
+
     @Test fun appRecipePromptAsksForParsableLayout() {
         val prompt = ClaudeAppPrompts.recipe("quick chicken dinner for 2")
         assertTrue(prompt.contains("quick chicken dinner for 2"))

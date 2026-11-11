@@ -11,6 +11,7 @@ import com.google.mlkit.genai.prompt.ImagePart
 import com.google.mlkit.genai.prompt.SystemInstruction
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
+import dev.azrael.grocery.photo.RecipePhoto
 import kotlinx.coroutines.CancellationException
 
 /** Whether Gemini Nano can run on this phone right now. */
@@ -115,6 +116,14 @@ class GeminiNano {
             }
         }
         return CabinetScan.parseReplyText(text)
+    }
+
+    /** Copies out the recipe in a photo, in English. The reply is read by [RecipePhoto.parseReply]. */
+    suspend fun readRecipePhoto(photo: Bitmap): String = generate {
+        generateContentRequest(ImagePart(photo), TextPart(NanoPrompts.RECIPE_PHOTO)) {
+            temperature = 0.1f
+            maxOutputTokens = 1500
+        }
     }
 
     private suspend fun generate(request: () -> com.google.mlkit.genai.prompt.GenerateContentRequest): String {

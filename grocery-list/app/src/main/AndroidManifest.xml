@@ -18,10 +18,11 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.GroceryList">
-        <!-- Has Play services fetch the barcode scanner module at install instead of on first scan. -->
+        <!-- Has Play services fetch the barcode scanner and the Latin text reader (recipe photos) at install
+             instead of on first use. -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="barcode_ui" />
+            android:value="barcode_ui,ocr" />
 
         <activity
             android:name=".MainActivity"
