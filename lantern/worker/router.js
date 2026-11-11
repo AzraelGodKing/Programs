@@ -21,9 +21,7 @@ function stubFor(env, code) {
 
 function tokenFrom(request) {
   const header = request.headers.get("x-lantern-token") || "";
-  if (validToken(header)) return header;
-  const query = new URL(request.url).searchParams.get("token") || "";
-  return validToken(query) ? query : "";
+  return validToken(header) ? header : "";
 }
 
 async function readJson(request) {
@@ -123,6 +121,39 @@ export async function handleRequest(request, env) {
       const buybacks = await stubFor(env, code).tradeBuyback(token, await readJson(request));
       if (buybacks === null) return json(404, { error: "No table with that code." });
       return json(200, { ok: true, buybacks });
+    } catch (error) {
+      return rejected(error);
+    }
+  }
+  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/board\/?$/i.test(path)) {
+    const code = roomCode(path, /\/board\/?$/i);
+    if (!validCode(code)) return json(404, { error: "No table with that code." });
+    try {
+      const result = await stubFor(env, code).board(token, await readJson(request));
+      if (!result) return json(404, { error: "No table with that code." });
+      return json(200, result);
+    } catch (error) {
+      return rejected(error);
+    }
+  }
+  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/map\/?$/i.test(path)) {
+    const code = roomCode(path, /\/map\/?$/i);
+    if (!validCode(code)) return json(404, { error: "No table with that code." });
+    try {
+      const result = await stubFor(env, code).map(token, await readJson(request));
+      if (!result) return json(404, { error: "No table with that code." });
+      return json(200, result);
+    } catch (error) {
+      return rejected(error);
+    }
+  }
+  if (request.method === "POST" && path.startsWith("/api/rooms/") && /\/recap\/?$/i.test(path)) {
+    const code = roomCode(path, /\/recap\/?$/i);
+    if (!validCode(code)) return json(404, { error: "No table with that code." });
+    try {
+      const result = await stubFor(env, code).recap(token, await readJson(request));
+      if (!result) return json(404, { error: "No table with that code." });
+      return json(200, result);
     } catch (error) {
       return rejected(error);
     }

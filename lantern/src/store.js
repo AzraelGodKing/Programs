@@ -8,7 +8,8 @@ export const KEY = "lantern.v1";
 export const SAVE_VERSION = 1;
 export const SAVE_BYTES = 300_000;
 
-const TABS = ["dice", "order", "character", "notes", "table"];
+export const HISTORY_CAP = 50;
+const TABS = ["dice", "order", "character", "notes", "table", "party"];
 const MODES = ["normal", "advantage", "disadvantage"];
 const SIDES = new Set([4, 6, 8, 10, 12, 20, 100]);
 const LIGHT_IDS = new Set(LIGHTS.map((light) => light.id));
@@ -42,6 +43,8 @@ function cleanHistory(item) {
     detail: text(item.detail, 240),
     purpose: text(item.purpose, 60),
     tag,
+    secret: item.secret === true,
+    target: text(item.target, 80),
   };
 }
 
@@ -165,7 +168,7 @@ export function normalize(input) {
       sides,
       modifier: int(dice.modifier, 0, -100, 100),
       mode: MODES.includes(dice.mode) ? dice.mode : "normal",
-      history: asArray(dice.history).map(cleanHistory).filter(Boolean).slice(0, 12),
+      history: asArray(dice.history).map(cleanHistory).filter(Boolean).slice(0, HISTORY_CAP),
     },
     combat: {
       round,
