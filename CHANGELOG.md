@@ -4,6 +4,7 @@
 
 ### Added
 
+- Grocery List can use Claude, off until you turn it on in Menu → Claude settings with your own Anthropic API key, which stays on the phone and out of backups. Ask Claude writes a DASH-diet recipe from a request like "quick chicken dinner for 2", or reads a pasted recipe or a link and suggests DASH swaps, then adds the ingredients you tick to the list. Add recipe gains Read with Claude for recipes the built-in parser struggles with. You can pick Opus, Sonnet or Haiku, and share the recipe to a notes app.
 - Grocery List updates itself. When it opens it checks the repo's releases for a newer build and offers to download it, showing progress, then hands it to Android's installer. Menu → Check for updates runs the same check on demand and shows the installed build.
 - Grocery List, a new Android app in `grocery-list/`. Paste a recipe or share it from the browser, untick what you already have, and the ingredients land on a list grouped by store section. Check items off, edit them, or swipe to delete with Undo. Adding the same ingredient again combines the amounts, so 1 cup and 4 tbsp of milk becomes 1 1/4 cups. Each build on main is published as a release with an installable APK.
 

@@ -69,6 +69,9 @@ fun GroceryListScreen(
     onAddRecipe: () -> Unit,
     onCheckForUpdates: () -> Unit,
     versionLabel: String,
+    claudeEnabled: Boolean = false,
+    onAskClaude: () -> Unit = {},
+    onClaudeSettings: () -> Unit = {},
 ) {
     val items by vm.items.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<GroceryItem?>(null) }
@@ -121,6 +124,16 @@ fun GroceryListScreen(
                                 onClick = { menuOpen = false; confirmClearAll = true },
                             )
                             HorizontalDivider()
+                            if (claudeEnabled) {
+                                DropdownMenuItem(
+                                    text = { Text("Ask Claude for a recipe") },
+                                    onClick = { menuOpen = false; onAskClaude() },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Claude settings") },
+                                onClick = { menuOpen = false; onClaudeSettings() },
+                            )
                             DropdownMenuItem(
                                 text = { Text("Check for updates") },
                                 onClick = { menuOpen = false; onCheckForUpdates() },

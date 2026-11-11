@@ -37,9 +37,23 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // The Anthropic SDK is written for the JVM; this backfills newer java.* APIs on older Android versions.
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+    packaging {
+        resources {
+            // Duplicate license/metadata files from the Anthropic SDK's Jackson and OkHttp dependencies.
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+                "META-INF/INDEX.LIST",
+                "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+            )
+        }
     }
     buildFeatures {
         compose = true
@@ -64,6 +78,11 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+
+    // Claude API (optional feature, off by default; the user supplies their own key).
+    implementation("com.anthropic:anthropic-java:3.8.0")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     testImplementation("junit:junit:4.13.2")
 }

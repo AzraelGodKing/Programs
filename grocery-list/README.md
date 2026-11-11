@@ -8,7 +8,8 @@ A personal Android app: paste a recipe, get an interactive grocery list.
 - **Interactive list**: tap to check off (checked items drop to "In cart"), the pencil to edit, swipe left to delete (with Undo), + to add an item by hand. The menu can remove checked items, uncheck everything, or clear the list.
 - **Merging**: adding the same ingredient again combines amounts when the units allow it: 1 cup + 4 tbsp milk becomes 1 1/4 cups, 2 tsp + 1 tsp becomes 1 tbsp. Different kinds of units (2 cans vs 1 lb) stay as separate lines.
 - **Updates**: on launch the app checks this repo's releases for a newer Grocery List build and offers to download it. Menu → Check for updates does the same on demand. The first time, Android asks you to allow Grocery List to install apps.
-- Your list is stored on the phone (Room/SQLite), with no account. The only network use is the update check.
+- **Claude (optional, off by default)**: Menu → Claude settings turns it on and takes your own Anthropic API key (from console.anthropic.com, billed to you). Then Menu → Ask Claude for a recipe writes a DASH-diet recipe from a request, or reads a pasted recipe or a link, keeps it as written, and suggests DASH swaps. You tick the ingredients to add, and can share the recipe to a notes app. Add recipe also gets a Read with Claude button. Pick Opus (best), Sonnet, or Haiku (cheapest) in settings.
+- Your list is stored on the phone (Room/SQLite), with no account. Network use is the update check and, only if you turn it on, the Claude API. The API key is kept in the app's private storage and excluded from Android backups.
 
 ## Installing on your phone
 
@@ -36,3 +37,4 @@ The APK lands in `app/build/outputs/apk/debug/`.
 - `parse/`: plain Kotlin, no Android: `IngredientParser`, units and conversions, merge rules, store-section rules. Unit tests in `app/src/test`.
 - `data/`: Room entity, DAO and the repository that merges new items into the list.
 - `ui/`: Jetpack Compose screens.
+- `claude/`: the optional Claude feature. `ClaudeRecipeClient` (Anthropic Java SDK, DASH system prompt, JSON schema for structured output, web fetch for links) and `ClaudeRecipe` are plain Kotlin with unit tests; settings and screens are the Android side.
