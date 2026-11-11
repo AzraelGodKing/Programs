@@ -3,6 +3,8 @@ package dev.azrael.grocery.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,7 +47,7 @@ import dev.azrael.grocery.parse.NameKey
 import dev.azrael.grocery.parse.ParsedIngredient
 import dev.azrael.grocery.parse.formatAmount
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddRecipeScreen(
     text: String,
@@ -54,6 +56,8 @@ fun AddRecipeScreen(
     onTextChange: (String) -> Unit,
     onBack: () -> Unit,
     onAdd: (ingredients: List<ParsedIngredient>, source: String?) -> Unit,
+    /** Hands the pasted text to Claude instead of the built-in parser. Null hides the button (Claude off). */
+    onReadWithClaude: ((String) -> Unit)? = null,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     val parsed = remember(text) { IngredientParser.parseRecipe(text) }
@@ -114,12 +118,15 @@ fun AddRecipeScreen(
                     maxLines = 14,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 )
-                Row(Modifier.padding(horizontal = 8.dp)) {
+                FlowRow(Modifier.padding(horizontal = 8.dp)) {
                     TextButton(onClick = {
                         clipboard.getText()?.text?.let { onTextChange(it) }
                     }) { Text("Paste from clipboard") }
                     if (text.isNotEmpty()) {
                         TextButton(onClick = { onTextChange("") }) { Text("Clear") }
+                    }
+                    if (onReadWithClaude != null && text.isNotBlank()) {
+                        TextButton(onClick = { onReadWithClaude(text) }) { Text("Read with Claude") }
                     }
                 }
             }
