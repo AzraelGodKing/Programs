@@ -12,6 +12,15 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="player-page">
+  <script>
+    // Fold the join form before the first paint when this browser already has a seat, so the page doesn't jump.
+    try {
+      var seat = JSON.parse(localStorage.getItem("lantern.seat") || "{}");
+      if (seat.solo === true || (seat.name && seat.room)) document.body.classList.add("is-seated");
+      if (localStorage.getItem("lantern.contrast") === "high") document.documentElement.dataset.contrast = "high";
+      if (localStorage.getItem("lantern.motion") === "reduced") document.documentElement.dataset.motion = "reduced";
+    } catch (e) {}
+  </script>
   <a class="skip" href="#main">Skip to the table</a>
   <header class="top">
     <div class="brand">
@@ -29,8 +38,9 @@
     </div>
     <div class="head-actions">
       <button type="button" class="text-btn" id="open-roster" data-action="open-roster" hidden>Characters</button>
+      <button type="button" class="text-btn xcard-btn" id="xcard" data-action="xcard" hidden title="Pause the scene, no questions asked">X-card</button>
       <button type="button" class="text-btn" id="text-size">Text: normal</button>
-      <button type="button" class="text-btn" data-action="open-keys" aria-keyshortcuts="?">Keys</button>
+      <button type="button" class="text-btn" data-action="open-keys" aria-keyshortcuts="?">Keys and display</button>
       <a class="text-btn" href="/">Change seat</a>
     </div>
   </header>
@@ -48,7 +58,7 @@
       <button class="btn" type="button" data-action="play-alone">Play alone</button>
     </form>
     <div class="seat-line">
-      <p id="seat-status" class="hint" role="status"></p>
+      <p id="seat-status" class="hint" role="status">Play alone, or join with a four-character code.</p>
       <button type="button" class="text-btn" id="edit-seat" data-action="edit-seat" hidden>Change table</button>
     </div>
   </section>
@@ -69,11 +79,27 @@
     <p id="character-gate-lede" class="lede"></p>
     <div id="character-gate-actions" class="save-actions"></div>
     <div id="character-gate-list" class="stack"></div>
-    <input id="import-character" type="file" accept="application/json,.json" hidden aria-label="Lantern character file">
+    <input id="import-character" type="file" accept="application/json,.json,application/pdf,.pdf" hidden aria-label="Lantern character file or character sheet PDF">
     <p id="character-gate-status" class="hint" role="status"></p>
   </section>
 
   <div class="sticky-tools" role="region" aria-label="Tools and lights">
+    <div id="xcard-banner" class="ask-banner xcard-banner" hidden role="alert">
+      <p>Someone tapped the X-card. Change or skip what is happening. Nobody has to explain.</p>
+      <div class="ask-actions">
+        <button type="button" class="text-btn" data-action="xcard-clear">Clear it</button>
+      </div>
+    </div>
+    <div id="ready-banner" class="ask-banner" hidden role="alert"></div>
+    <p id="world-line" class="world-line" hidden></p>
+    <div id="pause-overlay" class="pause-overlay" hidden role="alert">
+      <div class="pause-card">
+        <p class="pause-title">The table is paused</p>
+        <p id="pause-text" class="hint"></p>
+      </div>
+    </div>
+    <div id="gift-banner" class="ask-banner gift-banner" hidden role="status"></div>
+    <div id="turn-strip" class="turn-strip" hidden role="status"></div>
     <div id="ask-banner" class="ask-banner" hidden role="alert">
       <p id="ask-text"></p>
       <div class="ask-actions">
@@ -87,7 +113,9 @@
       <button type="button" role="tab" id="tab-character" data-action="tab" data-tab="character" aria-haspopup="dialog" aria-controls="module-pack" aria-expanded="false" aria-selected="false" tabindex="-1">Pack</button>
       <button type="button" role="tab" id="tab-notes" data-action="tab" data-tab="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false" aria-selected="false" tabindex="-1">Notes</button>
       <button type="button" role="tab" id="tab-table" data-action="tab" data-tab="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false" aria-selected="false" tabindex="-1">Table</button>
+      <button type="button" role="tab" id="tab-party" data-action="tab" data-tab="party" aria-haspopup="dialog" aria-controls="module-party" aria-expanded="false" aria-selected="false" tabindex="-1">Party</button>
     </nav>
+    <button type="button" class="btn map-open" id="open-map" aria-haspopup="dialog" aria-controls="map-dialog" hidden>Battle map</button>
     <section class="wick" aria-label="Light sources">
       <p id="flame-live" class="sr-only" aria-live="polite"></p>
       <div id="flames" class="flames"></div>
@@ -108,9 +136,12 @@
   <main id="main">
     <section role="tabpanel" id="panel-dice" aria-labelledby="tab-dice">
       <h2>Dice</h2>
-      <p class="lede">Roll in front of the table. The last dozen stay here, and a joined table shares each one with the DM.</p>
-      <div id="dice-result" class="readout" aria-live="polite"></div>
-      <p id="dice-formula" class="formula"></p>
+      <p class="lede">Roll in front of the table. The last fifty stay here, and a joined table shares each one with the DM.</p>
+      <div id="help-banner" class="ask-banner" hidden role="status"></div>
+      <div id="dice-result" class="readout"></div>
+      <p id="roll-live" class="sr-only" aria-live="polite"></p>
+      <div id="after-roll" class="kit-actions"></div>
+      <p id="dice-formula" class="formula">1d20</p>
       <p id="dice-hint" class="hint" hidden>Advantage and disadvantage wait for a d20.</p>
       <div class="dice-setup">
         <label>Count
@@ -136,13 +167,49 @@
           <button type="button" data-action="set-mode" data-mode="advantage" aria-pressed="false">Advantage</button>
           <button type="button" data-action="set-mode" data-mode="disadvantage" aria-pressed="false">Disadvantage</button>
         </div>
+        <label id="target-field" hidden>Target
+          <select id="roll-target" aria-label="Who this roll is aimed at"></select>
+        </label>
+        <label class="check-line"><input type="checkbox" id="roll-secret"> Secret: only you and the DM see it</label>
       </div>
       <div class="tray-row">
         <div id="dice-tray" class="dice-tray"></div>
         <button type="button" class="btn primary" data-action="roll">Roll</button>
       </div>
+      <section class="macros" aria-labelledby="macros-title">
+        <h3 id="macros-title">Saved rolls</h3>
+        <div id="macro-bar" class="kit-actions"></div>
+        <details id="macro-editor" class="wick-add">
+          <summary>Save a roll</summary>
+          <form id="macro-form" data-form="macro" class="form" autocomplete="off">
+            <label>Name
+              <input name="label" maxlength="40" required placeholder="Longsword" spellcheck="false">
+            </label>
+            <label>To hit
+              <input name="hit" maxlength="12" placeholder="1d20+5" spellcheck="false">
+            </label>
+            <label>Damage
+              <input name="damage" maxlength="12" placeholder="1d8+3" spellcheck="false">
+            </label>
+            <label class="check-line"><input type="checkbox" name="ammo"> Uses ammo</label>
+            <button type="submit" class="btn primary">Save</button>
+          </form>
+          <p class="form-error" data-error-for="macro"></p>
+          <div id="macro-list" class="stack"></div>
+        </details>
+      </section>
       <div class="history-head">
         <h3>Recent</h3>
+        <label class="inline-field">Show
+          <select id="history-filter" aria-label="Which rolls to show">
+            <option value="">All</option>
+            <option value="attack">Attacks</option>
+            <option value="damage">Damage</option>
+            <option value="check">Checks and skills</option>
+            <option value="save">Saves</option>
+            <option value="secret">Secret</option>
+          </select>
+        </label>
         <button type="button" class="text-btn" id="clear-rolls" data-action="clear-rolls">Clear rolls</button>
       </div>
       <div id="dice-history" class="history"></div>
@@ -311,13 +378,18 @@
   <noscript><p class="noscript">Lantern needs JavaScript. It still keeps the night on this computer, not on a server.</p></noscript>
   <dialog id="module-order" class="gear-dialog module-dialog" aria-labelledby="order-heading">
     <section role="tabpanel" id="panel-order" aria-labelledby="tab-order" data-module-panel="order">
-      <h2 id="order-heading">Roll for initiative</h2>
+      <div class="module-head">
+        <h2 id="order-heading">Roll for initiative</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p class="lede">Roll a d20 plus the Dexterity modifier on the sheet. At the table that joins the shared list. Playing alone, it stays in this browser. The Dungeon Master moves the shared round. Ties keep the earlier name.</p>
       <p id="order-shared-note" class="hint" hidden>Everyone at the table sees the same list. Rolling again updates your place.</p>
       <div class="save-actions">
         <button type="button" class="btn primary" id="roll-initiative" data-action="roll-initiative">Roll for initiative</button>
       </div>
       <p id="initiative-result" class="hint" role="status"></p>
+      <div id="turn-helper" class="turn-helper"></div>
+      <label class="check-line"><input type="checkbox" id="alert-turn" checked> Ping me when my turn comes up</label>
       <div class="turn">
         <div>
           <p id="turn-banner" class="turn-banner">The round has not started</p>
@@ -353,11 +425,13 @@
       </div>
       <div id="combat-list" class="stack" aria-label="Initiative order"></div>
     </section>
-    <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
   <dialog id="module-notes" class="gear-dialog module-dialog" aria-labelledby="notes-heading">
     <section role="tabpanel" id="panel-notes" aria-labelledby="tab-notes" data-module-panel="notes">
-      <h2 id="notes-heading">Notes</h2>
+      <div class="module-head">
+        <h2 id="notes-heading">Notes</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p class="lede">Drafts stay in this browser. The DM does not see them. Scratch is the line the DM can read.</p>
       <label class="trait-label" for="notes">Scratch the DM can read</label>
       <textarea id="notes" maxlength="4000" rows="3" placeholder="Names, promises, the thing the rogue palmed."></textarea>
@@ -366,61 +440,211 @@
       </div>
       <div id="draft-list" class="stack"></div>
     </section>
-    <button type="button" class="btn" data-action="close-module">Close</button>
   </dialog>
   <dialog id="module-table" class="gear-dialog module-dialog" aria-labelledby="table-heading">
     <section role="tabpanel" id="panel-table" aria-labelledby="tab-table" data-module-panel="table">
-      <h2 id="table-heading">Table</h2>
+      <div class="module-head">
+        <h2 id="table-heading">Table</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p class="lede">Say it to everyone, or whisper one person. A whisper shows only for the two of you. The DM can whisper you back.</p>
       <div id="table-here" class="here-list" aria-label="Who is at the table"></div>
-      <div id="talk-log" class="talk-log" aria-live="polite"></div>
+      <div id="talk-pins" class="talk-pins" hidden></div>
+      <div id="talk-log" class="talk-log"></div>
+      <p id="talk-live" class="sr-only" aria-live="polite"></p>
+      <p id="talk-typing" class="hint talk-typing"></p>
+      <p id="talk-mode" class="hint talk-mode" hidden></p>
       <form id="talk-form" class="talk-form" autocomplete="off">
         <label>To
           <select id="talk-to" aria-label="Who hears this"></select>
         </label>
+        <label>Voice
+          <select id="talk-kind" aria-label="In or out of character">
+            <option value="ic">In character</option>
+            <option value="ooc">Out of character</option>
+          </select>
+        </label>
         <label>Message
-          <input id="talk-text" maxlength="400" placeholder="Say it, then send." spellcheck="true">
+          <input id="talk-text" maxlength="400" placeholder="Say it. /me for an action, @name to call someone, [[Name]] for the glossary." spellcheck="true">
         </label>
         <button class="btn primary" type="submit">Send</button>
       </form>
       <p id="talk-status" class="hint" role="status"></p>
+      <label class="check-line"><input type="checkbox" id="alert-mention" checked> Ping me when someone @mentions me</label>
+      <button type="button" class="btn" data-action="open-recap">Session recap</button>
+      <h3>Table rolls</h3>
+      <div id="table-rolls" class="table-rolls"></div>
     </section>
-    <button type="button" class="btn" data-action="close-module">Close</button>
+  </dialog>
+  <dialog id="module-party" class="gear-dialog module-dialog" aria-labelledby="party-heading">
+    <section role="tabpanel" id="panel-party" aria-labelledby="tab-party" data-module-panel="party">
+      <div class="module-head">
+        <h2 id="party-heading">Party</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
+      <p class="lede">Shared with everyone at the table, the DM too. Playing alone, the party board waits for a table.</p>
+      <p id="party-status" class="hint" role="status"></p>
+      <div id="party-ready"></div>
+      <div id="party-next"></div>
+      <h3>Handouts</h3>
+      <div id="party-handouts" class="stack"></div>
+      <div id="party-rules"></div>
+      <h3>Party notes</h3>
+      <textarea id="party-notes" maxlength="8000" rows="5" placeholder="Quest leads, the shopping list, who owes whom."></textarea>
+      <p id="party-notes-by" class="hint"></p>
+      <h3>Quests</h3>
+      <div id="party-quests" class="stack"></div>
+      <form data-form="quest" class="form" autocomplete="off">
+        <label>New quest
+          <input name="title" maxlength="120" required placeholder="Find the miller's daughter" spellcheck="true">
+        </label>
+        <button type="submit" class="btn">Add</button>
+      </form>
+      <h3>Glossary</h3>
+      <p class="hint">People and places. Write [[Name]] in chat to link one.</p>
+      <div id="party-glossary" class="stack"></div>
+      <form data-form="glossary" class="form" autocomplete="off">
+        <label>Name
+          <input name="name" maxlength="60" required placeholder="Old Wend" spellcheck="false">
+        </label>
+        <label>What we know
+          <input name="body" maxlength="600" placeholder="Ferryman. Lies about the tolls." spellcheck="true">
+        </label>
+        <button type="submit" class="btn">Save</button>
+      </form>
+      <h3>Party stash</h3>
+      <div id="party-coin"></div>
+      <div id="party-stash" class="stack"></div>
+      <form data-form="stash" class="form" autocomplete="off">
+        <label>From your pack
+          <select name="piece" id="stash-pick" aria-label="Item to put in the stash"></select>
+        </label>
+        <button type="submit" class="btn">Put one in</button>
+      </form>
+      <h3>Help an ally</h3>
+      <p class="hint">The Help action: their next d20 roll has advantage.</p>
+      <form data-form="help" class="form" autocomplete="off">
+        <label>Who
+          <select name="to" id="help-pick" aria-label="Who you help"></select>
+        </label>
+        <button type="submit" class="btn">Help</button>
+      </form>
+      <h3>Poll</h3>
+      <div id="party-poll"></div>
+    </section>
   </dialog>
   <dialog id="module-pack" class="gear-dialog module-dialog" aria-labelledby="kit-title">
     <div id="kit">
-      <h2 id="kit-title">Pack</h2>
+      <div class="module-head">
+        <h2 id="kit-title">Pack</h2>
+        <button type="button" class="btn" data-action="close-module">Close</button>
+      </div>
       <p id="kit-meta" class="math"></p>
       <p id="kit-hp"></p>
       <p id="kit-purse" class="sheet-title"></p>
       <p class="lede">Tap a skill to set the roll, then press Roll. Revise reopens the sheet and leaves the night where it is.</p>
+      <div id="kit-portrait" class="portrait-row"></div>
+      <input id="portrait-file" type="file" accept="image/*" hidden aria-label="Portrait image">
       <div id="kit-vitals"></div>
+      <div id="kit-conditions"></div>
+      <div id="kit-abilities"></div>
+      <div id="kit-resources"></div>
+      <div id="kit-slots"></div>
       <div id="kit-tonight"></div>
+      <div id="kit-spellbook"></div>
+      <input id="spell-file" type="file" accept="application/pdf,.pdf,application/json,.json" hidden aria-label="Spells PDF or Lantern file">
       <button type="button" class="text-btn" data-action="revise-character">Revise</button>
       <button type="button" class="btn primary" data-action="open-gear">Market</button>
       <p id="shop-note" class="hint" hidden>The DM closed the shop.</p>
       <h3>Skills</h3>
       <div id="kit-skills" class="kit-actions"></div>
       <h3>Pack</h3>
+      <p id="kit-weight" class="hint"></p>
       <div id="kit-items" class="kit-actions"></div>
+      <div id="kit-ammo"></div>
+      <h3>Magic items</h3>
+      <p class="hint">Mark an item that needs attunement. Three can be attuned at once.</p>
+      <div id="kit-trinkets" class="stack"></div>
+      <div class="turn-actions">
+        <button type="button" class="btn" data-action="read-items">Read items from a PDF or Lantern file</button>
+        <input id="item-file" type="file" accept="application/pdf,.pdf,application/json,.json" hidden aria-label="Items PDF or Lantern file">
+      </div>
+      <p id="item-status" class="hint" role="status"></p>
+      <form id="trinket-form" data-form="trinket" class="form" autocomplete="off">
+        <label>Item
+          <input name="name" maxlength="60" required placeholder="Cloak of protection" spellcheck="false">
+        </label>
+        <label>Weight, lb
+          <input name="weight" type="number" min="0" max="500" value="0" inputmode="numeric">
+        </label>
+        <label class="check-line"><input type="checkbox" name="attune"> Needs attunement</label>
+        <button type="submit" class="btn">Add</button>
+      </form>
+      <div id="kit-level"></div>
       <button type="button" class="text-btn" id="mark-dead" data-action="mark-dead" hidden>This character died</button>
     </div>
-    <button type="button" class="btn" data-action="close-module">Close</button>
+  </dialog>
+  <dialog id="map-dialog" class="gear-dialog module-map" aria-labelledby="map-title">
+    <div class="module-head">
+      <h2 id="map-title">Battle map</h2>
+      <button type="button" class="btn" id="close-map">Close</button>
+    </div>
+    <p id="map-hint" class="hint"></p>
+    <div id="player-map" role="group" aria-label="Battle map"></div>
+    <p id="map-status" class="hint" role="status"></p>
+  </dialog>
+  <dialog id="recap-dialog" class="gear-dialog" aria-labelledby="recap-title">
+    <div class="module-head">
+      <h2 id="recap-title">Session recap</h2>
+      <button type="button" class="btn" data-action="close-recap">Close</button>
+    </div>
+    <p class="lede">What the table said and rolled, oldest first. Natural 20s and 1s stand out.</p>
+    <div class="turn-actions">
+      <label class="inline-field">Since
+        <select id="recap-since" aria-label="How far back">
+          <option value="6">The last 6 hours</option>
+          <option value="24">The last day</option>
+          <option value="168">The last week</option>
+        </select>
+      </label>
+      <button type="button" class="btn" data-action="copy-recap">Copy as text</button>
+    </div>
+    <p id="recap-status" class="hint" role="status"></p>
+    <div id="recap-list" class="recap-list"></div>
+  </dialog>
+  <dialog id="handout-dialog" class="gear-dialog" aria-labelledby="handout-title">
+    <div class="module-head">
+      <h2 id="handout-title">Handout</h2>
+      <button type="button" class="btn" data-action="close-handout">Close</button>
+    </div>
+    <div id="handout-body" class="handout-body"></div>
   </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
-    <h2 id="keys-title">Keys</h2>
+    <div class="module-head">
+      <h2 id="keys-title">Keys</h2>
+      <button type="button" class="btn" data-action="close-keys">Close</button>
+    </div>
     <p class="lede">These work while you are not typing in a box.</p>
     <dl class="keys-list">
-      <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Dice, or Roll for initiative, Pack, Notes, and Table</dd>
+      <dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>Dice, or Roll for initiative, Pack, Notes, Table, and Party</dd>
+      <dt><kbd>E</kbd></dt><dd>End your turn, when it is yours</dd>
       <dt><kbd>R</kbd></dt><dd>Roll, while a module is closed</dd>
       <dt><kbd>N</kbd></dt><dd>Next turn, in Roll for initiative, when playing alone</dd>
       <dt><kbd>?</kbd></dt><dd>Show this list</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
     </dl>
-    <button type="button" class="btn" data-action="close-keys">Close</button>
+    <h3>Display</h3>
+    <p class="hint">These stay with this browser.</p>
+    <div class="turn-actions">
+      <button type="button" class="btn" id="contrast-switch" aria-pressed="false">Contrast: normal</button>
+      <button type="button" class="btn" id="motion-switch" aria-pressed="false">Motion: on</button>
+    </div>
   </dialog>
   <dialog id="gear-dialog" class="gear-dialog">
-    <h2 id="gear-title">Market</h2>
+    <div class="module-head">
+      <h2 id="gear-title">Market</h2>
+      <button type="button" class="btn" data-action="close-gear">Close</button>
+    </div>
     <p class="hint">Coin purse</p>
     <div id="gear-purse" class="purse-coins" aria-label="Coin purse"></div>
     <p id="gear-lede" class="lede">Buying takes the price out of the purse. This counter buys those goods back at half price.</p>
@@ -440,7 +664,6 @@
     <div id="shop-sell" role="tabpanel" aria-labelledby="shop-tab-sell" hidden>
       <div id="gear-sell" class="stack"></div>
     </div>
-    <button type="button" class="btn" data-action="close-gear">Close</button>
   </dialog>
   <script type="module" src="src/app.js"></script>
 </body>
