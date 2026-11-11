@@ -1,6 +1,7 @@
 package dev.azrael.grocery.data
 
 import androidx.room.withTransaction
+import dev.azrael.grocery.barcode.ScannedProduct
 import dev.azrael.grocery.parse.Amount
 import dev.azrael.grocery.parse.Categorizer
 import dev.azrael.grocery.parse.Merge
@@ -76,6 +77,26 @@ class GroceryRepository(private val db: GroceryDatabase) {
         val clean = name.trim()
         if (clean.isEmpty()) return
         cabinetDao.insert(cabinetItemFor(clean, category))
+    }
+
+    /**
+     * Adds a scanned product to the Cabinet with its label sodium. If the Cabinet already has an item with
+     * the same name, that item gets the barcode and sodium instead of a second line.
+     */
+    suspend fun addScannedToCabinet(product: ScannedProduct) = db.withTransaction {
+        val fresh = cabinetItemFor(product.name, null).copy(
+            barcode = product.barcode,
+            sodiumMgPerServing = product.sodiumMgPerServing,
+            sodiumMgPer100g = product.sodiumMgPer100g,
+            potassiumMgPerServing = product.potassiumMgPerServing,
+            servingSize = product.servingSize,
+        )
+        val existing = cabinetDao.findByKey(fresh.key)
+        if (existing == null) {
+            cabinetDao.insert(fresh)
+        } else {
+            cabinetDao.update(fresh.copy(id = existing.id, name = existing.name, category = existing.category, addedAt = existing.addedAt))
+        }
     }
 
     suspend fun removeFromCabinet(item: CabinetItem) = cabinetDao.delete(item)

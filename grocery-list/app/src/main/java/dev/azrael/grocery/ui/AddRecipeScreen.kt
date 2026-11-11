@@ -58,6 +58,8 @@ fun AddRecipeScreen(
     onAdd: (ingredients: List<ParsedIngredient>, source: String?) -> Unit,
     /** Hands the pasted text to Claude instead of the built-in parser. Null hides the button (Claude off). */
     onReadWithClaude: ((String) -> Unit)? = null,
+    /** Opens the sodium tracker's Log a recipe with this text and name. */
+    onLogSodium: ((text: String, title: String) -> Unit)? = null,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     val parsed = remember(text) { IngredientParser.parseRecipe(text) }
@@ -127,6 +129,9 @@ fun AddRecipeScreen(
                     }
                     if (onReadWithClaude != null && text.isNotBlank()) {
                         TextButton(onClick = { onReadWithClaude(text) }) { Text("Read with AI") }
+                    }
+                    if (onLogSodium != null && parsed.isNotEmpty()) {
+                        TextButton(onClick = { onLogSodium(text, title.trim()) }) { Text("Cooked it? Log sodium") }
                     }
                 }
             }

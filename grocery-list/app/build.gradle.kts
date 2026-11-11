@@ -84,7 +84,11 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.4")
     // Gemini Nano on the phone through Android AICore (optional, free, on supported devices only).
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta5")
+    // Barcode scanning through Google Play services: its own camera screen, no camera permission needed.
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     testImplementation("junit:junit:4.13.2")
+    // The real org.json for JVM unit tests (Android's copy is a stub off-device).
+    testImplementation("org.json:json:20240303")
 }
