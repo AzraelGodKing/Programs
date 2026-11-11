@@ -23,6 +23,9 @@ import dev.azrael.grocery.claude.CabinetScanScreen
 import dev.azrael.grocery.claude.CabinetScanViewModel
 import dev.azrael.grocery.claude.ClaudeSettingsScreen
 import dev.azrael.grocery.expiry.ExpiryReminders
+import dev.azrael.grocery.photo.RecipePhoto
+import dev.azrael.grocery.photo.RecipePhotoScreen
+import dev.azrael.grocery.photo.RecipePhotoViewModel
 import dev.azrael.grocery.tracker.LogRecipeScreen
 import dev.azrael.grocery.tracker.SodiumScreen
 import dev.azrael.grocery.tracker.TrackerViewModel
@@ -76,7 +79,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Screen {
-    LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX, SODIUM, LOG_RECIPE, BARCODE, MEAL_PLAN, STORE_LAYOUT,
+    LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX, SODIUM, LOG_RECIPE, BARCODE, MEAL_PLAN, STORE_LAYOUT, RECIPE_PHOTO,
 }
 
 @Composable
@@ -109,12 +112,18 @@ private fun AppRoot(
     var logReturn by rememberSaveable { mutableStateOf(Screen.SODIUM) }
     val barcode: BarcodeViewModel = viewModel(factory = BarcodeViewModel.Factory)
     val sodiumLimit by tracker.settings.sodiumLimit.collectAsState()
+    val recipePhoto: RecipePhotoViewModel = viewModel(factory = RecipePhotoViewModel.Factory)
+    // A Claude app reply copying out a recipe photo, shared into the app; the photo screen reads it.
+    var photoReply by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
             if (claudeConfig.enabled && CabinetScan.isCabinetReply(sharedText)) {
                 cabinetReply = sharedText
                 screen = Screen.CABINET_SCAN
+            } else if (claudeConfig.enabled && RecipePhoto.isReply(sharedText)) {
+                photoReply = sharedText
+                screen = Screen.RECIPE_PHOTO
             } else {
                 draft = sharedText
                 screen = Screen.ADD_RECIPE
@@ -162,6 +171,7 @@ private fun AppRoot(
                 logReturn = Screen.ADD_RECIPE
                 screen = Screen.LOG_RECIPE
             },
+            onScanPhoto = { screen = Screen.RECIPE_PHOTO },
             onReadWithClaude = if (claudeConfig.enabled) {
                 { text: String ->
                     claudeDraft = text
@@ -224,6 +234,17 @@ private fun AppRoot(
             onAdd = { names ->
                 names.forEach { vm.addToCabinet(it) }
                 screen = Screen.CABINET
+            },
+        )
+        Screen.RECIPE_PHOTO -> RecipePhotoScreen(
+            vm = recipePhoto,
+            incomingReply = photoReply,
+            onReplyConsumed = { photoReply = null },
+            onBack = { screen = Screen.ADD_RECIPE },
+            onOpenSettings = { openClaudeSettings(Screen.RECIPE_PHOTO) },
+            onUse = { text ->
+                draft = text
+                screen = Screen.ADD_RECIPE
             },
         )
         Screen.BARCODE -> BarcodeScreen(

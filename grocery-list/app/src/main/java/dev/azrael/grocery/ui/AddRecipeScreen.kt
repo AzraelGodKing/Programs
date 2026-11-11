@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,6 +67,8 @@ fun AddRecipeScreen(
     onReadWithClaude: ((String) -> Unit)? = null,
     /** Opens the sodium tracker's Log a recipe with this text and name. */
     onLogSodium: ((text: String, title: String) -> Unit)? = null,
+    /** Opens Recipe from a photo (take a picture, copy out and translate the text). */
+    onScanPhoto: (() -> Unit)? = null,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     var saveToBox by rememberSaveable { mutableStateOf(false) }
@@ -133,7 +136,7 @@ fun AddRecipeScreen(
                 OutlinedTextField(
                     value = text,
                     onValueChange = onTextChange,
-                    label = { Text("Paste the recipe or its ingredient list") },
+                    label = { Text("Paste the recipe, or take a photo of it") },
                     minLines = 6,
                     maxLines = 14,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -142,6 +145,12 @@ fun AddRecipeScreen(
                     TextButton(onClick = {
                         clipboard.getText()?.text?.let { onTextChange(it) }
                     }) { Text("Paste from clipboard") }
+                    if (onScanPhoto != null) {
+                        TextButton(onClick = onScanPhoto) {
+                            Icon(Icons.Default.PhotoCamera, null)
+                            Text(" From a photo")
+                        }
+                    }
                     if (text.isNotEmpty()) {
                         TextButton(onClick = { onTextChange("") }) { Text("Clear") }
                     }

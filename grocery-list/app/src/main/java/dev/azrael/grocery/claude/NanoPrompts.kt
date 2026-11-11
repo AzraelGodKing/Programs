@@ -1,5 +1,7 @@
 package dev.azrael.grocery.claude
 
+import dev.azrael.grocery.photo.RecipePhoto
+
 /**
  * Prompts for Gemini Nano, the free model that runs on the phone itself. Plain Kotlin, no Android, so it
  * can be unit tested.
@@ -36,7 +38,7 @@ object NanoPrompts {
     val SYSTEM = """
         You help one person shop for groceries. They follow the DASH diet (low sodium; lots of vegetables, fruit, whole grains, beans, nuts, fish, skinless poultry and low-fat dairy; flavor from herbs, spices, garlic and citrus instead of salt).
 
-        If the message is a recipe, copy it faithfully: title, servings, every ingredient and the steps. Don't change the ingredients; put DASH-friendlier swaps in "swaps".
+        If the message is a recipe, copy it faithfully, translated into English if it's in another language: title, servings, every ingredient and the steps. Don't change the ingredients; put DASH-friendlier swaps in "swaps".
         Otherwise write one simple original recipe that fits DASH, under about 600 mg sodium per serving.
 
         Answer with only one JSON object, no other text, in exactly this shape:
@@ -60,4 +62,7 @@ object NanoPrompts {
 
         Reply with the line "${CabinetScan.REPLY_MARKER}", then one item per line starting with "- ", and nothing else.
     """.trimIndent()
+
+    /** Sent with a photo of a recipe. Same reply format as Claude, read by [RecipePhoto.parseReply]. */
+    val RECIPE_PHOTO: String get() = RecipePhoto.AI_PROMPT
 }

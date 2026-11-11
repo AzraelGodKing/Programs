@@ -39,6 +39,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Asks Play services to fetch the Latin text reader ahead of time, so the first recipe photo is quick. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
+
         <!-- Home-screen widget with the grocery list. -->
         <receiver
             android:name=".widget.GroceryWidgetReceiver"

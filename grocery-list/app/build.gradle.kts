@@ -95,6 +95,15 @@ dependencies {
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta5")
     // Barcode scanning through Google Play services: its own camera screen, no camera permission needed.
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // Recipe photos: on-device text recognition through Play services (models download once, keeping the
+    // APK small), language detection, and offline translation to English (one ~30 MB model per language).
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-chinese:16.0.1")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-korean:16.0.1")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-devanagari:16.0.1")
+    implementation("com.google.mlkit:language-id:17.0.6")
+    implementation("com.google.mlkit:translate:17.0.3")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     testImplementation("junit:junit:4.13.2")

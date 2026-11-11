@@ -19,6 +19,7 @@ import com.anthropic.models.messages.OutputConfig
 import com.anthropic.models.messages.StopReason
 import com.anthropic.models.messages.WebFetchTool20250910
 import com.anthropic.models.messages.WebFetchTool20260209
+import dev.azrael.grocery.photo.RecipePhoto
 import java.time.Duration
 import java.util.Base64
 
@@ -76,6 +77,38 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
         }
     }
 
+    /**
+     * Copies out (and translates into English, if needed) the recipe in a JPEG photo. Returns the reply in
+     * [RecipePhoto.REPLY_FORMAT], read by [RecipePhoto.parseReply].
+     */
+    fun readRecipePhoto(jpeg: ByteArray): String = translateErrors {
+        val response = client.messages().create(buildRecipePhotoParams(jpeg))
+        when (response.stopReason().orElse(null)) {
+            StopReason.REFUSAL -> throw ClaudeException("Claude declined to read this photo.")
+            StopReason.MAX_TOKENS -> throw ClaudeException("That recipe was too long to copy in one go. Try a photo of part of it.")
+            else -> Unit
+        }
+        response.content().mapNotNull { it.text().orElse(null)?.text() }.joinToString("\n").trim()
+            .ifEmpty { throw ClaudeException("Claude didn't send back an answer.") }
+    }
+
+    internal fun buildRecipePhotoParams(jpeg: ByteArray): MessageCreateParams {
+        val builder = MessageCreateParams.builder()
+            .model(model.id)
+            .maxTokens(8000L)
+            .outputConfig(OutputConfig.builder().effort(OutputConfig.Effort.LOW).build())
+            .addUserMessageOfContentBlockParams(
+                listOf(ContentBlockParam.ofImage(jpegSource(jpeg)), ContentBlockParam.ofText(RecipePhoto.AI_PROMPT)),
+            )
+        addFallbacks(builder)
+        return builder.build()
+    }
+
+    private fun jpegSource(jpeg: ByteArray): Base64ImageSource = Base64ImageSource.builder()
+        .mediaType(Base64ImageSource.MediaType.IMAGE_JPEG)
+        .data(Base64.getEncoder().encodeToString(jpeg))
+        .build()
+
     /** Sends [first], continues paused turns, checks how it stopped, and returns the JSON answer text. */
     private fun runStructured(first: MessageCreateParams): String {
         var params = first
@@ -103,10 +136,7 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
     }
 
     internal fun buildPhotoParams(jpeg: ByteArray): MessageCreateParams {
-        val image = Base64ImageSource.builder()
-            .mediaType(Base64ImageSource.MediaType.IMAGE_JPEG)
-            .data(Base64.getEncoder().encodeToString(jpeg))
-            .build()
+        val image = jpegSource(jpeg)
         val builder = MessageCreateParams.builder()
             .model(model.id)
             .maxTokens(8000L)
@@ -197,7 +227,7 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
 
             The user's message is one of two things:
 
-            1. A recipe they pasted, or a link to one. Extract that recipe faithfully: title, servings, every ingredient and the steps. Don't change the ingredients. Instead, put DASH-friendlier substitutions in `swaps` (for example low-sodium broth, no-salt-added canned tomatoes, whole-wheat pasta, half the salt), and say briefly in `dash_notes` how well the recipe fits DASH as written. If a link can't be read, say so in `dash_notes`, leave `ingredients` and `steps` empty, and suggest pasting the recipe text.
+            1. A recipe they pasted, or a link to one. If it isn't in English, translate it into English, keeping the amounts and units as written. Extract that recipe faithfully: title, servings, every ingredient and the steps. Don't change the ingredients. Instead, put DASH-friendlier substitutions in `swaps` (for example low-sodium broth, no-salt-added canned tomatoes, whole-wheat pasta, half the salt), and say briefly in `dash_notes` how well the recipe fits DASH as written. If a link can't be read, say so in `dash_notes`, leave `ingredients` and `steps` empty, and suggest pasting the recipe text.
 
             2. A request for a recipe or meal idea (anything else). Write one original recipe that fits DASH: built on vegetables, fruits, whole grains, beans, nuts and seeds, fish, skinless poultry and low-fat dairy; little red or processed meat, saturated fat or added sugar; flavor from herbs, spices, garlic, citrus and vinegar rather than salt; low-sodium or no-salt-added canned goods and broth; aim for under about 600 mg sodium per serving. Keep it practical for a home cook. `swaps` may be empty. Use `dash_notes` for one or two sentences on why it fits DASH.
 
