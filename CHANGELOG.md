@@ -4,6 +4,7 @@
 
 ### Added
 
+- Grocery List has a Cabinet for what's already at home. Add staples by hand or move checked items there after shopping; when you add a recipe, anything in the Cabinet starts unticked, and an item you ran out of goes back on the list with one tap. Updating keeps your existing list.
 - Grocery List updates itself. When it opens it checks the repo's releases for a newer build and offers to download it, showing progress, then hands it to Android's installer. Menu → Check for updates runs the same check on demand and shows the installed build.
 - Grocery List, a new Android app in `grocery-list/`. Paste a recipe or share it from the browser, untick what you already have, and the ingredients land on a list grouped by store section. Check items off, edit them, or swipe to delete with Undo. Adding the same ingredient again combines the amounts, so 1 cup and 4 tbsp of milk becomes 1 1/4 cups. Each build on main is published as a release with an installable APK.
 
@@ -82,6 +83,10 @@
 - Lantern, a browser table companion for 5e nights: dice, initiative, light sources, a 2014 encounter budget, and original improvisation prompts. The night stays in this browser.
 - A DM screen. Players join a table code, and the DM sees every roll (who, and what it was for), the order, hit points, lights, the encounter budget, prompts, and scratch notes.
 - A character sheet. The common 2014 races, classes, subclasses, and backgrounds are listed, and Custom is there for anything else. Ability scores can be the standard array, point buy, 4d6, or typed in. The DM sees the sheet.
+
+### Removed
+
+- Unused player leftovers from when Spark and Threat moved to the DM screen: the encounter and spark renderers, no-op handlers, and CSS for those tabs. Old saves still load. The leftover prepare-drawer save field is gone; `#dm-prepare` has been missing since that drawer became a module.
 
 ### Fixed
 

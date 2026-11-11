@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -67,6 +68,7 @@ import kotlinx.coroutines.launch
 fun GroceryListScreen(
     vm: GroceryViewModel,
     onAddRecipe: () -> Unit,
+    onOpenCabinet: () -> Unit,
     onCheckForUpdates: () -> Unit,
     versionLabel: String,
 ) {
@@ -87,6 +89,17 @@ fun GroceryListScreen(
         }
     }
 
+    fun showMoved(moved: Int) {
+        scope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            snackbar.showSnackbar(
+                if (moved == 1) "1 item moved to the Cabinet" else "$moved items moved to the Cabinet",
+                actionLabel = "Open",
+                withDismissAction = true,
+            ).let { if (it == SnackbarResult.ActionPerformed) onOpenCabinet() }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -104,10 +117,19 @@ fun GroceryListScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenCabinet) { Icon(Icons.Default.Kitchen, "Cabinet") }
                     IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add item") }
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "More") }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Put checked items in Cabinet") },
+                                onClick = {
+                                    menuOpen = false
+                                    vm.moveCheckedToCabinet { moved -> showMoved(moved) }
+                                },
+                                enabled = items.orEmpty().any { it.checked },
+                            )
                             DropdownMenuItem(
                                 text = { Text("Remove checked items") },
                                 onClick = { menuOpen = false; vm.clearChecked() },

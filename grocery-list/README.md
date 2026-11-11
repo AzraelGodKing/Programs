@@ -7,8 +7,9 @@ A personal Android app: paste a recipe, get an interactive grocery list.
 - **Add recipe**: paste a whole recipe (or just its ingredients), or share text into the app from a browser or notes app. It finds the "Ingredients" section, parses each line into amount, unit and item, and sorts items into store sections. Untick anything you already have, then add the rest.
 - **Interactive list**: tap to check off (checked items drop to "In cart"), the pencil to edit, swipe left to delete (with Undo), + to add an item by hand. The menu can remove checked items, uncheck everything, or clear the list.
 - **Merging**: adding the same ingredient again combines amounts when the units allow it: 1 cup + 4 tbsp milk becomes 1 1/4 cups, 2 tsp + 1 tsp becomes 1 tbsp. Different kinds of units (2 cans vs 1 lb) stay as separate lines.
+- **Cabinet**: the kitchen icon opens a list of what you already have at home. Add staples by hand, or after shopping use the list's menu → Put checked items in Cabinet. When you add a recipe, ingredients already in the Cabinet start unticked and say "In your Cabinet" (a Cabinet "salt" also covers "kosher salt"); tick one if you need more anyway. Ran out of something? Tap the cart icon next to it in the Cabinet to move it back onto the grocery list. Swipe left to remove (with Undo).
 - **Updates**: on launch the app checks this repo's releases for a newer Grocery List build and offers to download it. Menu → Check for updates does the same on demand. The first time, Android asks you to allow Grocery List to install apps.
-- Your list is stored on the phone (Room/SQLite), with no account. The only network use is the update check.
+- Your list and Cabinet are stored on the phone (Room/SQLite), with no account. The only network use is the update check.
 
 ## Installing on your phone
 
@@ -33,6 +34,6 @@ The APK lands in `app/build/outputs/apk/debug/`.
 
 ## Code map
 
-- `parse/`: plain Kotlin, no Android: `IngredientParser`, units and conversions, merge rules, store-section rules. Unit tests in `app/src/test`.
-- `data/`: Room entity, DAO and the repository that merges new items into the list.
+- `parse/`: plain Kotlin, no Android: `IngredientParser`, units and conversions, merge rules, store-section rules, Cabinet matching. Unit tests in `app/src/test`.
+- `data/`: Room entities (list items and Cabinet items), DAOs and the repository that merges new items into the list. Schema changes need a Room migration in `GroceryDatabase` so updates keep your data.
 - `ui/`: Jetpack Compose screens.
