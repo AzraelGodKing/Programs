@@ -126,7 +126,7 @@ fun AddRecipeScreen(
                         TextButton(onClick = { onTextChange("") }) { Text("Clear") }
                     }
                     if (onReadWithClaude != null && text.isNotBlank()) {
-                        TextButton(onClick = { onReadWithClaude(text) }) { Text("Read with Claude") }
+                        TextButton(onClick = { onReadWithClaude(text) }) { Text("Read with AI") }
                     }
                 }
             }

@@ -28,16 +28,21 @@ object Photos {
      * much detail as Claude uses and keeps the upload small on a phone connection.
      */
     fun loadJpeg(context: Context, uri: Uri, maxEdge: Int = 1568): ByteArray {
-        val bitmap = decode(context, uri, maxEdge)
-        val scale = maxEdge.toFloat() / max(bitmap.width, bitmap.height)
-        val sized = if (scale < 1f) {
-            Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).roundToInt(), (bitmap.height * scale).roundToInt(), true)
-        } else {
-            bitmap
-        }
+        val sized = loadBitmap(context, uri, maxEdge)
         return ByteArrayOutputStream().use { out ->
             sized.compress(Bitmap.CompressFormat.JPEG, 85, out)
             out.toByteArray()
+        }
+    }
+
+    /** Reads a photo, upright, no larger than [maxEdge] pixels on its long side. */
+    fun loadBitmap(context: Context, uri: Uri, maxEdge: Int): Bitmap {
+        val bitmap = decode(context, uri, maxEdge)
+        val scale = maxEdge.toFloat() / max(bitmap.width, bitmap.height)
+        return if (scale < 1f) {
+            Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).roundToInt(), (bitmap.height * scale).roundToInt(), true)
+        } else {
+            bitmap
         }
     }
 

@@ -29,7 +29,11 @@ sealed interface ScanState {
 }
 
 /** Photo of a cupboard or fridge → Claude lists the items → the user reviews → they go in the Cabinet. */
-class CabinetScanViewModel(private val app: Application, val settings: ClaudeSettings) : AndroidViewModel(app) {
+class CabinetScanViewModel(
+    private val app: Application,
+    val settings: ClaudeSettings,
+    private val nano: () -> GeminiNano,
+) : AndroidViewModel(app) {
     private val _state = MutableStateFlow<ScanState>(ScanState.Start)
     val state: StateFlow<ScanState> = _state.asStateFlow()
 
@@ -39,22 +43,29 @@ class CabinetScanViewModel(private val app: Application, val settings: ClaudeSet
     fun onPhoto(photo: Uri, sendToApp: (Uri) -> Unit) {
         val config = settings.config.value
         if (!config.enabled) return
-        if (!config.usesApi) {
+        if (!config.inApp) {
             sendToApp(photo)
             _state.value = ScanState.SentToApp(photo)
             return
         }
-        if (!config.hasKey) {
-            _state.value = ScanState.Failed("Add your API key in Claude settings, or switch to the Claude app.")
+        if (config.usesApi && !config.hasKey) {
+            _state.value = ScanState.Failed("Add your API key in AI settings, or switch to the Claude app.")
             return
         }
         job?.cancel()
         _state.value = ScanState.Working
         job = viewModelScope.launch {
             _state.value = try {
-                val scan = withContext(Dispatchers.IO) {
-                    val jpeg = Photos.loadJpeg(app, photo)
-                    ClaudeRecipeClient(config.apiKey, config.model).use { it.identifyItems(jpeg) }
+                val scan = if (config.onDevice) {
+                    val nano = nano()
+                    nano.ensureReady()
+                    val bitmap = withContext(Dispatchers.IO) { Photos.loadBitmap(app, photo, maxEdge = 1024) }
+                    nano.identifyItems(bitmap)
+                } else {
+                    withContext(Dispatchers.IO) {
+                        val jpeg = Photos.loadJpeg(app, photo)
+                        ClaudeRecipeClient(config.apiKey, config.model).use { it.identifyItems(jpeg) }
+                    }
                 }
                 review(scan)
             } catch (e: ClaudeException) {
@@ -80,7 +91,7 @@ class CabinetScanViewModel(private val app: Application, val settings: ClaudeSet
     private fun review(scan: CabinetScan): ScanState {
         val items = scan.cleanItems
         return if (items.isEmpty()) {
-            ScanState.Failed(scan.note.ifBlank { "Claude didn't find any groceries in that photo." })
+            ScanState.Failed(scan.note.ifBlank { "${settings.config.value.assistant} didn't find any groceries in that photo." })
         } else {
             ScanState.Review(items, scan.note)
         }
@@ -95,7 +106,7 @@ class CabinetScanViewModel(private val app: Application, val settings: ClaudeSet
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as GroceryApp
-                CabinetScanViewModel(app, app.claudeSettings)
+                CabinetScanViewModel(app, app.claudeSettings) { app.nano }
             }
         }
     }

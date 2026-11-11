@@ -174,11 +174,11 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
     } catch (e: ClaudeException) {
         throw e
     } catch (e: UnauthorizedException) {
-        throw ClaudeException("Anthropic rejected the API key. Check it in Claude settings.", e)
+        throw ClaudeException("Anthropic rejected the API key. Check it in AI settings.", e)
     } catch (e: PermissionDeniedException) {
         throw ClaudeException("This API key isn't allowed to use ${model.label}.", e)
     } catch (e: NotFoundException) {
-        throw ClaudeException("${model.label} isn't available to this API key. Pick another model in Claude settings.", e)
+        throw ClaudeException("${model.label} isn't available to this API key. Pick another model in AI settings.", e)
     } catch (e: RateLimitException) {
         throw ClaudeException("Too many requests, or the key is out of credit. Wait a minute and try again.", e)
     } catch (e: OverloadedException) {

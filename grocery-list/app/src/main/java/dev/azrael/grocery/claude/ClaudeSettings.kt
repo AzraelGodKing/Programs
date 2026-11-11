@@ -5,12 +5,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** How Claude is reached. Subscription sign-in isn't allowed in third-party apps, so "Claude app" hands off instead. */
+/**
+ * Which AI the app uses, and how. Subscription sign-in isn't allowed in third-party apps, so "Claude app"
+ * hands off instead. [ON_DEVICE] isn't Claude at all: it's Google's Gemini Nano running on the phone.
+ */
 enum class ClaudeMode(val label: String) {
     /** Hand the request or photo to the official Claude app (your Pro/Max plan); share the reply back. */
     CLAUDE_APP("Claude app (your subscription)"),
     /** Call the Claude API in the background with your own API key, billed per use. */
-    API_KEY("API key");
+    API_KEY("Claude API key"),
+    /** Gemini Nano inside Android (AICore): free, offline, on supported phones only, and less capable. */
+    ON_DEVICE("Gemini Nano on this phone (free)");
 
     companion object {
         fun fromName(name: String?): ClaudeMode = entries.firstOrNull { it.name == name } ?: CLAUDE_APP
@@ -28,6 +33,15 @@ data class ClaudeConfig(
 
     /** True when requests run inside this app through the API. */
     val usesApi: Boolean get() = mode == ClaudeMode.API_KEY
+
+    /** True when requests run on the phone with Gemini Nano. */
+    val onDevice: Boolean get() = mode == ClaudeMode.ON_DEVICE
+
+    /** True when the answer comes back inside this app (API or on-device), not through the Claude app. */
+    val inApp: Boolean get() = usesApi || onDevice
+
+    /** Name shown on buttons and progress text. */
+    val assistant: String get() = if (onDevice) "Gemini Nano" else "Claude"
 }
 
 /**

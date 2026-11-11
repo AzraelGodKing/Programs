@@ -148,12 +148,12 @@ fun GroceryListScreen(
                             HorizontalDivider()
                             if (claudeEnabled) {
                                 DropdownMenuItem(
-                                    text = { Text("Ask Claude for a recipe") },
+                                    text = { Text("Ask AI for a recipe") },
                                     onClick = { menuOpen = false; onAskClaude() },
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text("Claude settings") },
+                                text = { Text("AI settings") },
                                 onClick = { menuOpen = false; onClaudeSettings() },
                             )
                             DropdownMenuItem(

@@ -91,7 +91,7 @@ fun AskClaudeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ask Claude") },
+                title = { Text("Ask ${config.assistant}") },
                 navigationIcon = {
                     IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
@@ -106,7 +106,7 @@ fun AskClaudeScreen(
                             context.startActivity(Intent.createChooser(send, "Save recipe"))
                         }) { Icon(Icons.Default.Share, "Share recipe") }
                     }
-                    IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, "Claude settings") }
+                    IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, "AI settings") }
                 },
             )
         },
@@ -123,16 +123,16 @@ fun AskClaudeScreen(
                         modifier = mod,
                     ) { Text(if (selected.isEmpty()) "Nothing selected" else "Add ${selected.size} items to list") }
                     state is AskState.Working -> Unit
-                    !config.usesApi -> Button(
+                    !config.inApp -> Button(
                         onClick = { ClaudeApp.send(context, ClaudeAppPrompts.recipe(input)) },
                         enabled = input.isNotBlank(),
                         modifier = mod,
                     ) { Text("Ask in the Claude app") }
                     else -> Button(
                         onClick = { vm.ask(input) },
-                        enabled = config.hasKey && input.isNotBlank(),
+                        enabled = (config.onDevice || config.hasKey) && input.isNotBlank(),
                         modifier = mod,
-                    ) { Text("Ask Claude") }
+                    ) { Text("Ask ${config.assistant}") }
                 }
             }
         },
@@ -143,7 +143,7 @@ fun AskClaudeScreen(
                     if (config.usesApi && !config.hasKey) {
                         item {
                             InfoCard(
-                                "Add your Anthropic API key in Claude settings to start.",
+                                "Add your Anthropic API key in AI settings to start.",
                                 action = "Open settings",
                                 onAction = onOpenSettings,
                             )
@@ -178,7 +178,10 @@ fun AskClaudeScreen(
                             }
                         }
                         Text(
-                            if (config.usesApi) {
+                            if (config.onDevice) {
+                                "Uses Gemini Nano on this phone: free and offline, but it can't open links and " +
+                                    "makes more mistakes than Claude, so check the ingredients before adding them."
+                            } else if (config.usesApi) {
                                 "Uses ${config.model.label} with your API key. Recipes are written to fit the DASH diet; " +
                                     "pasted recipes are kept as written, with DASH swaps suggested."
                             } else {
@@ -199,7 +202,7 @@ fun AskClaudeScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         CircularProgressIndicator()
-                        Text("Claude is working on it. This can take up to a minute.")
+                        Text("${config.assistant} is working on it. This can take up to a minute.")
                         TextButton(onClick = { vm.reset() }) { Text("Cancel") }
                     }
                 }

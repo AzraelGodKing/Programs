@@ -29,27 +29,41 @@ sealed interface KeyTestState {
     data class Failed(val message: String) : KeyTestState
 }
 
-class AskClaudeViewModel(val settings: ClaudeSettings) : ViewModel() {
+class AskClaudeViewModel(val settings: ClaudeSettings, private val nano: () -> GeminiNano) : ViewModel() {
     private val _state = MutableStateFlow<AskState>(AskState.Idle)
     val state: StateFlow<AskState> = _state.asStateFlow()
 
     private val _keyTest = MutableStateFlow<KeyTestState>(KeyTestState.Idle)
     val keyTest: StateFlow<KeyTestState> = _keyTest.asStateFlow()
 
+    private val _nanoStatus = MutableStateFlow<NanoStatus>(NanoStatus.Checking)
+    /** Gemini Nano's state on this phone; refreshed by [checkNano]. */
+    val nanoStatus: StateFlow<NanoStatus> = _nanoStatus.asStateFlow()
+
     private var job: Job? = null
+    private var nanoJob: Job? = null
 
     fun ask(input: String) {
         val config = settings.config.value
-        if (!config.enabled || !config.hasKey || input.isBlank()) return
+        if (!config.enabled || input.isBlank()) return
+        if (config.usesApi && !config.hasKey) return
+        if (!config.inApp) return
         job?.cancel()
         _state.value = AskState.Working
         job = viewModelScope.launch {
             _state.value = try {
-                val recipe = withContext(Dispatchers.IO) {
-                    ClaudeRecipeClient(config.apiKey, config.model).use { it.ask(input) }
+                val recipe = if (config.onDevice) {
+                    ensureNano()
+                    nano().ask(input)
+                } else {
+                    withContext(Dispatchers.IO) {
+                        ClaudeRecipeClient(config.apiKey, config.model).use { it.ask(input) }
+                    }
                 }
                 if (recipe.ingredients.isEmpty() && recipe.dashNotes.isNotBlank()) {
                     AskState.Failed(recipe.dashNotes)
+                } else if (recipe.ingredients.isEmpty()) {
+                    AskState.Failed("${config.assistant} didn't come back with any ingredients. Try again or reword it.")
                 } else {
                     AskState.Done(recipe)
                 }
@@ -92,11 +106,34 @@ class AskClaudeViewModel(val settings: ClaudeSettings) : ViewModel() {
         _keyTest.value = KeyTestState.Idle
     }
 
+    /** Looks up whether Gemini Nano is ready, downloadable or unsupported on this phone. */
+    fun checkNano() {
+        if (_nanoStatus.value is NanoStatus.Downloading) return
+        nanoJob?.cancel()
+        _nanoStatus.value = NanoStatus.Checking
+        nanoJob = viewModelScope.launch { _nanoStatus.value = nano().status() }
+    }
+
+    /** Starts the one-time model download, if it's needed. */
+    fun downloadNano() {
+        if (_nanoStatus.value is NanoStatus.Downloading) return
+        nanoJob?.cancel()
+        nanoJob = viewModelScope.launch {
+            try {
+                ensureNano()
+            } catch (e: ClaudeException) {
+                _nanoStatus.value = NanoStatus.Failed(e.message ?: "Gemini Nano didn't download.")
+            }
+        }
+    }
+
+    private suspend fun ensureNano() = nano().ensureReady { _nanoStatus.value = it }
+
     companion object {
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as GroceryApp
-                AskClaudeViewModel(app.claudeSettings)
+                AskClaudeViewModel(app.claudeSettings) { app.nano }
             }
         }
     }
