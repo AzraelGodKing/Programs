@@ -232,10 +232,6 @@ function persist(summary, { secret = false, ask = "", total } = {}) {
   shareTimer = setTimeout(() => { void flushShare(); }, shareQueue.length ? 30 : 280);
 }
 
-function playingAlone() {
-  return loadSeat().solo === true;
-}
-
 function atSharedTable() {
   const seat = loadSeat();
   return Boolean(seat.token && seat.room && !seat.solo);

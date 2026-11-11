@@ -5,42 +5,42 @@ import { MARKS } from "../src/marks.js";
 import { TOKEN_CAP, cleanMap, cleanToken, fogged, freeCell, mapFor, paintFog, resizeMap } from "../src/mapgrid.js";
 import { discordRecap, validWebhook } from "../src/recap.js";
 
-export const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-export const EVENT_CAP = 500;
-export const SUMMARY_CAP = 20;
-export const SUMMARY_LENGTH = 300;
-export const NAME_LENGTH = 40;
-export const INTENT_LENGTH = 60;
-export const SNAPSHOT_BYTES = 200_000;
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const EVENT_CAP = 500;
+const SUMMARY_CAP = 20;
+const SUMMARY_LENGTH = 300;
+const NAME_LENGTH = 40;
+const INTENT_LENGTH = 60;
+const SNAPSHOT_BYTES = 200_000;
 export const BODY_BYTES = 300_000;
-export const MESSAGE_CAP = 200;
-export const MESSAGE_LENGTH = 400;
+const MESSAGE_CAP = 200;
+const MESSAGE_LENGTH = 400;
 export const DM_NAME = "Dungeon Master";
-export const IDLE_MS = 7 * 24 * 60 * 60 * 1000;
+const IDLE_MS = 7 * 24 * 60 * 60 * 1000;
 const GOODS_CAP = 60;
 const BUYBACK_CAP = 60;
 const PRICE_CAP = 10_000_000;
 
 export class TableError extends Error {}
 
-export function collapse(value) {
+function collapse(value) {
   return value.split(/\s+/).filter(Boolean).join(" ");
 }
 
-export function cleanName(value) {
+function cleanName(value) {
   if (typeof value !== "string") throw new TableError("A name is required.");
   const name = collapse(value).slice(0, NAME_LENGTH);
   if (!name) throw new TableError("A name is required.");
   return name;
 }
 
-export function cleanIntent(value) {
+function cleanIntent(value) {
   if (value === null || value === undefined) return "";
   if (typeof value !== "string") throw new TableError("The roll note has to be text.");
   return collapse(value).slice(0, INTENT_LENGTH);
 }
 
-export function cleanSummaries(value) {
+function cleanSummaries(value) {
   if (value === null || value === undefined) return [];
   if (typeof value === "string") value = [value];
   if (!Array.isArray(value)) throw new TableError("The activity log has to be a list.");
@@ -63,7 +63,7 @@ export function cleanSummaries(value) {
   return summaries;
 }
 
-export function cleanUpdate(payload) {
+function cleanUpdate(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new TableError("Expected an object.");
   }
@@ -85,7 +85,7 @@ export function randomCode() {
   return Array.from(bytes, (byte) => ALPHABET[byte % ALPHABET.length]).join("");
 }
 
-export function randomToken() {
+function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -98,27 +98,27 @@ export function validCode(code) {
   return typeof code === "string" && /^[A-Z0-9]{4}$/.test(code);
 }
 
-export function cleanMessage(value) {
+function cleanMessage(value) {
   if (typeof value !== "string") throw new TableError("A message has to be text.");
   const text = collapse(value).slice(0, MESSAGE_LENGTH);
   if (!text) throw new TableError("Write a message first.");
   return text;
 }
 
-export function cleanTarget(value) {
+function cleanTarget(value) {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value !== "string") throw new TableError("Whisper a name, or leave it open to the table.");
   return collapse(value).slice(0, NAME_LENGTH);
 }
 
-export function messageVisible(message, viewer) {
+function messageVisible(message, viewer) {
   const target = message.to || "";
   if (!target) return true;
   if (!viewer) return false;
   return message.from === viewer || target === viewer;
 }
 
-export function cleanTalk(payload) {
+function cleanTalk(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new TableError("Expected an object.");
   }
@@ -239,7 +239,7 @@ function cleanBoard(raw) {
 }
 
 /** A roll the DM asks for, like "Perception" or "Dexterity save". Only the DM can ask. */
-export function cleanAsk(value, name) {
+function cleanAsk(value, name) {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value !== "string") throw new TableError("Ask for a roll by name.");
   if (name !== DM_NAME) throw new TableError("Only the DM asks for rolls.");
@@ -254,7 +254,7 @@ export function shopFor(shop, who) {
   return Number.isInteger(deal) && deal ? { ...rest, deals: { [who.name]: deal } } : rest;
 }
 
-export function shopIsOpen(shop) {
+function shopIsOpen(shop) {
   if (shop && typeof shop === "object" && !Array.isArray(shop)) return shop.open !== false;
   return shop !== false;
 }
@@ -263,7 +263,7 @@ function cleanPrice(value) {
   return Number.isInteger(value) && value >= 0 && value <= PRICE_CAP;
 }
 
-export function cleanShop(payload) {
+function cleanShop(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new TableError("Expected an object.");
   }
@@ -303,7 +303,7 @@ export function cleanShop(payload) {
   return shop;
 }
 
-export function cleanBuyback(payload) {
+function cleanBuyback(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new TableError("Expected an object.");
   }

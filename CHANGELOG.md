@@ -87,6 +87,7 @@
 ### Removed
 
 - Unused player leftovers from when Spark and Threat moved to the DM screen: the encounter and spark renderers, no-op handlers, and CSS for those tabs. Old saves still load. The leftover prepare-drawer save field is gone; `#dm-prepare` has been missing since that drawer became a module.
+- Unused CSS leftovers: `.save-explain`, `.kicker`, `.bands`, leftover `[data-rating]` colors on the old player verdict, the `#panel-character > :not(#kit)` hide from when the pack lived in that panel, `.inline`, `.hp-line`, `.rest-actions`, `.death-line`, `.mark-picks`, `button.mark-chip` / `.mark-chip.is-on`, `.tab-badge`, `.roll-strip`, `.table-order`, and `.seat-card .hp-line`. Room helpers that nothing imports are no longer exported. Unused `playingAlone()` is gone.
 
 ### Fixed
 
