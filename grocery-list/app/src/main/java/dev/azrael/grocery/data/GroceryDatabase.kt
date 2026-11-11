@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [GroceryItem::class, CabinetItem::class, Recipe::class], version = 3, exportSchema = false)
+@Database(entities = [GroceryItem::class, CabinetItem::class, Recipe::class], version = 4, exportSchema = false)
 abstract class GroceryDatabase : RoomDatabase() {
     abstract fun groceryDao(): GroceryDao
     abstract fun cabinetDao(): CabinetDao
@@ -39,9 +39,16 @@ abstract class GroceryDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds expiry dates to Cabinet items; existing items have none. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `cabinet_items` ADD COLUMN `expiresOn` INTEGER")
+            }
+        }
+
         fun create(context: Context): GroceryDatabase =
             Room.databaseBuilder(context, GroceryDatabase::class.java, "grocery.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

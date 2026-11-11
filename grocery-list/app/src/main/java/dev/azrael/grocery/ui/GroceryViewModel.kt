@@ -44,6 +44,7 @@ class GroceryViewModel(private val repo: GroceryRepository) : ViewModel() {
         launch { repo.addIngredients(ingredients, source) }
 
     fun addToCabinet(name: String) = launch { repo.addToCabinet(name) }
+    fun setExpiry(item: CabinetItem, expiresOn: Long?) = launch { repo.setExpiry(item, expiresOn) }
     fun removeFromCabinet(item: CabinetItem) = launch { repo.removeFromCabinet(item) }
     fun restoreToCabinet(item: CabinetItem) = launch { repo.restoreToCabinet(item) }
     fun clearCabinet() = launch { repo.clearCabinet() }

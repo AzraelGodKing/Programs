@@ -20,6 +20,7 @@ import dev.azrael.grocery.claude.CabinetScan
 import dev.azrael.grocery.claude.CabinetScanScreen
 import dev.azrael.grocery.claude.CabinetScanViewModel
 import dev.azrael.grocery.claude.ClaudeSettingsScreen
+import dev.azrael.grocery.expiry.ExpiryReminders
 import dev.azrael.grocery.ui.AddRecipeScreen
 import dev.azrael.grocery.ui.CabinetScreen
 import dev.azrael.grocery.ui.GroceryListScreen
@@ -32,14 +33,24 @@ import dev.azrael.grocery.update.UpdateViewModel
 class MainActivity : ComponentActivity() {
     /** Recipe text shared into the app from another app (browser, notes, etc.). */
     private var sharedText by mutableStateOf<String?>(null)
+    /** Set when the expiry reminder was tapped. */
+    private var openCabinet by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (savedInstanceState == null) sharedText = intent.sharedText()
+        if (savedInstanceState == null) {
+            sharedText = intent.sharedText()
+            openCabinet = intent.opensCabinet()
+        }
         setContent {
             GroceryTheme {
-                AppRoot(sharedText = sharedText, onSharedConsumed = { sharedText = null })
+                AppRoot(
+                    sharedText = sharedText,
+                    onSharedConsumed = { sharedText = null },
+                    openCabinet = openCabinet,
+                    onOpenCabinetConsumed = { openCabinet = false },
+                )
             }
         }
     }
@@ -47,7 +58,11 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.sharedText()?.let { sharedText = it }
+        if (intent.opensCabinet()) openCabinet = true
     }
+
+    private fun Intent?.opensCabinet(): Boolean =
+        this?.getBooleanExtra(ExpiryReminders.EXTRA_OPEN_CABINET, false) == true
 
     private fun Intent?.sharedText(): String? =
         if (this?.action == Intent.ACTION_SEND) getStringExtra(Intent.EXTRA_TEXT) else null
@@ -56,7 +71,12 @@ class MainActivity : ComponentActivity() {
 private enum class Screen { LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX }
 
 @Composable
-private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
+private fun AppRoot(
+    sharedText: String?,
+    onSharedConsumed: () -> Unit,
+    openCabinet: Boolean,
+    onOpenCabinetConsumed: () -> Unit,
+) {
     val vm: GroceryViewModel = viewModel(factory = GroceryViewModel.Factory)
     val updates: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory)
     val updateState by updates.state.collectAsState()
@@ -84,6 +104,13 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
                 screen = Screen.ADD_RECIPE
             }
             onSharedConsumed()
+        }
+    }
+
+    LaunchedEffect(openCabinet) {
+        if (openCabinet) {
+            screen = Screen.CABINET
+            onOpenCabinetConsumed()
         }
     }
 

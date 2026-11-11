@@ -5,6 +5,8 @@
          Claude settings) to call the Claude API. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- The daily reminder about Cabinet items that expire soon. Asked for the first time you set a date. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".GroceryApp"
@@ -31,6 +33,19 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- Home-screen widget with the grocery list. -->
+        <receiver
+            android:name=".widget.GroceryWidgetReceiver"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/grocery_widget_info" />
+        </receiver>
 
         <!-- Shares the downloaded update APK with Android's package installer. -->
         <provider

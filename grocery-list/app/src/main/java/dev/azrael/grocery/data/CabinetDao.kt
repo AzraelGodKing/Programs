@@ -16,6 +16,12 @@ interface CabinetDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(item: CabinetItem): Long
 
+    @Query("SELECT * FROM cabinet_items WHERE expiresOn IS NOT NULL")
+    suspend fun getWithExpiry(): List<CabinetItem>
+
+    @Query("UPDATE cabinet_items SET expiresOn = :expiresOn WHERE id = :id")
+    suspend fun setExpiry(id: Long, expiresOn: Long?)
+
     @Delete
     suspend fun delete(item: CabinetItem)
 
