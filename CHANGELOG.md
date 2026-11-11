@@ -4,6 +4,8 @@
 
 ### Added
 
+- Grocery List can scan your Cabinet. In the Cabinet, the camera button takes or picks a photo of a shelf or the fridge, Claude lists the groceries it sees, and you untick anything wrong before the rest goes in. Items already in the Cabinet start unticked.
+- Grocery List can use the Claude plan you already pay for. Claude settings → Connect with → Claude app opens requests and photos in the official Claude app with a ready-made prompt, and sharing Claude's reply back lands it in Add recipe or the Cabinet review. Anthropic doesn't allow other apps to sign in with a Claude subscription, so this hands off instead. The API key option still works for everything in one tap.
 - Grocery List can use Claude, off until you turn it on in Menu → Claude settings with your own Anthropic API key, which stays on the phone and out of backups. Ask Claude writes a DASH-diet recipe from a request like "quick chicken dinner for 2", or reads a pasted recipe or a link and suggests DASH swaps, then adds the ingredients you tick to the list. Add recipe gains Read with Claude for recipes the built-in parser struggles with. You can pick Opus, Sonnet or Haiku, and share the recipe to a notes app.
 - Grocery List has a Cabinet for what's already at home. Add staples by hand or move checked items there after shopping; when you add a recipe, anything in the Cabinet starts unticked, and an item you ran out of goes back on the list with one tap. Updating keeps your existing list.
 - Grocery List updates itself. When it opens it checks the repo's releases for a newer build and offers to download it, showing progress, then hands it to Android's installer. Menu → Check for updates runs the same check on demand and shows the installed build.

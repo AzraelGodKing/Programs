@@ -10,6 +10,8 @@ import com.anthropic.errors.OverloadedException
 import com.anthropic.errors.PermissionDeniedException
 import com.anthropic.errors.RateLimitException
 import com.anthropic.errors.UnauthorizedException
+import com.anthropic.models.messages.Base64ImageSource
+import com.anthropic.models.messages.ContentBlockParam
 import com.anthropic.models.messages.JsonOutputFormat
 import com.anthropic.models.messages.Message
 import com.anthropic.models.messages.MessageCreateParams
@@ -18,6 +20,7 @@ import com.anthropic.models.messages.StopReason
 import com.anthropic.models.messages.WebFetchTool20250910
 import com.anthropic.models.messages.WebFetchTool20260209
 import java.time.Duration
+import java.util.Base64
 
 /** Models offered in settings. The user pays for their own key, so they pick the tradeoff. */
 enum class ClaudeModel(val id: String, val label: String, val blurb: String) {
@@ -55,7 +58,27 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
      * [onHand] are things the user already has (left off the shopping part, not out of the recipe).
      */
     fun ask(input: String, onHand: List<String> = emptyList()): ClaudeRecipe = translateErrors {
-        var params = buildParams(input, onHand)
+        val json = runStructured(buildParams(input, onHand))
+        try {
+            ClaudeRecipe.parse(json)
+        } catch (e: Exception) {
+            throw ClaudeException("Couldn't read Claude's answer.", e)
+        }
+    }
+
+    /** Lists the grocery items Claude can see in a JPEG photo. */
+    fun identifyItems(jpeg: ByteArray): CabinetScan = translateErrors {
+        val json = runStructured(buildPhotoParams(jpeg))
+        try {
+            CabinetScan.parse(json)
+        } catch (e: Exception) {
+            throw ClaudeException("Couldn't read Claude's answer.", e)
+        }
+    }
+
+    /** Sends [first], continues paused turns, checks how it stopped, and returns the JSON answer text. */
+    private fun runStructured(first: MessageCreateParams): String {
+        var params = first
         var response: Message = client.messages().create(params)
         // Server tools (web fetch) can pause a long turn; send it back to let Claude continue.
         var continues = 0
@@ -73,15 +96,32 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
             StopReason.PAUSE_TURN -> throw ClaudeException("Claude took too long reading that page. Try pasting the recipe text instead.")
             else -> Unit
         }
-        // With structured output the final text block is the JSON recipe; earlier ones may be
+        // With structured output the final text block is the JSON answer; earlier ones may be
         // short notes written around a web fetch.
         val texts = response.content().mapNotNull { block -> block.text().orElse(null)?.text() }
-        val json = texts.lastOrNull { it.contains('{') } ?: throw ClaudeException("Claude didn't send back a recipe.")
-        try {
-            ClaudeRecipe.parse(json)
-        } catch (e: Exception) {
-            throw ClaudeException("Couldn't read Claude's answer.", e)
-        }
+        return texts.lastOrNull { it.contains('{') } ?: throw ClaudeException("Claude didn't send back an answer.")
+    }
+
+    internal fun buildPhotoParams(jpeg: ByteArray): MessageCreateParams {
+        val image = Base64ImageSource.builder()
+            .mediaType(Base64ImageSource.MediaType.IMAGE_JPEG)
+            .data(Base64.getEncoder().encodeToString(jpeg))
+            .build()
+        val builder = MessageCreateParams.builder()
+            .model(model.id)
+            .maxTokens(8000L)
+            .outputConfig(
+                OutputConfig.builder()
+                    .effort(OutputConfig.Effort.LOW)
+                    .format(JsonOutputFormat.builder().schema(schemaOf(CabinetScan.SCHEMA)).build())
+                    .build(),
+            )
+            // Image before the text, as recommended for vision prompts.
+            .addUserMessageOfContentBlockParams(
+                listOf(ContentBlockParam.ofImage(image), ContentBlockParam.ofText(CabinetScan.PHOTO_INSTRUCTIONS)),
+            )
+        addFallbacks(builder)
+        return builder.build()
     }
 
     internal fun buildParams(input: String, onHand: List<String>): MessageCreateParams {
@@ -100,7 +140,7 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
             .outputConfig(
                 OutputConfig.builder()
                     .effort(OutputConfig.Effort.MEDIUM)
-                    .format(JsonOutputFormat.builder().schema(schema()).build())
+                    .format(JsonOutputFormat.builder().schema(schemaOf(SCHEMA)).build())
                     .build(),
             )
             .addUserMessage(userText)
@@ -112,13 +152,19 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
                 builder.addTool(WebFetchTool20260209.builder().maxUses(2L).maxContentTokens(30_000L).build())
             }
         }
-        // If a safety check declines on Opus/Sonnet, let the API retry on a suitable model
-        // instead of failing. Haiku has no server-side fallback.
+        addFallbacks(builder)
+        return builder.build()
+    }
+
+    /**
+     * If a safety check declines on Opus/Sonnet, let the API retry on a suitable model instead of
+     * failing. Haiku has no server-side fallback.
+     */
+    private fun addFallbacks(builder: MessageCreateParams.Builder) {
         if (model != ClaudeModel.HAIKU) {
             builder.putAdditionalHeader("anthropic-beta", "server-side-fallback-2026-07-01")
             builder.putAdditionalBodyProperty("fallbacks", JsonValue.from("default"))
         }
-        return builder.build()
     }
 
     override fun close() = client.close()
@@ -209,9 +255,9 @@ class ClaudeRecipeClient(apiKey: String, private val model: ClaudeModel) : AutoC
             ),
         )
 
-        private fun schema(): JsonOutputFormat.Schema {
+        private fun schemaOf(schema: Map<String, Any>): JsonOutputFormat.Schema {
             val b = JsonOutputFormat.Schema.builder()
-            SCHEMA.forEach { (k, v) -> b.putAdditionalProperty(k, JsonValue.from(v)) }
+            schema.forEach { (k, v) -> b.putAdditionalProperty(k, JsonValue.from(v)) }
             return b.build()
         }
     }

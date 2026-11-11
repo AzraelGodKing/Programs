@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -63,7 +64,12 @@ import kotlinx.coroutines.launch
 /** The Cabinet: what's already at home. Recipe lines that match start unticked on Add recipe. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun CabinetScreen(vm: GroceryViewModel, onBack: () -> Unit) {
+fun CabinetScreen(
+    vm: GroceryViewModel,
+    onBack: () -> Unit,
+    /** Opens the Claude photo scan. Null hides the button (Claude turned off). */
+    onScanWithClaude: (() -> Unit)? = null,
+) {
     val items by vm.cabinet.collectAsStateWithLifecycle()
     var newName by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
@@ -108,6 +114,9 @@ fun CabinetScreen(vm: GroceryViewModel, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = {
+                    if (onScanWithClaude != null) {
+                        IconButton(onClick = onScanWithClaude) { Icon(Icons.Default.PhotoCamera, "Scan with Claude") }
+                    }
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "More") }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {

@@ -16,6 +16,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.azrael.grocery.claude.AskClaudeScreen
 import dev.azrael.grocery.claude.AskClaudeViewModel
+import dev.azrael.grocery.claude.CabinetScan
+import dev.azrael.grocery.claude.CabinetScanScreen
+import dev.azrael.grocery.claude.CabinetScanViewModel
 import dev.azrael.grocery.claude.ClaudeSettingsScreen
 import dev.azrael.grocery.ui.AddRecipeScreen
 import dev.azrael.grocery.ui.CabinetScreen
@@ -49,7 +52,7 @@ class MainActivity : ComponentActivity() {
         if (this?.action == Intent.ACTION_SEND) getStringExtra(Intent.EXTRA_TEXT) else null
 }
 
-private enum class Screen { LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS }
+private enum class Screen { LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN }
 
 @Composable
 private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
@@ -66,11 +69,19 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
     val openClaudeSettings = { from: Screen -> settingsReturn = from; screen = Screen.CLAUDE_SETTINGS }
     val cabinet by vm.cabinet.collectAsState()
     val cabinetKeys = remember(cabinet) { cabinet.orEmpty().map { it.key }.toSet() }
+    val scan: CabinetScanViewModel = viewModel(factory = CabinetScanViewModel.Factory)
+    // A Claude app reply listing Cabinet items, shared into the app; the scan screen reads it.
+    var cabinetReply by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
-            draft = sharedText
-            screen = Screen.ADD_RECIPE
+            if (claudeConfig.enabled && CabinetScan.isCabinetReply(sharedText)) {
+                cabinetReply = sharedText
+                screen = Screen.CABINET_SCAN
+            } else {
+                draft = sharedText
+                screen = Screen.ADD_RECIPE
+            }
             onSharedConsumed()
         }
     }
@@ -123,7 +134,27 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
             // If Claude was just switched off, don't drop back into a Claude screen.
             onBack = { screen = if (claudeConfig.enabled) settingsReturn else Screen.LIST },
         )
-        Screen.CABINET -> CabinetScreen(vm = vm, onBack = { screen = Screen.LIST })
+        Screen.CABINET -> CabinetScreen(
+            vm = vm,
+            onBack = { screen = Screen.LIST },
+            onScanWithClaude = if (claudeConfig.enabled) {
+                { screen = Screen.CABINET_SCAN }
+            } else {
+                null
+            },
+        )
+        Screen.CABINET_SCAN -> CabinetScanScreen(
+            vm = scan,
+            cabinetKeys = cabinetKeys,
+            incomingReply = cabinetReply,
+            onReplyConsumed = { cabinetReply = null },
+            onBack = { screen = Screen.CABINET },
+            onOpenSettings = { openClaudeSettings(Screen.CABINET_SCAN) },
+            onAdd = { names ->
+                names.forEach { vm.addToCabinet(it) }
+                screen = Screen.CABINET
+            },
+        )
     }
 
     UpdateDialog(state = updateState, currentBuild = updates.currentBuild, vm = updates)

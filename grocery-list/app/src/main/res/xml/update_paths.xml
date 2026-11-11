@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="updates" path="updates/" />
+    <!-- Cabinet photos taken for Claude: the camera app writes here, and the Claude app can read it. -->
+    <cache-path name="photos" path="photos/" />
 </paths>

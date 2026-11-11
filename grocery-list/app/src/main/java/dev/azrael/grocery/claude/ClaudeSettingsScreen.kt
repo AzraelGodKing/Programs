@@ -86,7 +86,8 @@ fun ClaudeSettingsScreen(vm: AskClaudeViewModel, onBack: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text("Use Claude", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Ask Claude for DASH recipes and have it read recipes or links into your list. " +
+                        "Ask Claude for DASH recipes, have it read recipes or links into your list, and scan " +
+                            "photos into your Cabinet. " +
                             "When this is off, the app never contacts Anthropic and the Claude buttons are hidden.",
                         style = MaterialTheme.typography.bodySmall,
                         color = muted,
@@ -98,86 +99,127 @@ fun ClaudeSettingsScreen(vm: AskClaudeViewModel, onBack: () -> Unit) {
             HorizontalDivider()
 
             Text(
-                "API key",
+                "Connect with",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp),
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
             )
-            Text(
-                "Uses your own Anthropic API key, billed to your account. The key is stored only on this phone " +
-                    "and left out of backups.",
-                style = MaterialTheme.typography.bodySmall,
-                color = muted,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            OutlinedTextField(
-                value = config.apiKey,
-                onValueChange = { vm.settings.setApiKey(it); vm.clearKeyTest() },
-                label = { Text("sk-ant-…") },
-                singleLine = true,
-                visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
-                trailingIcon = {
-                    IconButton(onClick = { showKey = !showKey }) {
-                        Icon(
-                            if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            if (showKey) "Hide key" else "Show key",
-                        )
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            )
-            Row(
-                Modifier.padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = { uri.openUri("https://console.anthropic.com/settings/keys") }) {
-                    Text("Get a key")
-                }
-                if (config.hasKey) {
-                    TextButton(onClick = { vm.settings.setApiKey(""); vm.clearKeyTest() }) { Text("Remove key") }
-                }
-            }
-            Row(
-                Modifier.padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedButton(
-                    onClick = { vm.testKey() },
-                    enabled = config.hasKey && keyTest !is KeyTestState.Testing,
-                ) { Text("Test key") }
-                Spacer(Modifier.width(12.dp))
-                when (val t = keyTest) {
-                    KeyTestState.Idle -> Unit
-                    KeyTestState.Testing -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    KeyTestState.Ok -> Text("Key works", color = MaterialTheme.colorScheme.primary)
-                    is KeyTestState.Failed -> Text(t.message, color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall)
-                }
-            }
-
-            Text(
-                "Model",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 4.dp),
-            )
-            ClaudeModel.entries.forEach { model ->
+            ClaudeMode.entries.forEach { mode ->
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .selectable(
-                            selected = config.model == model,
-                            onClick = { vm.settings.setModel(model); vm.clearKeyTest() },
+                            selected = config.mode == mode,
+                            onClick = { vm.settings.setMode(mode); vm.clearKeyTest() },
                             role = Role.RadioButton,
                         )
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RadioButton(selected = config.model == model, onClick = null, modifier = Modifier.padding(8.dp))
+                    RadioButton(selected = config.mode == mode, onClick = null, modifier = Modifier.padding(8.dp))
                     Column {
-                        Text(model.label, style = MaterialTheme.typography.bodyLarge)
-                        Text(model.blurb, style = MaterialTheme.typography.bodySmall, color = muted)
+                        Text(mode.label, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            when (mode) {
+                                ClaudeMode.CLAUDE_APP ->
+                                    "Uses the Pro or Max plan you already pay for. Requests open in the Claude app, " +
+                                        "and you share Claude's reply back here. Anthropic doesn't allow other apps " +
+                                        "to sign in with a Claude subscription, so this is the supported way."
+                                ClaudeMode.API_KEY ->
+                                    "Everything happens inside this app in one tap. Needs an API key from the " +
+                                        "Anthropic Console, billed per use (a recipe is a few cents, a photo scan " +
+                                        "less than that)."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = muted,
+                        )
+                    }
+                }
+            }
+
+            if (config.usesApi) {
+                Text(
+                    "API key",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 16.dp, top = 16.dp),
+                )
+                Text(
+                    "Uses your own Anthropic API key, billed to your account. The key is stored only on this phone " +
+                        "and left out of backups.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+                OutlinedTextField(
+                    value = config.apiKey,
+                    onValueChange = { vm.settings.setApiKey(it); vm.clearKeyTest() },
+                    label = { Text("sk-ant-…") },
+                    singleLine = true,
+                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                    trailingIcon = {
+                        IconButton(onClick = { showKey = !showKey }) {
+                            Icon(
+                                if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                if (showKey) "Hide key" else "Show key",
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                )
+                Row(
+                    Modifier.padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = { uri.openUri("https://console.anthropic.com/settings/keys") }) {
+                        Text("Get a key")
+                    }
+                    if (config.hasKey) {
+                        TextButton(onClick = { vm.settings.setApiKey(""); vm.clearKeyTest() }) { Text("Remove key") }
+                    }
+                }
+                Row(
+                    Modifier.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedButton(
+                        onClick = { vm.testKey() },
+                        enabled = config.hasKey && keyTest !is KeyTestState.Testing,
+                    ) { Text("Test key") }
+                    Spacer(Modifier.width(12.dp))
+                    when (val t = keyTest) {
+                        KeyTestState.Idle -> Unit
+                        KeyTestState.Testing -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        KeyTestState.Ok -> Text("Key works", color = MaterialTheme.colorScheme.primary)
+                        is KeyTestState.Failed -> Text(t.message, color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                Text(
+                    "Model",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 4.dp),
+                )
+                ClaudeModel.entries.forEach { model ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = config.model == model,
+                                onClick = { vm.settings.setModel(model); vm.clearKeyTest() },
+                                role = Role.RadioButton,
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = config.model == model, onClick = null, modifier = Modifier.padding(8.dp))
+                        Column {
+                            Text(model.label, style = MaterialTheme.typography.bodyLarge)
+                            Text(model.blurb, style = MaterialTheme.typography.bodySmall, color = muted)
+                        }
                     }
                 }
             }
