@@ -113,7 +113,7 @@ import {
 } from "./extras.js";
 import { armorClass } from "./armor.js";
 import { blankDeath, cleanDeath, cleanOrder, sortOrder } from "./order.js";
-import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBoard, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
+import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBoard, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat, sharedSnapshot } from "./table.js";
 import { mentions, paintHere, paintPins, paintTalk, paintTargets, typingLine } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { bootDisplay } from "./display.js";
@@ -203,12 +203,6 @@ const CREATOR_STEPS = [
   { id: "review", copy: "Read the sheet. Choose a kit, then sit down. That is what saves." },
 ];
 
-function sharedSnapshot() {
-  const snapshot = { ...state };
-  delete snapshot.drafts;
-  return snapshot;
-}
-
 function currentIntent() {
   return document.getElementById("roll-for")?.value || "";
 }
@@ -261,7 +255,7 @@ async function flushShare() {
     const result = await pushTable(seat.room, {
       name: seat.name,
       summaries,
-      snapshot: sharedSnapshot(),
+      snapshot: sharedSnapshot(state),
       intent: currentIntent(),
     });
     const status = document.getElementById("seat-status");
