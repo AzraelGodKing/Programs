@@ -16,7 +16,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Set the repo variable GROCERY_RUNNER to "pc" to build on Azrael's PC, where a Docker runner
+    # is started for the job and removed after it. Without the variable, GitHub's runners are used.
+    runs-on: ${{ vars.GROCERY_RUNNER == 'pc' && fromJSON('["self-hosted","grocery-pc"]') || 'ubuntu-latest' }}
     defaults:
       run:
         working-directory: grocery-list
