@@ -39,7 +39,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import dev.azrael.grocery.parse.CabinetMatch
 import dev.azrael.grocery.parse.IngredientParser
+import dev.azrael.grocery.parse.NameKey
 import dev.azrael.grocery.parse.ParsedIngredient
 import dev.azrael.grocery.parse.formatAmount
 
@@ -47,15 +49,23 @@ import dev.azrael.grocery.parse.formatAmount
 @Composable
 fun AddRecipeScreen(
     text: String,
+    /** NameKey keys of what's in the Cabinet; matching lines start unticked. */
+    cabinetKeys: Set<String>,
     onTextChange: (String) -> Unit,
     onBack: () -> Unit,
     onAdd: (ingredients: List<ParsedIngredient>, source: String?) -> Unit,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     val parsed = remember(text) { IngredientParser.parseRecipe(text) }
-    // Indexes the user unticked (e.g. pantry staples they already have). Reset when the text changes.
-    var excluded by remember(text) { mutableStateOf(emptySet<Int>()) }
-    val selected = parsed.filterIndexed { i, _ -> i !in excluded }
+    // Lines already in the Cabinet start unticked. The Cabinet loads async, so keep it live
+    // and store only what the user changed by hand (index -> included). Reset when the text changes.
+    val inCabinet = remember(parsed, cabinetKeys) {
+        parsed.map { CabinetMatch.find(NameKey.of(it.name), cabinetKeys) != null }
+    }
+    var overrides by remember(text) { mutableStateOf(emptyMap<Int, Boolean>()) }
+    fun isIncluded(i: Int) = overrides[i] ?: !inCabinet[i]
+    val selected = parsed.filterIndexed { i, _ -> isIncluded(i) }
+    val skippedFromCabinet = parsed.indices.count { inCabinet[it] && !isIncluded(it) }
     val clipboard = LocalClipboardManager.current
 
     BackHandler(onBack = onBack)
@@ -116,15 +126,21 @@ fun AddRecipeScreen(
             if (parsed.isNotEmpty()) {
                 item {
                     Text(
-                        "Found ${parsed.size} ingredients. Untick anything you already have.",
+                        buildString {
+                            append("Found ${parsed.size} ingredients. ")
+                            if (skippedFromCabinet > 0) {
+                                append("$skippedFromCabinet already in your Cabinet, so they start unticked. ")
+                            }
+                            append("Untick anything else you already have.")
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
             }
             itemsIndexed(parsed) { i, ing ->
-                val included = i !in excluded
-                val toggle = { excluded = if (included) excluded + i else excluded - i }
+                val included = isIncluded(i)
+                val toggle = { overrides = overrides + (i to !included) }
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable(onClick = toggle).padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -143,7 +159,11 @@ fun AddRecipeScreen(
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
-                            listOfNotNull(ing.category.label, ing.note).joinToString(" · "),
+                            listOfNotNull(
+                                ing.category.label,
+                                ing.note,
+                                "In your Cabinet".takeIf { inCabinet[i] },
+                            ).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
