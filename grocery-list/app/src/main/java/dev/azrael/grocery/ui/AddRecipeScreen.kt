@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -39,12 +41,14 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import dev.azrael.grocery.parse.CabinetMatch
 import dev.azrael.grocery.parse.IngredientParser
 import dev.azrael.grocery.parse.NameKey
 import dev.azrael.grocery.parse.ParsedIngredient
+import dev.azrael.grocery.parse.Servings
 import dev.azrael.grocery.parse.formatAmount
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -56,10 +60,18 @@ fun AddRecipeScreen(
     onTextChange: (String) -> Unit,
     onBack: () -> Unit,
     onAdd: (ingredients: List<ParsedIngredient>, source: String?) -> Unit,
+    /** Saves the recipe to the recipe box (name, servings, text) when "Save to recipe box" is ticked. */
+    onSaveRecipe: (title: String, servings: Int, text: String) -> Unit = { _, _, _ -> },
     /** Hands the pasted text to Claude instead of the built-in parser. Null hides the button (Claude off). */
     onReadWithClaude: ((String) -> Unit)? = null,
+    /** Opens the sodium tracker's Log a recipe with this text and name. */
+    onLogSodium: ((text: String, title: String) -> Unit)? = null,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
+    var saveToBox by rememberSaveable { mutableStateOf(false) }
+    var servingsText by rememberSaveable { mutableStateOf("") }
+    val detectedServings = remember(text) { Servings.detect(text) }
+    val servings = servingsText.toIntOrNull()?.takeIf { it in 1..48 } ?: detectedServings ?: 4
     val parsed = remember(text) { IngredientParser.parseRecipe(text) }
     // Lines already in the Cabinet start unticked. The Cabinet loads async, so keep it live
     // and store only what the user changed by hand (index -> included). Reset when the text changes.
@@ -86,7 +98,15 @@ fun AddRecipeScreen(
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
                 Button(
-                    onClick = { onAdd(selected, title.trim().ifEmpty { null }) },
+                    onClick = {
+                        if (saveToBox) {
+                            val name = title.trim().ifEmpty { guessTitle(text) }
+                            onSaveRecipe(name, servings, text)
+                            onAdd(selected, name)
+                        } else {
+                            onAdd(selected, title.trim().ifEmpty { null })
+                        }
+                    },
                     enabled = selected.isNotEmpty(),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -127,6 +147,34 @@ fun AddRecipeScreen(
                     }
                     if (onReadWithClaude != null && text.isNotBlank()) {
                         TextButton(onClick = { onReadWithClaude(text) }) { Text("Read with AI") }
+                    }
+                    if (onLogSodium != null && parsed.isNotEmpty()) {
+                        TextButton(onClick = { onLogSodium(text, title.trim()) }) { Text("Cooked it? Log sodium") }
+                    }
+                }
+            }
+            if (parsed.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { saveToBox = !saveToBox }
+                            .padding(start = 4.dp, end = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = saveToBox, onCheckedChange = { saveToBox = it })
+                        Text("Save to recipe box", modifier = Modifier.weight(1f))
+                        if (saveToBox) {
+                            OutlinedTextField(
+                                value = servingsText,
+                                onValueChange = { v -> servingsText = v.filter { it.isDigit() }.take(2) },
+                                label = { Text("Serves") },
+                                placeholder = { Text("$servings") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(96.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -179,4 +227,12 @@ fun AddRecipeScreen(
             }
         }
     }
+}
+
+/** A name for a recipe saved without one: its first short line, if that isn't an ingredient. */
+private fun guessTitle(text: String): String {
+    val first = text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }.orEmpty()
+    val looksLikeTitle = first.length in 3..60 && IngredientParser.parseLine(first)?.quantity == null &&
+        !first.startsWith("ingredient", ignoreCase = true)
+    return if (looksLikeTitle) first.trimEnd(':') else "Saved recipe"
 }

@@ -1,6 +1,7 @@
 package dev.azrael.grocery.data
 
 import androidx.room.withTransaction
+import dev.azrael.grocery.barcode.ScannedProduct
 import dev.azrael.grocery.parse.Amount
 import dev.azrael.grocery.parse.Categorizer
 import dev.azrael.grocery.parse.Merge
@@ -11,9 +12,11 @@ import kotlinx.coroutines.flow.Flow
 class GroceryRepository(private val db: GroceryDatabase) {
     private val dao = db.groceryDao()
     private val cabinetDao = db.cabinetDao()
+    private val recipeDao = db.recipeDao()
 
     val items: Flow<List<GroceryItem>> = dao.observeAll()
     val cabinet: Flow<List<CabinetItem>> = cabinetDao.observeAll()
+    val recipes: Flow<List<Recipe>> = recipeDao.observeAll()
 
     /** Adds recipe ingredients, folding each into a matching unchecked line when the units allow. */
     suspend fun addIngredients(ingredients: List<ParsedIngredient>, source: String?) = db.withTransaction {
@@ -65,6 +68,7 @@ class GroceryRepository(private val db: GroceryDatabase) {
     suspend fun delete(item: GroceryItem) = dao.delete(item)
     suspend fun restore(item: GroceryItem) { dao.insert(item) }
     suspend fun setChecked(item: GroceryItem, checked: Boolean) = dao.setChecked(item.id, checked)
+    suspend fun setChecked(id: Long, checked: Boolean) = dao.setChecked(id, checked)
     suspend fun uncheckAll() = dao.uncheckAll()
     suspend fun deleteChecked() = dao.deleteChecked()
     suspend fun deleteAll() = dao.deleteAll()
@@ -76,6 +80,39 @@ class GroceryRepository(private val db: GroceryDatabase) {
         val clean = name.trim()
         if (clean.isEmpty()) return
         cabinetDao.insert(cabinetItemFor(clean, category))
+    }
+
+    suspend fun setExpiry(item: CabinetItem, expiresOn: Long?) = cabinetDao.setExpiry(item.id, expiresOn)
+
+    /** Cabinet items that have an expiry date, for the daily reminder. */
+    suspend fun cabinetWithExpiry(): List<CabinetItem> = cabinetDao.getWithExpiry()
+
+    /**
+     * Adds a scanned product to the Cabinet with its label sodium. If the Cabinet already has an item with
+     * the same name, that item gets the barcode and sodium instead of a second line.
+     */
+    suspend fun addScannedToCabinet(product: ScannedProduct) = db.withTransaction {
+        val fresh = cabinetItemFor(product.name, null).copy(
+            barcode = product.barcode,
+            sodiumMgPerServing = product.sodiumMgPerServing,
+            sodiumMgPer100g = product.sodiumMgPer100g,
+            potassiumMgPerServing = product.potassiumMgPerServing,
+            servingSize = product.servingSize,
+        )
+        val existing = cabinetDao.findByKey(fresh.key)
+        if (existing == null) {
+            cabinetDao.insert(fresh)
+        } else {
+            cabinetDao.update(
+                fresh.copy(
+                    id = existing.id,
+                    name = existing.name,
+                    category = existing.category,
+                    addedAt = existing.addedAt,
+                    expiresOn = existing.expiresOn,
+                ),
+            )
+        }
     }
 
     suspend fun removeFromCabinet(item: CabinetItem) = cabinetDao.delete(item)
@@ -94,6 +131,21 @@ class GroceryRepository(private val db: GroceryDatabase) {
         checked.forEach { cabinetDao.insert(cabinetItemFor(it.name, it.category)) }
         dao.deleteChecked()
         checked.size
+    }
+
+    // Recipe box.
+
+    suspend fun saveRecipe(title: String, servings: Int, text: String): Long =
+        recipeDao.insert(Recipe(title = title.trim(), servings = servings.coerceAtLeast(1), text = text.trim()))
+
+    suspend fun updateRecipe(recipe: Recipe) = recipeDao.update(recipe)
+    suspend fun deleteRecipe(recipe: Recipe) = recipeDao.delete(recipe)
+    suspend fun restoreRecipe(recipe: Recipe) { recipeDao.insert(recipe) }
+
+    /** Puts a saved recipe's chosen (already scaled) ingredients on the list. */
+    suspend fun addRecipeToList(recipe: Recipe, ingredients: List<ParsedIngredient>) = db.withTransaction {
+        ingredients.forEach { addOne(it.name, it.quantity, it.unit, it.note, recipe.title) }
+        recipeDao.markAdded(recipe.id, System.currentTimeMillis())
     }
 
     private fun cabinetItemFor(name: String, category: String?) = CabinetItem(

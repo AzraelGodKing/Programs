@@ -4,6 +4,11 @@
 
 ### Added
 
+- Grocery List has a recipe box. Tick Save to recipe box when you add a recipe, tap the bookmark on an AI recipe, or write one in with New recipe. The book icon on the list opens the box: the cart button puts a recipe back on the list in one tap, skipping what's in the Cabinet, and opening it lets you change the servings first. Scaling rounds things you buy whole up (1 can for 4 becomes 2 cans for 6) and keeps measured amounts exact. Updating keeps your list and Cabinet.
+- Grocery List has a home-screen widget. It lists what's left to buy in store-section order with checkboxes, so you can tick items off without opening the app, and it updates when the list changes in the app.
+- Grocery List reminds you before Cabinet food goes bad. Tap a Cabinet item to give it an expiry date with a quick pick (3 days to 1 month) or the calendar. Anything expired or expiring within two days moves to a Use soon section, and a morning notification lists those items and opens the Cabinet when tapped. Updating keeps your Cabinet; existing items start without a date.
+- Grocery List scans barcodes. In the Cabinet, the barcode button opens Google's scanner (no camera permission needed), looks the product up on Open Food Facts, a free food database, and shows its sodium per serving with a Low, Moderate or High flag for DASH. Add it to the Cabinet, where high-sodium items are marked, or log a serving in the sodium tracker. Products the database doesn't know can be typed in from the label.
+- Grocery List tracks sodium and potassium. The chart button on the list opens a daily total against the DASH limit (2,300 mg, or 1,500 mg for lower-sodium DASH) and the 4,700 mg potassium goal, with a 7-day strip. Log a recipe you cooked and it estimates sodium and potassium per serving from typical USDA values for common ingredients, shows where the sodium comes from, and lets you correct the numbers; Add recipe gets a "Cooked it? Log sodium" button. Log a food takes label values by hand.
 - Grocery List can use Gemini Nano, the free AI built into newer Android phones such as the Galaxy S26 Ultra. AI settings → Connect with → Gemini Nano on this phone runs recipe requests, pasted recipes and Cabinet photo scans on the phone itself, offline and at no cost, after a one-time model download. It's less capable than Claude and can't open links, so the Claude options stay available. Claude settings is now called AI settings.
 - Grocery List can scan your Cabinet. In the Cabinet, the camera button takes or picks a photo of a shelf or the fridge, Claude lists the groceries it sees, and you untick anything wrong before the rest goes in. Items already in the Cabinet start unticked.
 - Grocery List can use the Claude plan you already pay for. Claude settings → Connect with → Claude app opens requests and photos in the official Claude app with a ready-made prompt, and sharing Claude's reply back lands it in Add recipe or the Cabinet review. Anthropic doesn't allow other apps to sign in with a Claude subscription, so this hands off instead. The API key option still works for everything in one tap.
@@ -14,6 +19,7 @@
 
 ### Changed
 
+- Grocery List builds with Kotlin 2.4, KSP 2.3, Room 2.7, Android Gradle plugin 8.13 and Gradle 8.14, which the on-device Gemini Nano library needs. Your list and Cabinet are unchanged.
 - Grocery List release builds are numbered without gaps from now on. Pull requests are checked by a separate workflow, so they no longer use up build numbers.
 
 - `npm start` runs the local table server with Node. Room POST routes, in-memory table storage, and the offline cache write each have one code path.

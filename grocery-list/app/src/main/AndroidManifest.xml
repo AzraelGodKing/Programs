@@ -2,9 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Used to check this app's GitHub releases and download updates, and (only when turned on in
-         Claude settings) to call the Claude API. -->
+         Claude settings) to call the Claude API. Barcode lookups go to Open Food Facts. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- The daily reminder about Cabinet items that expire soon. Asked for the first time you set a date. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".GroceryApp"
@@ -16,6 +18,11 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.GroceryList">
+        <!-- Has Play services fetch the barcode scanner module at install instead of on first scan. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -31,6 +38,19 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- Home-screen widget with the grocery list. -->
+        <receiver
+            android:name=".widget.GroceryWidgetReceiver"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/grocery_widget_info" />
+        </receiver>
 
         <!-- Shares the downloaded update APK with Android's package installer. -->
         <provider

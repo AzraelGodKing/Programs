@@ -40,9 +40,6 @@ android {
         // The Anthropic SDK is written for the JVM; this backfills newer java.* APIs on older Android versions.
         isCoreLibraryDesugaringEnabled = true
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     packaging {
         resources {
             // Duplicate license/metadata files from the Anthropic SDK's Jackson and OkHttp dependencies.
@@ -61,6 +58,12 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
@@ -75,16 +78,26 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    // Daily Cabinet expiry reminder.
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+
+    // Home-screen widget.
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+
+    implementation("androidx.room:room-runtime:2.7.2")
+    implementation("androidx.room:room-ktx:2.7.2")
+    ksp("androidx.room:room-compiler:2.7.2")
 
     // Claude API (optional feature, off by default; the user supplies their own key).
     implementation("com.anthropic:anthropic-java:3.8.0")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.4")
     // Gemini Nano on the phone through Android AICore (optional, free, on supported devices only).
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta5")
+    // Barcode scanning through Google Play services: its own camera screen, no camera permission needed.
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     testImplementation("junit:junit:4.13.2")
+    // The real org.json for JVM unit tests (Android's copy is a stub off-device).
+    testImplementation("org.json:json:20240303")
 }

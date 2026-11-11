@@ -9,6 +9,7 @@ import dev.azrael.grocery.GroceryApp
 import dev.azrael.grocery.data.CabinetItem
 import dev.azrael.grocery.data.GroceryItem
 import dev.azrael.grocery.data.GroceryRepository
+import dev.azrael.grocery.data.Recipe
 import dev.azrael.grocery.parse.ParsedIngredient
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,10 @@ class GroceryViewModel(private val repo: GroceryRepository) : ViewModel() {
     /** Things already at home; null until loaded. */
     val cabinet: StateFlow<List<CabinetItem>?> =
         repo.cabinet.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Saved recipes, by title; null until loaded. */
+    val recipes: StateFlow<List<Recipe>?> =
+        repo.recipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun toggle(item: GroceryItem) = launch { repo.setChecked(item, !item.checked) }
     fun update(item: GroceryItem) = launch { repo.update(item) }
@@ -39,10 +44,18 @@ class GroceryViewModel(private val repo: GroceryRepository) : ViewModel() {
         launch { repo.addIngredients(ingredients, source) }
 
     fun addToCabinet(name: String) = launch { repo.addToCabinet(name) }
+    fun setExpiry(item: CabinetItem, expiresOn: Long?) = launch { repo.setExpiry(item, expiresOn) }
     fun removeFromCabinet(item: CabinetItem) = launch { repo.removeFromCabinet(item) }
     fun restoreToCabinet(item: CabinetItem) = launch { repo.restoreToCabinet(item) }
     fun clearCabinet() = launch { repo.clearCabinet() }
     fun cabinetToList(item: CabinetItem) = launch { repo.cabinetToList(item) }
+
+    fun saveRecipe(title: String, servings: Int, text: String) = launch { repo.saveRecipe(title, servings, text) }
+    fun updateRecipe(recipe: Recipe) = launch { repo.updateRecipe(recipe) }
+    fun deleteRecipe(recipe: Recipe) = launch { repo.deleteRecipe(recipe) }
+    fun restoreRecipe(recipe: Recipe) = launch { repo.restoreRecipe(recipe) }
+    fun addRecipeToList(recipe: Recipe, ingredients: List<ParsedIngredient>) =
+        launch { repo.addRecipeToList(recipe, ingredients) }
 
     /** [onDone] gets how many items moved, for the snackbar. */
     fun moveCheckedToCabinet(onDone: (Int) -> Unit) = launch { onDone(repo.moveCheckedToCabinet()) }

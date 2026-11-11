@@ -1,8 +1,13 @@
 package dev.azrael.grocery.ui
 
+import android.Manifest
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,9 +26,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -53,12 +60,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.azrael.grocery.barcode.SodiumLevel
 import dev.azrael.grocery.data.CabinetItem
+import dev.azrael.grocery.expiry.ExpiryReminders
+import dev.azrael.grocery.nutrition.Dash
+import dev.azrael.grocery.parse.Expiry
+import java.time.LocalDate
 import kotlinx.coroutines.launch
 
 /** The Cabinet: what's already at home. Recipe lines that match start unticked on Add recipe. */
@@ -69,6 +82,8 @@ fun CabinetScreen(
     onBack: () -> Unit,
     /** Opens the Claude photo scan. Null hides the button (Claude turned off). */
     onScanWithClaude: (() -> Unit)? = null,
+    /** Opens the barcode scanner. */
+    onScanBarcode: () -> Unit = {},
 ) {
     val items by vm.cabinet.collectAsStateWithLifecycle()
     var newName by rememberSaveable { mutableStateOf("") }
@@ -76,6 +91,17 @@ fun CabinetScreen(
     var confirmClear by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var datingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) {
+            scope.launch {
+                snackbar.currentSnackbarData?.dismiss()
+                snackbar.showSnackbar("Expiry reminders are off. Turn on notifications in Android settings to get them.")
+            }
+        }
+    }
+    val today = LocalDate.now()
 
     BackHandler(onBack = onBack)
 
@@ -94,6 +120,26 @@ fun CabinetScreen(
         }
     }
 
+    val cabinetRow: @Composable (CabinetItem, Modifier) -> Unit = { item, mod ->
+        CabinetRow(
+            item = item,
+            today = today,
+            onSetExpiry = { datingId = item.id },
+            onRanOut = {
+                vm.cabinetToList(item)
+                scope.launch {
+                    snackbar.currentSnackbarData?.dismiss()
+                    snackbar.showSnackbar("${item.name} added to your grocery list")
+                }
+            },
+            onDelete = {
+                vm.removeFromCabinet(item)
+                showUndo("Removed ${item.name}") { vm.restoreToCabinet(item) }
+            },
+            modifier = mod,
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -102,8 +148,9 @@ fun CabinetScreen(
                         Text("Cabinet")
                         val list = items.orEmpty()
                         if (list.isNotEmpty()) {
+                            val salty = list.count { it.sodiumLevel == SodiumLevel.HIGH }
                             Text(
-                                "${list.size} on hand",
+                                "${list.size} on hand" + if (salty > 0) " · $salty high sodium" else "",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -114,6 +161,7 @@ fun CabinetScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = {
+                    IconButton(onClick = onScanBarcode) { Icon(Icons.Default.QrCodeScanner, "Scan a barcode") }
                     if (onScanWithClaude != null) {
                         IconButton(onClick = onScanWithClaude) { Icon(Icons.Default.PhotoCamera, "Scan a photo") }
                     }
@@ -167,29 +215,35 @@ fun CabinetScreen(
                 list == null -> Unit
                 list.isEmpty() -> item(key = "empty") { CabinetEmptyState() }
                 else -> {
-                    list.groupBy { it.categoryEnum }.toSortedMap().forEach { (category, rows) ->
+                    val (soon, rest) = list.partition { Expiry.isSoon(it.expiresOn, today) }
+                    if (soon.isNotEmpty()) {
+                        stickyHeader(key = "h_soon") { CabinetHeader("Use soon") }
+                        items(soon.sortedBy { it.expiresOn }, key = { it.id }) { item -> cabinetRow(item, Modifier.animateItem()) }
+                    }
+                    rest.groupBy { it.categoryEnum }.toSortedMap().forEach { (category, rows) ->
                         stickyHeader(key = "h_${category.name}") { CabinetHeader(category.label) }
-                        items(rows, key = { it.id }) { item ->
-                            CabinetRow(
-                                item = item,
-                                onRanOut = {
-                                    vm.cabinetToList(item)
-                                    scope.launch {
-                                        snackbar.currentSnackbarData?.dismiss()
-                                        snackbar.showSnackbar("${item.name} added to your grocery list")
-                                    }
-                                },
-                                onDelete = {
-                                    vm.removeFromCabinet(item)
-                                    showUndo("Removed ${item.name}") { vm.restoreToCabinet(item) }
-                                },
-                                modifier = Modifier.animateItem(),
-                            )
-                        }
+                        items(rows, key = { it.id }) { item -> cabinetRow(item, Modifier.animateItem()) }
                     }
                 }
             }
         }
+    }
+
+    val dating = datingId?.let { id -> items?.firstOrNull { it.id == id } }
+    if (dating != null) {
+        ExpiryDialog(
+            item = dating,
+            onDismiss = { datingId = null },
+            onSave = { expiresOn ->
+                datingId = null
+                vm.setExpiry(dating, expiresOn)
+                if (expiresOn != null && ExpiryReminders.needsPermission(context) &&
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                ) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+        )
     }
 
     if (confirmClear) {
@@ -221,6 +275,8 @@ private fun CabinetHeader(label: String) {
 @Composable
 private fun CabinetRow(
     item: CabinetItem,
+    today: LocalDate,
+    onSetExpiry: () -> Unit,
     onRanOut: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -247,14 +303,44 @@ private fun CabinetRow(
     ) {
         Surface(color = MaterialTheme.colorScheme.surface) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onSetExpiry).padding(start = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    item.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f).padding(vertical = 14.dp),
-                )
+                val hasDetail = item.expiresOn != null || item.sodiumLevel != null
+                Column(modifier = Modifier.weight(1f).padding(vertical = if (hasDetail) 8.dp else 14.dp)) {
+                    Text(item.name, style = MaterialTheme.typography.bodyLarge)
+                    item.expiresOn?.let {
+                        Text(
+                            Expiry.label(it, today),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (Expiry.isSoon(it, today)) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                    item.sodiumLevel?.let { level ->
+                        val amount = item.sodiumMgPerServing?.let { "${Dash.mg(it)} mg per serving" }
+                            ?: item.sodiumMgPer100g?.let { "${Dash.mg(it)} mg per 100 g" }
+                        Text(
+                            listOfNotNull(level.label, amount).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = when (level) {
+                                SodiumLevel.HIGH -> MaterialTheme.colorScheme.error
+                                SodiumLevel.MODERATE -> MaterialTheme.colorScheme.onSurfaceVariant
+                                SodiumLevel.LOW -> MaterialTheme.colorScheme.primary
+                            },
+                        )
+                    }
+                }
+                IconButton(onClick = onSetExpiry) {
+                    Icon(
+                        Icons.Default.Event,
+                        if (item.expiresOn == null) "Set expiry date for ${item.name}" else "Change expiry date",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 IconButton(onClick = onRanOut) {
                     Icon(
                         Icons.Default.AddShoppingCart,
