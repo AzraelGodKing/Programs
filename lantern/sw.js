@@ -3,35 +3,58 @@
  * the network answers and kept for when it does not, so solo play still opens
  * offline. The shared table (/api/) always goes to the network.
  */
-const CACHE = "lantern-shell-v2";
+const CACHE = "lantern-shell-v8";
 const SHELL = [
   "/",
   "/index.html",
   "/player.html",
   "/dm.html",
+  "/watch.html",
   "/styles.css",
   "/favicon.svg",
   "/manifest.webmanifest",
   "/icons/lantern-192.png",
   "/icons/lantern-512.png",
   "/src/app.js",
+  "/src/armor.js",
   "/src/catalog.js",
   "/src/character.js",
   "/src/dice.js",
+  "/src/combat.js",
   "/src/dm.js",
+  "/src/dmasks.js",
+  "/src/dmcombat.js",
+  "/src/dmparty.js",
+  "/src/dmrewards.js",
+  "/src/dmstory.js",
+  "/src/dmtable.js",
+  "/src/dmmap.js",
+  "/src/battlemap.js",
+  "/src/mapgrid.js",
+  "/src/playermap.js",
+  "/src/recap.js",
+  "/src/watch.js",
+  "/src/dmlibrary.js",
+  "/src/display.js",
+  "/src/extras.js",
+  "/src/library.js",
+  "/src/pdfread.js",
   "/src/encounter.js",
   "/src/gear.js",
   "/src/lights.js",
   "/src/marks.js",
+  "/src/monsters.js",
   "/src/oracle.js",
   "/src/order.js",
   "/src/qr.js",
   "/src/pwa.js",
   "/src/roster.js",
   "/src/screen.js",
+  "/src/session.js",
   "/src/store.js",
   "/src/table.js",
   "/src/talk.js",
+  "/src/treasure.js",
   "/src/textsize.js",
 ];
 
@@ -54,7 +77,8 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
   const fetched = fetch(request).then((response) => {
     if (response.ok) {
-      event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, response.clone())));
+      const copy = response.clone();
+      event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, copy)));
     }
     return response;
   });

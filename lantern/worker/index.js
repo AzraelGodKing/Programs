@@ -47,6 +47,18 @@ export class Table extends DurableObject {
     return this.room().setVitals(token, payload);
   }
 
+  board(token, payload) {
+    return this.room().board(token, payload);
+  }
+
+  map(token, payload) {
+    return this.room().map(token, payload);
+  }
+
+  recap(token, payload) {
+    return this.room().recap(token, payload);
+  }
+
   async alarm() {
     await this.ctx.storage.deleteAll();
   }

@@ -21,9 +21,7 @@ function stubFor(env, code) {
 
 function tokenFrom(request) {
   const header = request.headers.get("x-lantern-token") || "";
-  if (validToken(header)) return header;
-  const query = new URL(request.url).searchParams.get("token") || "";
-  return validToken(query) ? query : "";
+  return validToken(header) ? header : "";
 }
 
 async function readJson(request) {
@@ -61,13 +59,18 @@ async function roomPost(env, request, token, path, suffix, call, wrap) {
   }
 }
 
+const same = (value) => value;
+
 const ROOM_POSTS = [
-  [/\/join\/?$/i, (stub, token, body) => stub.join(token, body), (seat) => seat],
+  [/\/join\/?$/i, (stub, token, body) => stub.join(token, body), same],
   [/\/order\/?$/i, (stub, token, body) => stub.setOrder(token, body), (order) => ({ ok: true, order })],
   [/\/initiative\/?$/i, (stub, token, body) => stub.rollInitiative(token, body), (order) => ({ ok: true, order })],
   [/\/vitals\/?$/i, (stub, token, body) => stub.setVitals(token, body), (order) => ({ ok: true, order })],
   [/\/shop\/?$/i, (stub, token, body) => stub.setShop(token, body), (shop) => ({ ok: true, shop })],
   [/\/buyback\/?$/i, (stub, token, body) => stub.tradeBuyback(token, body), (buybacks) => ({ ok: true, buybacks })],
+  [/\/board\/?$/i, (stub, token, body) => stub.board(token, body), same],
+  [/\/map\/?$/i, (stub, token, body) => stub.map(token, body), same],
+  [/\/recap\/?$/i, (stub, token, body) => stub.recap(token, body), same],
   [/\/talk\/?$/i, (stub, token, body) => stub.talk(token, body), (stored) => ({ ok: true, message: stored })],
 ];
 
@@ -87,27 +90,27 @@ export async function handleRequest(request, env) {
     }
     return json(405, { error: "Open a table with POST." });
   }
+  if (request.method === "POST" && path.startsWith("/api/rooms/")) {
+    const route = ROOM_POSTS.find(([suffix]) => suffix.test(path));
+    if (route) return roomPost(env, request, token, path, ...route);
+  }
   if (path.startsWith("/api/rooms/")) {
-    if (request.method === "POST") {
-      for (const [suffix, call, wrap] of ROOM_POSTS) {
-        if (suffix.test(path)) return roomPost(env, request, token, path, suffix, call, wrap);
-      }
-      return roomPost(
-        env,
-        request,
-        token,
-        path,
-        /$/,
-        (stub, seatToken, body) => stub.update(seatToken, body),
-        (result) => ({ ok: true, shop: result.shop, order: result.order }),
-      );
-    }
     const code = roomCode(path, /$/);
     if (!validCode(code)) return missing();
+    const stub = stubFor(env, code);
     if (request.method === "GET") {
-      const view = await stubFor(env, code).view(token);
+      const view = await stub.view(token);
       if (!view) return missing();
       return json(200, { code, ...view });
+    }
+    if (request.method === "POST") {
+      try {
+        const result = await stub.update(token, await readJson(request));
+        if (!result) return missing();
+        return json(200, { ok: true, shop: result.shop, order: result.order });
+      } catch (error) {
+        return rejected(error);
+      }
     }
     return json(405, { error: "Method not allowed." });
   }

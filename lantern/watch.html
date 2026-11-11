@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lantern — Watching the table</title>
+  <meta name="description" content="A read-only view of a Lantern table: the order, the map, table talk, and public rolls.">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#14110e">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="watch-page">
+  <a class="skip" href="#watch-main">Skip to the table</a>
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 48 64" aria-hidden="true">
+        <path fill="currentColor" d="M22 2h4v8h-4z"/>
+        <rect x="14" y="8" width="20" height="6" rx="1" fill="currentColor"/>
+        <path class="glass" d="M16 16h16l6 10v14l-6 10H16l-6-10V26z"/>
+        <path class="bars" d="M24 24v16M18 32h12"/>
+      </svg>
+      <div>
+        <h1>Lantern</h1>
+        <p class="brand-tag">Watching the table</p>
+        <p class="role-chip">Spectator</p>
+      </div>
+    </div>
+    <p id="watch-world" class="hint"></p>
+  </header>
+  <main id="watch-main" class="watch-main">
+    <p id="watch-status" class="lede" role="status">Opening the table…</p>
+    <div id="watch-body" class="watch-grid" hidden>
+      <section class="watch-card watch-wide" id="watch-map-card" hidden aria-labelledby="watch-map-title">
+        <h2 id="watch-map-title">Battle map</h2>
+        <div id="watch-map" role="img" aria-label="Battle map"></div>
+      </section>
+      <section class="watch-card" aria-labelledby="watch-order-title">
+        <h2 id="watch-order-title">Order</h2>
+        <p id="watch-round" class="hint"></p>
+        <ol id="watch-order" class="watch-list"></ol>
+      </section>
+      <section class="watch-card" aria-labelledby="watch-party-title">
+        <h2 id="watch-party-title">At the table</h2>
+        <ul id="watch-party" class="watch-list"></ul>
+        <div id="watch-next"></div>
+      </section>
+      <section class="watch-card" aria-labelledby="watch-talk-title">
+        <h2 id="watch-talk-title">Table talk</h2>
+        <div id="watch-talk" class="talk-log watch-scroll" tabindex="0" role="log" aria-label="Table talk"></div>
+      </section>
+      <section class="watch-card" aria-labelledby="watch-rolls-title">
+        <h2 id="watch-rolls-title">Rolls and what happened</h2>
+        <div id="watch-rolls" class="watch-scroll" tabindex="0" role="log" aria-label="Rolls"></div>
+      </section>
+      <section class="watch-card watch-wide" aria-labelledby="watch-quests-title">
+        <h2 id="watch-quests-title">Quests</h2>
+        <ul id="watch-quests" class="watch-list"></ul>
+      </section>
+    </div>
+    <p class="hint">This page only watches. Whispers, secret rolls, character sheets, and notes are not sent to it.</p>
+  </main>
+  <script type="module" src="src/watch.js"></script>
+</body>
+</html>

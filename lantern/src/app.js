@@ -43,6 +43,7 @@ import {
   coinCounts,
   counterFor,
   equipNewCharacter,
+  findGear,
   findOffer,
   formatCoin,
   buyBackItem,
@@ -77,13 +78,52 @@ import {
   saveRoster,
   writeSheet,
 } from "./roster.js";
-import { SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
+import { HISTORY_CAP, SAVE_BYTES, SaveError, clearState, exportNight, importNight, loadState, nightFilename, normalize, saveState } from "./store.js";
+import {
+  AMMO_IDS,
+  ATTUNE_CAP,
+  COLORS,
+  MACRO_CAP,
+  PORTRAIT_CHARS,
+  TRINKET_CAP,
+  ammoPerBundle,
+  applyDamage,
+  applyHealing,
+  applyTemp,
+  attunedCount,
+  blankExtras,
+  carriedWeight,
+  classResources,
+  classSlots,
+  cleanExtras,
+  concentrationDc,
+  critDamage,
+  encumbrance,
+  formulaText,
+  levelUpSteps,
+  applyGift,
+  levelForXp,
+  XP_LEVELS,
+  parseFormula,
+  potionHealing,
+  restExtras,
+  splitCoin,
+  syncAmmo,
+  tickResource,
+  tickSlot,
+  toggleAttune,
+} from "./extras.js";
 import { armorClass } from "./armor.js";
-import { blankDeath, cleanDeath, cleanOrder } from "./order.js";
-import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
-import { paintHere, paintTalk, paintTargets } from "./talk.js";
+import { blankDeath, cleanDeath, cleanOrder, sortOrder } from "./order.js";
+import { DM_NAME, SOLO_ROOM, fetchRoom, joinRoom, loadSeat, normalizeCode, postBoard, postBuyback, postInitiative, postTalk, postVitals, pushTable, rollSummary, saveSeat } from "./table.js";
+import { mentions, paintHere, paintPins, paintTalk, paintTargets, typingLine } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
+import { bootDisplay } from "./display.js";
+import { cleanSpell, readLibraryFile, readPdfContent } from "./library.js";
 import { registerOffline } from "./pwa.js";
+import { hourText, turnTimerText } from "./combat.js";
+import { downloadText, icsFor } from "./session.js";
+import { bootPlayerMap, paintPlayerMap } from "./playermap.js";
 
 const WORDS = {
   trivial: "Trivial",
@@ -188,7 +228,7 @@ function currentIntent() {
   return document.getElementById("roll-for")?.value || "";
 }
 
-function persist(summary) {
+function persist(summary, { secret = false, ask = "", total } = {}) {
   if (gateMode === "play" && activeId) {
     const code = seatedCode();
     if (code) {
@@ -198,7 +238,16 @@ function persist(summary) {
   }
   saveState(state);
   if (typeof summary === "string" && summary.trim()) {
-    shareQueue.push(summary.trim().slice(0, 300));
+    const text = summary.trim().slice(0, 300);
+    if (secret || ask) {
+      const entry = { text };
+      if (secret) entry.secret = true;
+      if (ask) {
+        entry.ask = ask;
+        if (Number.isInteger(total)) entry.total = total;
+      }
+      shareQueue.push(entry);
+    } else shareQueue.push(text);
   }
   clearTimeout(shareTimer);
   shareTimer = setTimeout(() => { void flushShare(); }, shareQueue.length ? 30 : 280);
@@ -288,8 +337,20 @@ function paintPurposes() {
 
 function bootSeat() {
   const seat = loadSeat();
-  const fromUrl = normalizeCode(new URLSearchParams(location.search).get("room"));
+  const params = new URLSearchParams(location.search);
+  const fromUrl = normalizeCode(params.get("room"));
   if (fromUrl) seat.room = fromUrl;
+  const handed = params.get("seat") || "";
+  if (fromUrl && /^[a-f0-9]{32}$/.test(handed)) {
+    // A link from the DM that hands this device an existing seat.
+    seat.token = handed;
+    seat.solo = false;
+    if (params.get("name")) seat.name = params.get("name").trim().slice(0, 40);
+    const clean = new URL(location.href);
+    clean.searchParams.delete("seat");
+    clean.searchParams.delete("name");
+    history.replaceState(null, "", clean);
+  }
   document.getElementById("seat-name").value = seat.name;
   document.getElementById("seat-room").value = seat.room;
   if (fromUrl) saveSeat(seat);
@@ -395,6 +456,7 @@ const PLAYER_MODULES = {
   character: "module-pack",
   notes: "module-notes",
   table: "module-table",
+  party: "module-party",
 };
 
 let moduleSync = true;
@@ -409,7 +471,7 @@ function closePlayerModules() {
 }
 
 function paintPlayerTabs(tab) {
-  for (const name of ["dice", "order", "threat", "spark", "character", "notes", "table"]) {
+  for (const name of ["dice", "order", "threat", "spark", "character", "notes", "table", "party"]) {
     const button = document.getElementById(`tab-${name}`);
     if (!button) continue;
     const on = name === tab;
@@ -458,7 +520,7 @@ function paintGate() {
     lede.textContent = "Six steps. Jump back whenever you want, then sit down.";
     actions.replaceChildren(...present([
       list.length ? h("button", { type: "button", class: "btn", "data-action": "open-roster" }, "Back") : null,
-      h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file"),
+      h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file or PDF sheet"),
     ]));
     mount.replaceChildren();
     paintCreator();
@@ -482,7 +544,7 @@ function paintGate() {
   lede.textContent = "Load a living character, start a new one, or look back at a character who died.";
   actions.replaceChildren(
     h("button", { type: "button", class: "btn primary", "data-action": "create-character" }, "Create a new character"),
-    h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file"),
+    h("button", { type: "button", class: "btn", "data-action": "import-character" }, "Import a character file or PDF sheet"),
   );
   mount.replaceChildren(
     ...list.filter((entry) => !entry.dead).map((entry) => rosterRow(entry, "Load", "load-character")),
@@ -580,10 +642,17 @@ async function sendTalk() {
     return;
   }
   try {
+    const voiced = talkPayload(text);
+    if (!voiced.text) {
+      if (status) status.textContent = "Write a message first.";
+      return;
+    }
     await postTalk(seat.room, {
-      text,
+      ...voiced,
       to: document.getElementById("talk-to")?.value || "",
     }, seat.token);
+    typingSentAt = 0;
+    void postBoard(seat.room, { op: "typing", on: false }).catch(() => {});
     if (field) field.value = "";
     if (status) status.textContent = "";
     await watchShop();
@@ -728,9 +797,22 @@ async function importCharacter(file) {
   }
   let sheet;
   let dead;
+  let fromPdf = false;
   try {
-    if (file.size > SAVE_BYTES) throw new Error("That file is too large to be a character.");
-    ({ sheet, dead } = readCharacterFile(JSON.parse(await file.text())));
+    if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+      setGateStatus("Reading the sheet…");
+      const { readPdf, looksScanned } = await import("./pdfread.js");
+      const pdf = await readPdf(file);
+      if (looksScanned(pdf)) throw new Error("That PDF is a picture of a sheet, with no text to read. A fillable sheet or one exported from an app works.");
+      sheet = readPdfContent(pdf, "character").character;
+      if (!sheet) throw new Error("No character sheet found in that PDF.");
+      if (!sheet.name.trim()) sheet = { ...sheet, name: file.name.replace(/\.pdf$/i, "").slice(0, 80) };
+      dead = false;
+      fromPdf = true;
+    } else {
+      if (file.size > SAVE_BYTES) throw new Error("That file is too large to be a character.");
+      ({ sheet, dead } = readCharacterFile(JSON.parse(await file.text())));
+    }
   } catch (error) {
     setGateStatus(error instanceof SyntaxError ? "That file is not a Lantern character." : error.message);
     return;
@@ -745,6 +827,12 @@ async function importCharacter(file) {
     return;
   }
   loadCharacter(made.entry.id);
+  if (fromPdf) {
+    beginRevise();
+    creatorStep = CREATOR_STEPS.findIndex((item) => item.id === "review");
+    paintCreator();
+    setGateStatus(`Read ${sheet.name} from the PDF. Check each step, then sit down.`);
+  }
 }
 
 function loadCharacter(id) {
@@ -834,7 +922,7 @@ function findCombatant(id) {
 }
 
 function turnOrder() {
-  return [...state.combat.combatants].sort((a, b) => b.init - a.init || a.order - b.order);
+  return sortOrder(state.combat.combatants);
 }
 
 function ensureActive() {
@@ -849,7 +937,7 @@ function ensureActive() {
 }
 
 function showTab(tab, { save = true } = {}) {
-  if (!["dice", "order", "character", "notes", "table"].includes(tab)) tab = "dice";
+  if (!["dice", "order", "character", "notes", "table", "party"].includes(tab)) tab = "dice";
   state.tab = tab;
   if (gateMode !== "play") {
     paintPlayerTabs(tab);
@@ -964,9 +1052,16 @@ function renderFreshResult(result) {
 
 function renderHistory() {
   const mount = document.getElementById("dice-history");
-  mount.replaceChildren(...state.dice.history.map((item) => h("article", { class: item.tag ? `ticket ${item.tag}` : "ticket" }, present([
+  const filter = document.getElementById("history-filter")?.value || "";
+  const shown = state.dice.history.filter((item) => (!filter ? true : filter === "secret" ? item.secret : rollKind(item) === filter));
+  if (!shown.length && state.dice.history.length) {
+    mount.replaceChildren(h("p", { class: "hint" }, "No rolls of that kind yet."));
+    return;
+  }
+  mount.replaceChildren(...shown.map((item) => h("article", { class: item.tag ? `ticket ${item.tag}` : "ticket" }, present([
     h("p", { class: "ticket-total" }, String(item.total)),
-    item.purpose ? h("p", { class: "ticket-detail" }, item.purpose) : null,
+    item.purpose || item.target ? h("p", { class: "ticket-detail" }, [item.purpose, item.target && `at ${item.target}`].filter(Boolean).join(" ")) : null,
+    item.secret ? h("p", { class: "ticket-secret" }, "Secret") : null,
     h("p", {}, item.formula),
     h("p", { class: "ticket-detail" }, item.detail),
   ]))));
@@ -974,29 +1069,16 @@ function renderHistory() {
 
 function doRoll() {
   syncDiceNumbers();
-  const mode = state.dice.sides === 20 ? state.dice.mode : "normal";
-  const result = roll({
+  pendingDamage = null;
+  return performRoll({
     count: state.dice.count,
     sides: state.dice.sides,
     modifier: state.dice.modifier,
-    mode,
+    mode: state.dice.mode,
+    purpose: currentIntent(),
+    secret: secretChecked(),
+    target: currentTarget(),
   });
-  const purpose = currentIntent().trim().slice(0, 60);
-  const line = formula(result);
-  const detail = facesLabel(result);
-  state.dice.history.unshift({
-    id: uid(),
-    formula: line,
-    total: result.total,
-    detail,
-    purpose,
-    tag: result.tag,
-  });
-  state.dice.history = state.dice.history.slice(0, 12);
-  persist(rollSummary({ purpose, formula: line, total: result.total, detail, tag: result.tag }));
-  paintDice();
-  renderFreshResult(result);
-  renderHistory();
 }
 
 function renderBanner() {
@@ -1170,6 +1252,7 @@ function readOnlyRow(person, active) {
 }
 
 function renderCombat() {
+  paintTargets2();
   const shared = atSharedTable();
   const note = document.getElementById("order-shared-note");
   const form = document.getElementById("combatant-form");
@@ -1183,7 +1266,7 @@ function renderCombat() {
   if (!mount) return;
   if (shared) {
     const order = sharedOrder || cleanOrder(null);
-    const list = [...order.combatants].sort((a, b) => b.init - a.init || a.order - b.order);
+    const list = sortOrder(order.combatants);
     const banner = document.getElementById("turn-banner");
     const meta = document.getElementById("turn-meta");
     if (!list.length) {
@@ -1197,6 +1280,7 @@ function renderCombat() {
     if (banner) banner.textContent = current ? `${current.name} · round ${order.round}` : "The round has not started";
     if (meta) meta.textContent = "The DM moves the round.";
     mount.replaceChildren(...list.map((person) => readOnlyRow(person, person.id === active)));
+    paintTurnHelper();
     return;
   }
   ensureActive();
@@ -1207,6 +1291,7 @@ function renderCombat() {
     return;
   }
   mount.replaceChildren(...list.map((person) => combatRow(person, person.id === state.combat.activeId)));
+  paintTurnHelper();
   if (pendingScroll) {
     mount.querySelector(".is-active")?.scrollIntoView({ block: "nearest" });
     pendingScroll = false;
@@ -1928,9 +2013,21 @@ function renderKit() {
   setText(document.getElementById("kit-meta"), view ? view.meta : "");
   setText(document.getElementById("kit-hp"), "");
   setText(document.getElementById("kit-purse"), character.purse == null ? "" : formatCoin(character.purse));
+  paintPortrait(character);
   paintVitals(character);
+  paintConditions();
+  paintAbilities(character);
+  paintResources(character);
+  paintSlots();
   paintTonight(character);
+  paintSpellbook();
   paintKitChoices();
+  paintWeight(character);
+  paintAmmo(character);
+  paintTrinkets();
+  paintLevelUp(character);
+  renderMacros();
+  paintAfterRoll();
   const skills = addBackgroundSkills(character);
   mountSkills.replaceChildren(...(skills.length
     ? skills.map((id) => {
@@ -1978,11 +2075,20 @@ function paintVitals(character) {
   const death = cleanDeath(heroDeath());
   const down = current <= 0;
   mount.replaceChildren(...present([
-    h("p", { class: "sheet-title" }, `Hit points ${current} / ${max}`),
+    h("p", { class: "sheet-title" }, `Hit points ${current} / ${max}${extras().tempHp ? ` · ${extras().tempHp} temporary` : ""}`),
     h("div", { class: "turn-actions" }, [
       h("button", { type: "button", class: "btn", "data-action": "hero-hp", "data-delta": "-1" }, "−1"),
       h("button", { type: "button", class: "btn", "data-action": "hero-hp", "data-delta": "1" }, "+1"),
+    ]),
+    h("div", { class: "turn-actions amount-row" }, [
+      h("label", {}, ["Amount", h("input", { id: "kit-amount", type: "number", min: "0", max: "999", inputmode: "numeric", placeholder: "0" })]),
+      h("button", { type: "button", class: "btn", "data-action": "hero-damage" }, "Damage"),
+      h("button", { type: "button", class: "btn", "data-action": "hero-heal" }, "Heal"),
+      h("button", { type: "button", class: "btn", "data-action": "hero-temp" }, "Temp HP"),
+    ]),
+    h("div", { class: "turn-actions" }, [
       h("button", { type: "button", class: "btn", "data-action": "short-rest" }, "Short rest"),
+      h("button", { type: "button", class: "btn", "data-action": "long-rest" }, "Long rest"),
       h("button", {
         type: "button",
         class: "btn",
@@ -2135,6 +2241,8 @@ function renderGear() {
     if (services) lines.push("A service is paid, not packed.");
     if (!goods) lines.push("This counter does not buy gear.");
     if (!lines.length) lines.push("Nothing is on this counter.");
+    const deal = Number(counter.deals?.[loadSeat().name]) || 0;
+    if (deal) lines.push(deal < 0 ? `The keeper gives you ${-deal}% off.` : `The keeper charges you ${deal}% more.`);
     lede.textContent = lines.join(" ");
   }
   shop.replaceChildren(...(offers.length
@@ -2209,6 +2317,12 @@ function heldForSeat() {
   ));
 }
 
+/** The DM's per-seat discount or markup, in percent. */
+function dealPrice(cp) {
+  const deal = Number(counter.deals?.[loadSeat().name]) || 0;
+  return deal ? Math.max(0, Math.round((cp * (100 + deal)) / 100)) : cp;
+}
+
 function normalizeShop(shop) {
   if (shop && typeof shop === "object") {
     const name = typeof shop.name === "string" ? shop.name.trim() : "";
@@ -2216,6 +2330,7 @@ function normalizeShop(shop) {
       open: shop.open !== false,
       name: name || "Shop",
       goods: Array.isArray(shop.goods) ? shop.goods : null,
+      deals: shop.deals && typeof shop.deals === "object" ? shop.deals : null,
     };
   }
   return { open: shop !== false, name: "Market", goods: null };
@@ -2230,7 +2345,7 @@ function counterOffers() {
     return [{
       id: known.id,
       name: known.name,
-      cp: good.cp,
+      cp: dealPrice(good.cp),
       service: known.service === true || good.service === true,
     }];
   });
@@ -2262,6 +2377,7 @@ function applySharedOrder(order) {
     state.character.hp = mine.hp;
     state.character.maxHp = mine.maxHp;
     state.character.death = mine.death;
+    if (!pushingVitals) state.character.extras = cleanExtras({ ...extras(), conditions: mine.marks });
   }
   renderCombat();
   renderKit();
@@ -2283,7 +2399,7 @@ async function watchShop() {
   if (!room || room.locked) return;
   applyShop(room.shop, room.buybacks);
   if (room.order) applySharedOrder(room.order);
-  paintTalk(document.getElementById("talk-log"), room.messages || []);
+  paintRoomExtras(room, seat);
   paintHere(document.getElementById("table-here"), room.players || [], seat.name);
   paintAsk(room.messages || [], seat.name);
   paintTargets(
@@ -2434,6 +2550,7 @@ async function buyBackPiece(id, cpText) {
 }
 
 function spendItem(id) {
+  if (drinkPotion(id)) return;
   const result = useItem(state.character, id);
   if (!result.ok) return;
   state.character = result.character;
@@ -2447,6 +2564,7 @@ function spendItem(id) {
 const ASK_KEY = "lantern.asks.done";
 const ASK_FRESH_MS = 15 * 60 * 1000;
 let pendingAsk = null;
+let answeringAsk = "";
 
 function answeredAsks() {
   try {
@@ -2480,7 +2598,7 @@ function paintAsk(messages, selfName) {
   if (!ask) return;
   const info = askBonus(state.character, ask.ask);
   const what = info ? `${info.label} (${formatMod(info.bonus)})` : ask.ask;
-  setText(document.getElementById("ask-text"), `The DM asks ${ask.to ? "you" : "the table"} for ${what}.`);
+  setText(document.getElementById("ask-text"), `The DM asks ${ask.to ? "you" : "the table"} for ${what}${ask.dc ? `, DC ${ask.dc}` : ""}.`);
 }
 
 function answerAsk() {
@@ -2496,6 +2614,7 @@ function answerAsk() {
   document.getElementById("dice-count").value = "1";
   if (purpose) purpose.value = info ? info.label : ask.ask;
   showTab("dice");
+  answeringAsk = /^[a-f0-9]{16}$/.test(ask.id || "") ? ask.id : "";
   if (info) {
     state.dice.modifier = info.bonus;
     document.getElementById("dice-mod").value = String(info.bonus);
@@ -3013,6 +3132,9 @@ function onClick(event) {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const { action } = button.dataset;
+  if (extraClick(action, button)) return;
+  if (boardClick(action, button)) return;
+  if (libraryClick(action, button)) return;
   if (action === "play-alone") startSolo(document.getElementById("seat-name")?.value || "");
   else if (action === "toggle-pause") togglePause();
   else if (action === "revise-character") beginRevise();
@@ -3114,6 +3236,8 @@ function onSubmit(event) {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
   event.preventDefault();
+  if (extraSubmit(form)) return;
+  if (boardSubmit(form)) return;
   if (form.id === "seat-form") joinSeat(form);
   else if (form.id === "talk-form") void sendTalk();
   else if (form.dataset.form === "combatant") addCombatant(form);
@@ -3123,6 +3247,7 @@ function onSubmit(event) {
 
 function onInput(event) {
   const target = event.target;
+  if (boardInput(target)) return;
   if (target.dataset?.sheet) {
     updateSheet(target, { log: false });
     return;
@@ -3238,6 +3363,11 @@ function onInput(event) {
 
 function onChange(event) {
   const target = event.target;
+  if (boardChange(target)) return;
+  if (extraChange(target)) {
+    if (target.dataset?.slotMax) renderKit();
+    return;
+  }
   if (target.dataset?.sheet) {
     updateSheet(target, { log: true });
     return;
@@ -3339,7 +3469,7 @@ function onKey(event) {
   }
   if (gateMode !== "play") return;
   if (event.target.closest("button") && !event.target.closest("dialog")) return;
-  const tabs = { 1: "dice", 2: "order", 3: "character", 4: "notes", 5: "table" };
+  const tabs = { 1: "dice", 2: "order", 3: "character", 4: "notes", 5: "table", 6: "party" };
   if (tabs[event.key]) {
     event.preventDefault();
     const next = tabs[event.key];
@@ -3348,6 +3478,9 @@ function onKey(event) {
   } else if (event.key === "r" && !document.querySelector("dialog[open]")) {
     event.preventDefault();
     doRoll();
+  } else if (event.key === "e" && myTurn()) {
+    event.preventDefault();
+    void endMyTurn();
   } else if (event.key === "n" && document.getElementById("module-order")?.open) {
     event.preventDefault();
     stepTurn(1);
@@ -3361,13 +3494,22 @@ function mirrorHero(person) {
   state.character.death = person.death;
 }
 
+let pushingVitals = false;
+
 async function pushHeroVitals() {
   if (!atSharedTable()) return;
-  const order = await postVitals(loadSeat().room, {
-    hp: state.character.hp,
-    maxHp: maxHitPoints(state.character),
-    ac: armorClass(state.character),
-  });
+  pushingVitals = true;
+  let order = null;
+  try {
+    order = await postVitals(loadSeat().room, {
+      hp: state.character.hp,
+      maxHp: maxHitPoints(state.character),
+      ac: armorClass(state.character),
+      marks: extras().conditions,
+    });
+  } finally {
+    pushingVitals = false;
+  }
   if (order?.order) applySharedOrder(order.order);
 }
 
@@ -3406,6 +3548,7 @@ function shortRest() {
   state.character.hp = Math.min(max, current + gain);
   state.character.maxHp = max;
   state.character.hitDiceUsed += 1;
+  state.character.extras = restExtras(extras(), "short", state.character.classId);
   if (state.character.hp > 0) state.character.death = blankDeath();
   persist(`Short rest: ${gain} hit points from a d${info.hitDie}.`);
   void pushHeroVitals();
@@ -3528,9 +3671,1594 @@ function setDeathPip(id, kind, index) {
   renderKit();
 }
 
+// ---------------------------------------------------------------------------
+// Player extras: saved rolls, secret rolls, inspiration rerolls, the fuller pack.
+
+let lastRoll = null;
+let pendingDamage = null;
+let pendingHelp = null;
+
+
+function extras() {
+  if (!state.character.extras) state.character.extras = blankExtras();
+  return state.character.extras;
+}
+
+function setExtras(next, summary) {
+  state.character.extras = cleanExtras(next);
+  persist(summary);
+  renderKit();
+}
+
+function secretChecked() {
+  return document.getElementById("roll-secret")?.checked === true;
+}
+
+function currentTarget() {
+  const field = document.getElementById("target-field");
+  if (!field || field.hidden) return "";
+  return document.getElementById("roll-target")?.value || "";
+}
+
+function rollKind(item) {
+  const what = String(item.purpose || "").toLowerCase();
+  if (/attack|to hit/.test(what)) return "attack";
+  if (/damage|breath|healing|potion/.test(what)) return "damage";
+  if (/save/.test(what)) return "save";
+  if (/check|initiative/.test(what) || SKILLS.some((skill) => skill.label.toLowerCase() === what)) return "check";
+  return "other";
+}
+
+function performRoll(setup) {
+  const sides = setup.sides;
+  let mode = sides === 20 ? (setup.mode || "normal") : "normal";
+  let helped = "";
+  if (sides === 20 && setup.count === 1 && pendingHelp && setup.help !== false) {
+    helped = pendingHelp.from;
+    mode = mode === "disadvantage" ? "normal" : "advantage";
+    consumeHelp();
+  }
+  const result = roll({ count: setup.count, sides, modifier: setup.modifier, mode });
+  const purpose = String(setup.purpose || "").trim().slice(0, 60);
+  const target = String(setup.target || "").trim().slice(0, 80);
+  const secret = setup.secret === true;
+  const line = formula(result);
+  const detail = facesLabel(result);
+  state.dice.history.unshift({
+    id: uid(),
+    formula: line,
+    total: result.total,
+    detail: helped ? `${detail} · helped by ${helped}` : detail,
+    purpose,
+    tag: result.tag,
+    secret,
+    target,
+  });
+  state.dice.history = state.dice.history.slice(0, HISTORY_CAP);
+  const forWhat = target ? `${purpose || "an attack"} at ${target}` : purpose;
+  const summary = rollSummary({ purpose: forWhat, formula: line, total: result.total, detail, tag: result.tag });
+  const answering = answeringAsk;
+  answeringAsk = "";
+  persist(helped ? `${summary} Helped by ${helped}.` : summary, { secret, ask: answering, total: result.total });
+  lastRoll = { setup: { ...setup, mode: setup.mode || "normal" }, result };
+  paintDice();
+  renderFreshResult(result);
+  renderHistory();
+  paintAfterRoll();
+  announceRoll(result, purpose, secret);
+  return result;
+}
+
+function announceRoll(result, purpose, secret) {
+  const live = document.getElementById("roll-live");
+  if (!live) return;
+  const tag = result.tag === "natural-20" ? ", natural 20" : result.tag === "natural-1" ? ", natural 1" : "";
+  live.textContent = `${secret ? "Secret roll: " : ""}${result.total}${tag}${purpose ? ` for ${purpose}` : ""}.`;
+}
+
+function paintAfterRoll() {
+  const mount = document.getElementById("after-roll");
+  if (!mount) return;
+  const buttons = [];
+  if (pendingDamage) {
+    const crit = pendingDamage.crit;
+    buttons.push(h("button", { type: "button", class: crit ? "btn primary is-crit" : "btn primary", "data-action": "macro-damage" },
+      crit ? `Roll ${pendingDamage.macro.label} damage, critical (${formulaText(critDamage(parseFormula(pendingDamage.macro.damage)))})` : `Roll ${pendingDamage.macro.label} damage (${pendingDamage.macro.damage})`));
+  }
+  if (lastRoll && state.character.inspiration && gateMode === "play") {
+    buttons.push(h("button", { type: "button", class: "btn", "data-action": "inspire-reroll" }, "Spend inspiration to reroll"));
+  }
+  mount.replaceChildren(...buttons);
+}
+
+function inspireReroll() {
+  if (!lastRoll || !state.character.inspiration) return;
+  state.character.inspiration = false;
+  const setup = { ...lastRoll.setup, purpose: `${lastRoll.setup.purpose || "a roll"} (inspiration reroll)`.slice(0, 60), help: false };
+  persist("Spends inspiration to reroll.");
+  lastRoll = null;
+  performRoll(setup);
+  renderKit();
+}
+
+function renderMacros() {
+  const bar = document.getElementById("macro-bar");
+  const list = document.getElementById("macro-list");
+  if (!bar || !list) return;
+  const macros = extras().macros;
+  bar.replaceChildren(...(macros.length
+    ? macros.map((macro) => h("button", { type: "button", class: "btn", "data-action": "run-macro", "data-id": macro.id },
+      `${macro.label}${macro.hit ? ` ${macro.hit.replace(/^1d20/, "")}` : ""}${macro.damage ? ` · ${macro.damage}` : ""}`))
+    : [h("p", { class: "hint" }, "Save the rolls you make every fight, like an attack and its damage, and they wait here as one tap.")]));
+  list.replaceChildren(...macros.map((macro) => h("div", { class: "gear-row" }, [
+    h("span", {}, `${macro.label}: ${[macro.hit && `to hit ${macro.hit}`, macro.damage && `damage ${macro.damage}`, macro.ammo && "uses ammo"].filter(Boolean).join(", ")}`),
+    h("button", { type: "button", class: "text-btn", "data-action": "remove-macro", "data-id": macro.id }, "Remove"),
+  ])));
+}
+
+function addMacro(form) {
+  const label = form.elements.label.value.trim();
+  const hit = form.elements.hit.value.trim();
+  const damage = form.elements.damage.value.trim();
+  if (!label) return showError("macro", "Name the roll.");
+  if (hit && !parseFormula(hit)) return showError("macro", "Write to hit like 1d20+5, or just +5.");
+  if (damage && !parseFormula(damage)) return showError("macro", "Write damage like 1d8+3.");
+  if (!hit && !damage) return showError("macro", "Give it a to hit or a damage roll.");
+  if (extras().macros.length >= MACRO_CAP) return showError("macro", `Twelve saved rolls is the most.`);
+  showError("macro", "");
+  const next = { ...extras(), macros: [...extras().macros, { id: uid().replace(/[^A-Za-z0-9_-]/g, ""), label, hit, damage, ammo: form.elements.ammo.checked }] };
+  form.reset();
+  state.character.extras = cleanExtras(next);
+  persist(`Saved a roll: ${label}.`);
+  renderMacros();
+}
+
+function removeMacro(id) {
+  state.character.extras = cleanExtras({ ...extras(), macros: extras().macros.filter((macro) => macro.id !== id) });
+  persist("Removed a saved roll.");
+  renderMacros();
+}
+
+function runMacro(id) {
+  const macro = extras().macros.find((item) => item.id === id);
+  if (!macro) return;
+  pendingDamage = null;
+  if (macro.ammo && !fireAmmo()) return;
+  const hit = parseFormula(macro.hit);
+  if (hit) {
+    const result = performRoll({ ...hit, mode: state.dice.mode, purpose: `${macro.label} attack`, target: currentTarget(), secret: secretChecked() });
+    if (macro.damage) {
+      pendingDamage = { macro, crit: result.tag === "natural-20" };
+      paintAfterRoll();
+    }
+    return;
+  }
+  const damage = parseFormula(macro.damage);
+  if (damage) performRoll({ ...damage, mode: "normal", purpose: `${macro.label} damage`, target: currentTarget(), secret: secretChecked() });
+}
+
+function rollMacroDamage() {
+  if (!pendingDamage) return;
+  const { macro, crit } = pendingDamage;
+  pendingDamage = null;
+  const base = parseFormula(macro.damage);
+  if (!base) return;
+  const dice = crit ? critDamage(base) : base;
+  performRoll({ ...dice, mode: "normal", purpose: `${macro.label} damage${crit ? " (critical)" : ""}`, target: currentTarget(), secret: secretChecked(), help: false });
+}
+
+function paintTargets2() {
+  const field = document.getElementById("target-field");
+  const select = document.getElementById("roll-target");
+  if (!field || !select || document.activeElement === select) return;
+  const people = (atSharedTable() && sharedOrder ? sharedOrder.combatants : state.combat.combatants)
+    .filter((person) => person.name !== state.character.name);
+  field.hidden = people.length === 0;
+  const current = select.value;
+  const names = [...new Set(people.map((person) => person.name))];
+  select.replaceChildren(h("option", { value: "" }, "No target"), ...names.map((name) => h("option", { value: name }, name)));
+  if (names.includes(current)) select.value = current;
+}
+
+// --- Pack: portrait, color, damage and healing, conditions, abilities, resources, slots.
+
+function paintPortrait(character) {
+  const mount = document.getElementById("kit-portrait");
+  if (!mount) return;
+  const ex = extras();
+  mount.replaceChildren(...present([
+    ex.portrait ? h("img", { class: "portrait", src: ex.portrait, alt: `${character.name || "Your hero"}'s portrait`, width: "72", height: "72" }) : null,
+    h("div", { class: "stack" }, [
+      h("button", { type: "button", class: "text-btn", "data-action": "pick-portrait" }, ex.portrait ? "Change portrait" : "Add a portrait"),
+      ex.portrait ? h("button", { type: "button", class: "text-btn", "data-action": "clear-portrait" }, "Remove portrait") : null,
+      h("div", { class: "swatches", role: "group", "aria-label": "Your color in the table feed" }, COLORS.map((color) => h("button", {
+        type: "button",
+        class: "swatch",
+        style: `--swatch:${color}`,
+        "data-action": "pick-color",
+        "data-color": color,
+        "aria-pressed": ex.color === color ? "true" : "false",
+        "aria-label": `Feed color ${color}`,
+      }, ""))),
+    ]),
+  ].filter(Boolean)));
+}
+
+async function loadPortrait(file) {
+  if (!file || !/^image\//.test(file.type)) return;
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const side = Math.min(image.naturalWidth, image.naturalHeight);
+    const sx = (image.naturalWidth - side) / 2;
+    const sy = (image.naturalHeight - side) / 2;
+    let data = "";
+    for (const [size, quality] of [[128, 0.82], [112, 0.7], [96, 0.6], [80, 0.5]]) {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      canvas.getContext("2d").drawImage(image, sx, sy, side, side, 0, 0, size, size);
+      data = canvas.toDataURL("image/jpeg", quality);
+      if (data.length <= PORTRAIT_CHARS) break;
+    }
+    if (data.length > PORTRAIT_CHARS) return;
+    setExtras({ ...extras(), portrait: data }, "Changed the portrait.");
+  } catch {
+    // An image the browser cannot read leaves the old portrait in place.
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function currentHp() {
+  return state.character.hp == null ? (suggestedHp(state.character) ?? 0) : state.character.hp;
+}
+
+function setHeroHp(next, summary) {
+  const max = maxHitPoints(state.character);
+  state.character.hp = Math.min(max, Math.max(0, next));
+  state.character.maxHp = max;
+  if (state.character.hp > 0) state.character.death = blankDeath();
+  const local = state.combat.combatants.find((person) => person.name === state.character.name);
+  if (local && !atSharedTable()) {
+    local.hp = state.character.hp;
+    local.maxHp = max;
+    if (local.hp > 0) local.death = blankDeath();
+  }
+  persist(summary);
+  void pushHeroVitals();
+  renderKit();
+  renderCombat();
+}
+
+function amountField() {
+  return readInt(document.getElementById("kit-amount"), 0, 0, 999);
+}
+
+function takeDamage() {
+  const amount = amountField();
+  if (!amount) return;
+  const ex = extras();
+  const after = applyDamage({ hp: currentHp(), tempHp: ex.tempHp }, amount);
+  state.character.extras = cleanExtras({ ...ex, tempHp: after.tempHp });
+  const soaked = ex.tempHp - after.tempHp;
+  setHeroHp(after.hp, `${state.character.name || "The hero"} takes ${amount} damage${soaked ? `, ${soaked} to temporary hit points` : ""}, and is at ${after.hp}.`);
+  if (ex.conditions.includes("concentrating") && after.hp > 0) {
+    const dc = concentrationDc(amount);
+    const info = askBonus(state.character, "Constitution save");
+    stageRoll({ count: 1, sides: 20, modifier: info ? info.bonus : 0, purpose: `Concentration, DC ${dc}` });
+    const hint = document.getElementById("dice-hint");
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = `You are concentrating. Roll a Constitution save against DC ${dc} to hold the spell.`;
+    }
+  }
+}
+
+function healDamage() {
+  const amount = amountField();
+  if (!amount) return;
+  const next = applyHealing({ hp: currentHp(), max: maxHitPoints(state.character) }, amount);
+  setHeroHp(next, `${state.character.name || "The hero"} heals ${amount}, and is at ${next}.`);
+}
+
+function gainTemp() {
+  const amount = amountField();
+  const ex = extras();
+  const next = applyTemp(ex.tempHp, amount);
+  setExtras({ ...ex, tempHp: next }, next === ex.tempHp && amount ? "Temporary hit points do not stack. The bigger number stays." : `${next} temporary hit points.`);
+}
+
+function paintConditions() {
+  const mount = document.getElementById("kit-conditions");
+  if (!mount || typingInside(mount)) return;
+  const on = new Set(extras().conditions);
+  mount.replaceChildren(
+    h("h3", {}, "Conditions"),
+    h("div", { class: "chip-row", role: "group", "aria-label": "Your conditions" }, MARKS.map((mark) => h("button", {
+      type: "button",
+      class: mark === "concentrating" ? "chip is-concentrating" : "chip",
+      "data-action": "toggle-condition",
+      "data-mark": mark,
+      "aria-pressed": on.has(mark) ? "true" : "false",
+    }, mark))),
+  );
+}
+
+async function toggleCondition(mark) {
+  if (!MARKS.includes(mark)) return;
+  const ex = extras();
+  const list = ex.conditions.includes(mark) ? ex.conditions.filter((item) => item !== mark) : [...ex.conditions, mark];
+  list.sort((a, b) => MARKS.indexOf(a) - MARKS.indexOf(b));
+  state.character.extras = cleanExtras({ ...ex, conditions: list });
+  const local = state.combat.combatants.find((person) => person.name === state.character.name);
+  if (local) local.marks = [...list];
+  persist(`${state.character.name || "The hero"}: ${list.join(", ") || "no conditions"}.`);
+  renderKit();
+  renderCombat();
+  void pushHeroVitals();
+}
+
+function paintAbilities(character) {
+  const mount = document.getElementById("kit-abilities");
+  if (!mount) return;
+  if (!classInfo(character)) {
+    mount.replaceChildren();
+    return;
+  }
+  const totals = abilityTotals(character);
+  mount.replaceChildren(
+    h("h3", {}, "Checks and saves"),
+    h("div", { class: "ability-rolls" }, ABILITIES.map((ability) => {
+      const check = askBonus(character, `${ability.label} check`);
+      const save = askBonus(character, `${ability.label} save`);
+      return h("div", { class: "ability-roll" }, [
+        h("p", { class: "sheet-title" }, `${ability.short} ${totals[ability.id]}`),
+        h("button", { type: "button", class: "btn", "data-action": "roll-ask", "data-ask": `${ability.label} check` }, `Check ${formatMod(check.bonus)}`),
+        h("button", { type: "button", class: "btn", "data-action": "roll-ask", "data-ask": `${ability.label} save` }, `Save ${formatMod(save.bonus)}`),
+      ]);
+    })),
+  );
+}
+
+function rollAsk(name) {
+  const info = askBonus(state.character, name);
+  if (!info || gateMode !== "play") return;
+  stageRoll({ count: 1, sides: 20, modifier: info.bonus, purpose: info.label });
+}
+
+function paintResources(character) {
+  const mount = document.getElementById("kit-resources");
+  if (!mount || typingInside(mount)) return;
+  const list = extras().resources;
+  mount.replaceChildren(...present([
+    h("h3", {}, "Class resources"),
+    ...list.map((item) => h("div", { class: "gear-row resource-row" }, [
+      h("span", { class: "resource-name" }, `${item.label} ${item.max - item.used} / ${item.max}`),
+      h("span", { class: "hint" }, item.reset === "short" ? "short rest" : "long rest"),
+      h("button", { type: "button", class: "btn", "data-action": "resource", "data-id": item.id, "data-delta": "1", disabled: item.used >= item.max ? "disabled" : null }, "Use"),
+      h("button", { type: "button", class: "btn", "data-action": "resource", "data-id": item.id, "data-delta": "-1", disabled: item.used <= 0 ? "disabled" : null }, "Regain"),
+      h("button", { type: "button", class: "text-btn", "data-action": "remove-resource", "data-id": item.id }, "Remove"),
+    ])),
+    list.length ? null : h("p", { class: "hint" }, "Rage, Ki, Channel Divinity and the rest. Fill them from the class, or add your own."),
+    h("div", { class: "turn-actions" }, [
+      character.classId && character.classId !== "custom"
+        ? h("button", { type: "button", class: "btn", "data-action": "class-resources" }, "Fill from the class")
+        : null,
+    ].filter(Boolean)),
+    h("details", { class: "wick-add" }, [
+      h("summary", {}, "Add your own"),
+      h("form", { id: "resource-form", "data-form": "resource", class: "form", autocomplete: "off" }, [
+        h("label", {}, ["Resource", h("input", { name: "label", maxlength: "40", required: "required", placeholder: "Superiority dice", spellcheck: "false" })]),
+        h("label", {}, ["Uses", h("input", { name: "max", type: "number", min: "1", max: "100", value: "1", inputmode: "numeric" })]),
+        h("label", {}, ["Back on", h("select", { name: "reset" }, [h("option", { value: "short" }, "Short rest"), h("option", { value: "long" }, "Long rest")])]),
+        h("button", { type: "submit", class: "btn" }, "Add"),
+      ]),
+    ]),
+  ].filter(Boolean)));
+}
+
+function chaMod() {
+  return abilityMod(abilityTotals(state.character).cha);
+}
+
+function fillClassResources() {
+  const fresh = classResources(state.character.classId, state.character.level, chaMod());
+  const ex = extras();
+  const custom = ex.resources.filter((item) => !fresh.some((entry) => entry.id === item.id));
+  const kept = fresh.map((entry) => {
+    const old = ex.resources.find((item) => item.id === entry.id);
+    return old ? { ...entry, used: Math.min(old.used, entry.max) } : entry;
+  });
+  setExtras({ ...ex, resources: [...kept, ...custom], slots: classSlots(state.character.classId, state.character.level).map((slot, index) => ({ max: slot.max, used: Math.min(ex.slots[index]?.used || 0, slot.max) })) }, "Filled class resources and spell slots.");
+}
+
+function addResource(form) {
+  const label = form.elements.label.value.trim();
+  if (!label) return;
+  const max = readInt(form.elements.max, 1, 1, 100);
+  const ex = extras();
+  setExtras({ ...ex, resources: [...ex.resources, { id: uid().replace(/[^A-Za-z0-9_-]/g, ""), label, max, used: 0, reset: form.elements.reset.value }] }, `Added ${label}.`);
+}
+
+function paintSlots() {
+  const mount = document.getElementById("kit-slots");
+  if (!mount || typingInside(mount)) return;
+  const slots = extras().slots;
+  const any = slots.some((slot) => slot.max > 0);
+  const ordinal = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th"];
+  mount.replaceChildren(...present([
+    h("h3", {}, "Spell slots"),
+    any ? h("div", { class: "slot-grid" }, slots.flatMap((slot, index) => (slot.max ? [h("div", { class: "slot-line" }, [
+      h("span", { class: "slot-level" }, ordinal[index]),
+      ...Array.from({ length: slot.max }, (_, pip) => h("button", {
+        type: "button",
+        class: pip < slot.max - slot.used ? "pip is-open" : "pip",
+        "data-action": "slot",
+        "data-level": String(index + 1),
+        "data-delta": pip < slot.max - slot.used ? "1" : "-1",
+        "aria-label": `${ordinal[index]} level slot ${pip + 1}, ${pip < slot.max - slot.used ? "ready, tap to spend" : "spent, tap to get back"}`,
+      }, "")),
+    ])] : []))) : null,
+    h("details", { class: "wick-add" }, [
+      h("summary", {}, "Set slots by hand"),
+      h("div", { class: "slot-edit" }, slots.map((slot, index) => h("label", {}, [
+        ordinal[index],
+        h("input", { type: "number", min: "0", max: "9", value: String(slot.max), inputmode: "numeric", "data-slot-max": String(index + 1), "aria-label": `${ordinal[index]} level slots` }),
+      ]))),
+    ]),
+  ]));
+}
+
+function longRest() {
+  const character = state.character;
+  const max = maxHitPoints(character);
+  character.hp = max;
+  character.maxHp = max;
+  character.death = blankDeath();
+  character.hitDiceUsed = Math.max(0, character.hitDiceUsed - Math.max(1, Math.floor(character.level / 2)));
+  character.spells = (character.spells || []).map((spell) => ({ ...spell, used: false }));
+  character.extras = restExtras(extras(), "long", character.classId);
+  persist(`Long rest: ${character.name || "the hero"} is back to ${max} hit points.`);
+  void pushHeroVitals();
+  renderKit();
+  renderCombat();
+}
+
+// --- Inventory: weight, ammo, potions, magic items, level up.
+
+function paintWeight(character) {
+  const node = document.getElementById("kit-weight");
+  if (!node) return;
+  const weight = carriedWeight(character.items, extras().trinkets);
+  const load = encumbrance(weight, abilityTotals(character).str);
+  const words = { light: "", encumbered: " Under the variant rule that is encumbered: speed drops by 10 feet.", heavy: " Under the variant rule that is heavily encumbered: speed drops by 20 feet, with disadvantage on Strength, Dexterity, and Constitution rolls.", over: " That is more than you can carry." };
+  node.textContent = `Carrying ${weight} lb of ${load.capacity} lb.${words[load.level]}`;
+  node.dataset.load = load.level;
+}
+
+function paintAmmo(character) {
+  const mount = document.getElementById("kit-ammo");
+  if (!mount || typingInside(mount)) return;
+  const held = character.items.filter((item) => AMMO_IDS.includes(item.id));
+  if (!held.length) {
+    mount.replaceChildren();
+    return;
+  }
+  const ex = extras();
+  const chosen = held.find((item) => item.id === ex.ammoId);
+  if (chosen) {
+    const per = ammoPerBundle(chosen.id);
+    const synced = syncAmmo(ex.ammoLeft, chosen.qty, per);
+    if (synced !== ex.ammoLeft) state.character.extras = cleanExtras({ ...ex, ammoLeft: synced });
+  }
+  const left = extras().ammoLeft;
+  mount.replaceChildren(h("div", { class: "gear-row" }, present([
+    h("label", {}, ["Ammo", h("select", { id: "ammo-pick", "aria-label": "Ammunition to count" }, [
+      h("option", { value: "" }, "Not counting"),
+      ...held.map((item) => h("option", { value: item.id, selected: item.id === ex.ammoId ? "selected" : null }, item.name)),
+    ])]),
+    chosen ? h("span", { class: "sheet-title" }, `${left} left`) : null,
+    chosen ? h("button", { type: "button", class: "btn", "data-action": "fire-ammo", disabled: left <= 0 ? "disabled" : null }, "Fire one") : null,
+    chosen ? h("button", { type: "button", class: "text-btn", "data-action": "recover-ammo" }, "Pick one up") : null,
+  ])));
+}
+
+function pickAmmo(id) {
+  const item = state.character.items.find((entry) => entry.id === id);
+  setExtras({ ...extras(), ammoId: item ? id : "", ammoLeft: item ? item.qty * ammoPerBundle(id) : 0 }, item ? `Counting ${item.name}.` : "Stopped counting ammo.");
+}
+
+function fireAmmo() {
+  const ex = extras();
+  const item = state.character.items.find((entry) => entry.id === ex.ammoId);
+  if (!item) return true;
+  if (ex.ammoLeft <= 0) {
+    setSaveStatus(`Out of ${item.name.replace(/ \(.*\)$/, "").toLowerCase()}.`);
+    return false;
+  }
+  const per = ammoPerBundle(item.id);
+  const left = ex.ammoLeft - 1;
+  const bundles = Math.ceil(left / per);
+  state.character.items = bundles > 0
+    ? state.character.items.map((entry) => (entry.id === item.id ? { ...entry, qty: bundles } : entry))
+    : state.character.items.filter((entry) => entry.id !== item.id);
+  state.character.extras = cleanExtras({ ...ex, ammoLeft: left, ammoId: bundles > 0 ? ex.ammoId : "" });
+  persist(left > 0 ? `Fires one. ${left} left.` : "Fires the last one.");
+  renderKit();
+  return true;
+}
+
+function recoverAmmo() {
+  const ex = extras();
+  const item = state.character.items.find((entry) => entry.id === ex.ammoId);
+  if (!item) return;
+  const per = ammoPerBundle(item.id);
+  const left = ex.ammoLeft + 1;
+  const bundles = Math.ceil(left / per);
+  state.character.items = state.character.items.map((entry) => (entry.id === item.id ? { ...entry, qty: Math.min(99, bundles) } : entry));
+  setExtras({ ...ex, ammoLeft: left }, `Picks one up. ${left} left.`);
+}
+
+function drinkPotion(id) {
+  const dice = potionHealing(id);
+  if (!dice) return false;
+  const result = useItem(state.character, id);
+  if (!result.ok) return true;
+  state.character = result.character;
+  const rolled = performRoll({ ...dice, mode: "normal", purpose: "Potion of healing", help: false });
+  const next = applyHealing({ hp: currentHp(), max: maxHitPoints(state.character) }, rolled.total);
+  setHeroHp(next, `Drinks a potion of healing for ${rolled.total}, and is at ${next}.`);
+  return true;
+}
+
+function paintTrinkets() {
+  const mount = document.getElementById("kit-trinkets");
+  if (!mount || typingInside(mount)) return;
+  const list = extras().trinkets;
+  const count = attunedCount(extras());
+  mount.replaceChildren(...present([
+    list.some((item) => item.attune) ? h("p", { class: "sheet-title" }, `Attuned ${count} of ${ATTUNE_CAP}`) : null,
+    ...list.map((item) => h("div", { class: item.attuned ? "gear-row is-attuned" : "gear-row" }, present([
+      h("span", { title: item.note || null }, [`${item.name}${item.weight ? ` · ${item.weight} lb` : ""}`, item.note ? h("small", { class: "hint trinket-note" }, item.note) : null]),
+      item.attune ? h("button", {
+        type: "button",
+        class: "btn",
+        "data-action": "attune",
+        "data-id": item.id,
+        "aria-pressed": item.attuned ? "true" : "false",
+        disabled: !item.attuned && count >= ATTUNE_CAP ? "disabled" : null,
+      }, item.attuned ? "Attuned" : "Attune") : null,
+      h("button", { type: "button", class: "text-btn", "data-action": "remove-trinket", "data-id": item.id }, "Remove"),
+    ]))),
+    list.length ? null : h("p", { class: "empty" }, "No magic items yet."),
+  ]));
+}
+
+function addTrinket(form) {
+  const name = form.elements.name.value.trim();
+  if (!name) return;
+  const ex = extras();
+  if (ex.trinkets.length >= TRINKET_CAP) return;
+  form.reset();
+  setExtras({ ...ex, trinkets: [...ex.trinkets, { id: uid().replace(/[^A-Za-z0-9_-]/g, ""), name, qty: 1, weight: Number(form.elements.weight?.value) || 0, attune: form.elements.attune.checked }] }, `Added ${name}.`);
+}
+
+function paintLevelUp(character) {
+  const mount = document.getElementById("kit-level");
+  if (!mount) return;
+  const info = classInfo(character);
+  const ex = extras();
+  const steps = ex.levelSeen && ex.levelSeen === character.level && info ? levelUpSteps(character.classId, character.level, info.hitDie) : [];
+  const reached = levelForXp(ex.xp);
+  const ready = character.level < 20 && (ex.milestone || reached > character.level);
+  mount.replaceChildren(...present([
+    h("h3", {}, "Level"),
+    ex.xp || character.level > 1 ? h("p", { class: "hint" }, `${ex.xp} XP${character.level < 20 ? `. Level ${character.level + 1} at ${XP_LEVELS[character.level]}.` : "."}`) : null,
+    ready ? h("p", { class: "turn-banner is-mine" }, ex.milestone ? "The DM says you have reached a new level." : "You have the experience for a new level.") : null,
+    character.level < 20 && info ? h("button", { type: "button", class: "btn", "data-action": "level-up" }, `Level up to ${character.level + 1}`) : null,
+    steps.length ? h("p", { class: "lede" }, `Level ${character.level}. Work down the list, then close it.`) : null,
+    steps.length ? h("ul", { class: "checklist" }, steps.map((step) => h("li", {}, [h("label", { class: "check-line" }, [h("input", { type: "checkbox" }), step])]))) : null,
+    steps.length ? h("div", { class: "turn-actions" }, [
+      h("button", { type: "button", class: "btn", "data-action": "class-resources" }, "Update slots and resources"),
+      h("button", { type: "button", class: "text-btn", "data-action": "level-done" }, "Done"),
+    ]) : null,
+  ]));
+}
+
+function levelUp() {
+  const character = state.character;
+  const info = classInfo(character);
+  if (!info || character.level >= 20) return;
+  character.level += 1;
+  if (Number.isInteger(character.maxHp) && character.maxHp > 0) {
+    const gain = Math.max(1, Math.floor(info.hitDie / 2) + 1 + abilityMod(abilityTotals(character).con));
+    character.maxHp += gain;
+    if (Number.isInteger(character.hp)) character.hp += gain;
+  }
+  character.extras = cleanExtras({ ...extras(), levelSeen: character.level, milestone: false });
+  persist(`${character.name || "The hero"} reaches level ${character.level}.`);
+  void pushHeroVitals();
+  renderKit();
+}
+
+function extraClick(action, button) {
+  const handlers = {
+    "run-macro": () => runMacro(button.dataset.id),
+    "remove-macro": () => removeMacro(button.dataset.id),
+    "macro-damage": () => rollMacroDamage(),
+    "inspire-reroll": () => inspireReroll(),
+    "pick-portrait": () => document.getElementById("portrait-file")?.click(),
+    "clear-portrait": () => setExtras({ ...extras(), portrait: "" }, "Removed the portrait."),
+    "pick-color": () => setExtras({ ...extras(), color: button.dataset.color }, "Changed the feed color."),
+    "hero-damage": () => takeDamage(),
+    "hero-heal": () => healDamage(),
+    "hero-temp": () => gainTemp(),
+    "long-rest": () => longRest(),
+    "toggle-condition": () => void toggleCondition(button.dataset.mark),
+    "roll-ask": () => rollAsk(button.dataset.ask),
+    resource: () => setExtras(tickResource(extras(), button.dataset.id, Number(button.dataset.delta)), "Changed a class resource."),
+    "remove-resource": () => setExtras({ ...extras(), resources: extras().resources.filter((item) => item.id !== button.dataset.id) }, "Removed a class resource."),
+    "class-resources": () => fillClassResources(),
+    slot: () => setExtras(tickSlot(extras(), Number(button.dataset.level), Number(button.dataset.delta)), Number(button.dataset.delta) > 0 ? "Spent a spell slot." : "Got a spell slot back."),
+    "fire-ammo": () => fireAmmo(),
+    "recover-ammo": () => recoverAmmo(),
+    attune: () => {
+      const next = toggleAttune(extras(), button.dataset.id);
+      if (next) setExtras(next, "Changed attunement.");
+    },
+    "remove-trinket": () => setExtras({ ...extras(), trinkets: extras().trinkets.filter((item) => item.id !== button.dataset.id) }, "Removed a magic item."),
+    "level-up": () => levelUp(),
+    "level-done": () => setExtras({ ...extras(), levelSeen: 0 }),
+  };
+  const run = handlers[action];
+  if (!run) return false;
+  run();
+  return true;
+}
+
+function extraSubmit(form) {
+  if (form.dataset.form === "macro") addMacro(form);
+  else if (form.dataset.form === "resource") addResource(form);
+  else if (form.dataset.form === "trinket") addTrinket(form);
+  else return false;
+  return true;
+}
+
+function extraChange(target) {
+  if (target.id === "history-filter") {
+    renderHistory();
+    return true;
+  }
+  if (target.id === "ammo-pick") {
+    pickAmmo(target.value);
+    return true;
+  }
+  if (target.dataset?.slotMax) {
+    const level = Number(target.dataset.slotMax);
+    const slots = extras().slots.map((slot, index) => (index === level - 1 ? { max: readInt(target, slot.max, 0, 9), used: slot.used } : slot));
+    state.character.extras = cleanExtras({ ...extras(), slots });
+    persist("Set spell slots.");
+    return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// The shared table: your turn, the party board, chat extras, help, X-card.
+
+let lastRoom = null;
+let lastActiveKey = "";
+const seenMessages = new Set();
+let messagesPrimed = false;
+const usedHelps = new Set();
+let partyNotesTimer = null;
+let typingSentAt = 0;
+let titleTimer = null;
+const baseTitle = document.title;
+const ALERT_KEY = "lantern.alerts";
+const TURN_KEY = "lantern.turn";
+
+function alertPrefs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ALERT_KEY) || "{}");
+    return { turn: raw.turn !== false, mention: raw.mention !== false };
+  } catch {
+    return { turn: true, mention: true };
+  }
+}
+
+function saveAlertPrefs(prefs) {
+  try { localStorage.setItem(ALERT_KEY, JSON.stringify(prefs)); } catch { /* the switch still works for this page */ }
+}
+
+function ping(message) {
+  try {
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (Context) {
+      const audio = new Context();
+      const tone = audio.createOscillator();
+      const gain = audio.createGain();
+      tone.frequency.value = 660;
+      gain.gain.setValueAtTime(0.0001, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, audio.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.35);
+      tone.connect(gain).connect(audio.destination);
+      tone.start();
+      tone.stop(audio.currentTime + 0.4);
+      tone.onended = () => audio.close();
+    }
+  } catch { /* no sound is fine */ }
+  try { navigator.vibrate?.([120, 60, 120]); } catch { /* no vibration either */ }
+  clearInterval(titleTimer);
+  if (document.hidden) {
+    let on = false;
+    titleTimer = setInterval(() => {
+      on = !on;
+      document.title = on ? `● ${message}` : baseTitle;
+      if (!document.hidden) {
+        clearInterval(titleTimer);
+        document.title = baseTitle;
+      }
+    }, 900);
+  }
+}
+
+function currentOrder() {
+  return atSharedTable() ? (sharedOrder || cleanOrder(null)) : cleanOrder(state.combat);
+}
+
+function isMine(person) {
+  if (!person) return false;
+  const seat = loadSeat();
+  if (atSharedTable()) return person.seat === seat.name || person.name === state.character.name;
+  return Boolean(state.character.name) && person.name === state.character.name;
+}
+
+function turnFacts() {
+  const order = currentOrder();
+  const list = sortOrder(order.combatants);
+  const active = order.started ? list.find((person) => person.id === order.activeId) : null;
+  const index = active ? list.indexOf(active) : -1;
+  const next = active && list.length > 1 ? list[(index + 1) % list.length] : null;
+  return { order, list, active, next, mine: isMine(active), nextMine: isMine(next) };
+}
+
+function myTurn() {
+  return gateMode === "play" && turnFacts().mine;
+}
+
+function loadTurn() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TURN_KEY) || "{}");
+    return { key: String(raw.key || ""), used: raw.used && typeof raw.used === "object" ? raw.used : {}, reaction: raw.reaction === true };
+  } catch {
+    return { key: "", used: {}, reaction: false };
+  }
+}
+
+function saveTurn(turn) {
+  try { localStorage.setItem(TURN_KEY, JSON.stringify(turn)); } catch { /* the helper still works for this page */ }
+}
+
+const ECONOMY = [["action", "Action"], ["bonus", "Bonus action"], ["move", "Movement"], ["object", "Object interaction"]];
+
+function paintTurnHelper() {
+  const facts = turnFacts();
+  const turn = loadTurn();
+  const key = facts.active ? `${facts.order.round}:${facts.active.id}` : "";
+  if (facts.mine && turn.key !== key) {
+    turn.key = key;
+    turn.used = {};
+    turn.reaction = false;
+    saveTurn(turn);
+  }
+  const helper = document.getElementById("turn-helper");
+  const strip = document.getElementById("turn-strip");
+  const inFight = Boolean(facts.active || facts.order.hiddenTurn) && facts.list.some(isMine);
+  if (helper) {
+    helper.replaceChildren(...present([
+      facts.mine ? h("p", { class: "turn-banner is-mine" }, "Your turn") : facts.nextMine ? h("p", { class: "hint" }, "You are up next.") : null,
+      facts.mine ? h("div", { class: "chip-row", role: "group", "aria-label": "What you have used this turn" }, ECONOMY.map(([id, label]) => h("button", {
+        type: "button",
+        class: "chip",
+        "data-action": "turn-use",
+        "data-use": id,
+        "aria-pressed": turn.used[id] ? "true" : "false",
+      }, label))) : null,
+      inFight ? h("div", { class: "turn-actions" }, present([
+        h("button", { type: "button", class: "btn", "data-action": "use-reaction", disabled: turn.reaction ? "disabled" : null }, turn.reaction ? "Reaction used" : "Use your reaction"),
+        facts.mine ? h("button", { type: "button", class: "btn primary", "data-action": "end-turn" }, "End turn") : null,
+      ])) : null,
+    ]));
+  }
+  if (strip) {
+    strip.hidden = !inFight || gateMode !== "play";
+    if (inFight) {
+      strip.replaceChildren(...present([
+        h("p", {}, facts.mine ? `Your turn, round ${facts.order.round}.` : !facts.active ? "Something unseen is acting." : facts.nextMine ? `${facts.active.name} is acting. You are up next.` : `${facts.active.name} is acting.`),
+        h("span", { id: "turn-timer", class: "hint" }, turnTimerText(facts.order)),
+        !facts.mine && !turn.reaction ? h("span", { class: "here-chip" }, "Reaction ready") : null,
+        facts.mine ? h("button", { type: "button", class: "btn primary", "data-action": "end-turn", "aria-keyshortcuts": "E" }, "End turn") : null,
+      ]));
+    }
+    strip.classList.toggle("is-mine", facts.mine);
+  }
+  for (const row of document.querySelectorAll("#combat-list .combatant")) row.classList.remove("is-next");
+  if (facts.next) {
+    const rows = [...document.querySelectorAll("#combat-list .combatant")];
+    const index = facts.list.indexOf(facts.next);
+    rows[index]?.classList.add("is-next");
+  }
+  const activeKey = facts.active ? `${facts.order.round}:${facts.active.id}` : "";
+  if (activeKey !== lastActiveKey) {
+    const first = lastActiveKey === "";
+    lastActiveKey = activeKey;
+    const live = document.getElementById("roll-live");
+    if (facts.active && live) live.textContent = facts.mine ? "Your turn." : `${facts.active.name}'s turn.`;
+    if (!first && facts.mine && alertPrefs().turn) ping("Your turn");
+  }
+}
+
+function useEconomy(id) {
+  const turn = loadTurn();
+  turn.used[id] = !turn.used[id];
+  saveTurn(turn);
+  paintTurnHelper();
+}
+
+async function useReaction() {
+  const turn = loadTurn();
+  if (turn.reaction) return;
+  turn.reaction = true;
+  saveTurn(turn);
+  paintTurnHelper();
+  const seat = loadSeat();
+  const name = state.character.name || seat.name;
+  persist(`${name} uses a reaction.`);
+  if (atSharedTable()) {
+    try {
+      await postTalk(seat.room, { text: "uses a reaction.", kind: "emote", as: state.character.name }, seat.token);
+    } catch { /* the roll log still has it */ }
+  }
+}
+
+async function endMyTurn() {
+  if (!myTurn()) return;
+  if (!atSharedTable()) {
+    stepTurn(1);
+    paintTurnHelper();
+    return;
+  }
+  try {
+    const result = await postBoard(loadSeat().room, { op: "end-turn" });
+    if (result.order) applySharedOrder(result.order);
+    persist(`${state.character.name || "The hero"} ends the turn.`);
+  } catch (error) {
+    setSaveStatus(error.message);
+  }
+}
+
+// --- Help: another player's next d20 has advantage.
+
+function paintHelp(helps) {
+  const seat = loadSeat();
+  const mine = (helps || []).find((help) => help.to === seat.name && !usedHelps.has(help.id));
+  pendingHelp = mine ? { id: mine.id, from: mine.from } : null;
+  const banner = document.getElementById("help-banner");
+  if (!banner) return;
+  banner.hidden = !pendingHelp;
+  if (pendingHelp) setText(banner, `${pendingHelp.from} is helping you. Your next d20 roll has advantage.`);
+}
+
+function consumeHelp() {
+  if (!pendingHelp) return;
+  usedHelps.add(pendingHelp.id);
+  pendingHelp = null;
+  const banner = document.getElementById("help-banner");
+  if (banner) banner.hidden = true;
+  if (atSharedTable()) void postBoard(loadSeat().room, { op: "help-used" }).catch(() => {});
+};
+
+async function boardOp(body, success) {
+  const seat = loadSeat();
+  const status = document.getElementById("party-status");
+  if (!atSharedTable()) {
+    if (status) status.textContent = "Join a table to use the party board.";
+    return null;
+  }
+  try {
+    const result = await postBoard(seat.room, body);
+    if (status) status.textContent = success || "";
+    if (result.board && lastRoom) {
+      lastRoom.board = result.board;
+      paintBoard(result.board);
+    }
+    return result;
+  } catch (error) {
+    if (status) status.textContent = error.message;
+    setText(document.getElementById("talk-status"), error.message);
+    return null;
+  }
+}
+
+// --- The party board.
+
+function seatNames() {
+  return (lastRoom?.players || []).map((player) => player.name);
+}
+
+function paintBoard(board) {
+  if (!board) return;
+  const seat = loadSeat();
+  const notes = document.getElementById("party-notes");
+  if (notes && document.activeElement !== notes && !partyNotesTimer) notes.value = board.notes?.text || "";
+  setText(document.getElementById("party-notes-by"), board.notes?.by ? `Last written by ${board.notes.by}, ${new Date(board.notes.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : "");
+  const quests = document.getElementById("party-quests");
+  if (quests && !typingInside(quests)) {
+    quests.replaceChildren(...(board.quests.length ? board.quests.map((quest) => h("div", { class: quest.done ? "gear-row is-done" : "gear-row" }, [
+      h("label", { class: "check-line" }, [
+        h("input", { type: "checkbox", "data-quest": quest.id, checked: quest.done ? "checked" : null }),
+        quest.title,
+      ]),
+      h("button", { type: "button", class: "text-btn", "data-action": "quest-remove", "data-id": quest.id }, "Remove"),
+    ])) : [h("p", { class: "empty" }, "No quests yet.")]));
+  }
+  const glossary = document.getElementById("party-glossary");
+  if (glossary) {
+    glossary.replaceChildren(...(board.glossary.length ? board.glossary.map((item) => h("article", { class: "glossary-row", id: `gloss-${item.id}`, "data-name": item.name.toLowerCase() }, [
+      h("p", { class: "sheet-title" }, item.name),
+      item.body ? h("p", {}, item.body) : null,
+      h("button", { type: "button", class: "text-btn", "data-action": "glossary-remove", "data-id": item.id }, "Remove"),
+    ])) : [h("p", { class: "empty" }, "Nobody named yet.")]));
+  }
+  const coin = document.getElementById("party-coin");
+  if (coin && !typingInside(coin)) {
+    const people = Math.max(1, seatNames().length);
+    const share = splitCoin(board.stash.cp, people);
+    coin.replaceChildren(
+      h("p", { class: "sheet-title" }, `Coin pot: ${formatCoin(board.stash.cp)}`),
+      h("p", { class: "hint" }, board.stash.cp ? `Split evenly between ${people} ${people === 1 ? "seat" : "seats"}: ${formatCoin(share.each)} each.` : "Put coin in to split it evenly."),
+      h("div", { class: "turn-actions amount-row" }, [
+        h("label", {}, ["Gold", h("input", { id: "coin-amount", type: "number", min: "0", step: "1", inputmode: "numeric", placeholder: "0" })]),
+        h("button", { type: "button", class: "btn", "data-action": "coin-put" }, "Put in"),
+        h("button", { type: "button", class: "btn", "data-action": "coin-take" }, "Take"),
+        board.stash.cp && share.each ? h("button", { type: "button", class: "btn", "data-action": "coin-share", "data-cp": String(share.each) }, "Take my share") : null,
+      ].filter(Boolean)),
+    );
+  }
+  const stash = document.getElementById("party-stash");
+  if (stash) {
+    stash.replaceChildren(...(board.stash.items.length ? board.stash.items.map((item) => h("div", { class: "gear-row" }, [
+      h("span", {}, `${item.name}${item.qty > 1 ? ` × ${item.qty}` : ""} · from ${item.by}`),
+      h("button", { type: "button", class: "btn", "data-action": "stash-take", "data-id": item.id }, "Take one"),
+    ])) : [h("p", { class: "empty" }, "The stash is empty.")]));
+  }
+  const pick = document.getElementById("stash-pick");
+  if (pick && document.activeElement !== pick) {
+    const items = state.character.items || [];
+    pick.replaceChildren(...(items.length ? items.map((item) => h("option", { value: item.id }, item.qty > 1 ? `${item.name} × ${item.qty}` : item.name)) : [h("option", { value: "" }, "The pack is empty")]));
+  }
+  const helpPick = document.getElementById("help-pick");
+  if (helpPick && document.activeElement !== helpPick) {
+    const others = seatNames().filter((name) => name !== seat.name);
+    helpPick.replaceChildren(...(others.length ? others.map((name) => h("option", { value: name }, name)) : [h("option", { value: "" }, "Nobody else is seated")]));
+  }
+  paintPoll(board.poll);
+  paintReady(board.ready);
+  const xcard = document.getElementById("xcard-banner");
+  if (xcard) {
+    const was = !xcard.hidden;
+    xcard.hidden = !board.xcard;
+    if (board.xcard && !was) ping("X-card");
+  }
+  paintHelp(board.helps);
+  void takeGifts(board.gifts);
+  paintHandouts(board.handouts);
+  paintWorld(board.world, board.mood);
+  paintTableState(board);
+}
+
+function paintTableState(board) {
+  const overlay = document.getElementById("pause-overlay");
+  if (overlay) {
+    overlay.hidden = !board.pause || gateMode !== "play";
+    setText(document.getElementById("pause-text"), board.pause?.text || "Back soon.");
+  }
+  const mode = document.getElementById("talk-mode");
+  if (mode) {
+    const chat = board.chat || { mode: "open" };
+    mode.hidden = chat.mode === "open";
+    mode.textContent = chat.mode === "muted" ? "The DM has paused table talk. You can still whisper the DM." : chat.mode === "slow" ? `Slow chat: one message every ${chat.slow} seconds.` : "";
+  }
+  const rules = document.getElementById("party-rules");
+  if (rules) {
+    const safety = board.safety || { lines: [], veils: [] };
+    rules.replaceChildren(...present([
+      safety.lines.length || safety.veils.length ? h("h3", {}, "Lines and veils") : null,
+      safety.lines.length ? h("p", {}, [h("strong", {}, "Lines, never in the game: "), safety.lines.join(", ")]) : null,
+      safety.veils.length ? h("p", {}, [h("strong", {}, "Veils, off screen only: "), safety.veils.join(", ")]) : null,
+      board.rules ? h("h3", {}, "Table rules") : null,
+      ...(board.rules ? board.rules.split(/\n+/).map((line) => h("p", {}, line)) : []),
+    ]));
+  }
+  const next = document.getElementById("party-next");
+  if (next) {
+    const when = board.next;
+    next.replaceChildren(...present([
+      when ? h("p", { class: "turn-banner" }, `Next session: ${[when.label, when.at ? new Date(when.at).toLocaleString([], { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""].filter(Boolean).join(", ")}`) : null,
+      when?.at ? h("button", { type: "button", class: "btn", "data-action": "next-ics" }, "Add to my calendar") : null,
+    ]));
+  }
+}
+
+function nextIcs() {
+  const when = lastRoom?.board?.next;
+  if (!when?.at) return;
+  const seat = loadSeat();
+  downloadText(icsFor(when, `${location.origin}/player.html?room=${seat.room}`), "lantern-next-session.ics", "text/calendar");
+}
+
+// --- Rewards, handouts, and the world, from the DM.
+
+let giftBusy = false;
+
+async function takeGifts(gifts) {
+  const seat = loadSeat();
+  const mine = (gifts || []).filter((gift) => gift.to === seat.name);
+  if (giftBusy || !mine.length || gateMode !== "play") return;
+  giftBusy = true;
+  const lines = [];
+  try {
+    for (const gift of mine) {
+      const result = await postBoard(seat.room, { op: "gift-take", id: gift.id }).catch(() => null);
+      if (!result?.gift) continue;
+      const applied = applyGift(state.character, result.gift);
+      if (!applied) continue;
+      state.character = applied.character;
+      lines.push(`${applied.line}${result.gift.reason ? ` (${result.gift.reason})` : ""}`);
+    }
+  } finally {
+    giftBusy = false;
+  }
+  if (!lines.length) return;
+  persist(`Received ${lines.join(", ")} from the DM.`);
+  renderCharacter();
+  renderKit();
+  const banner = document.getElementById("gift-banner");
+  if (banner) {
+    banner.hidden = false;
+    banner.replaceChildren(
+      h("p", {}, `The DM gave you ${lines.join(", ")}.`),
+      h("div", { class: "ask-actions" }, [h("button", { type: "button", class: "text-btn", "data-action": "gift-ok" }, "Got it")]),
+    );
+  }
+  ping("A reward");
+}
+
+let seenHandouts = null;
+
+function paintHandouts(handouts) {
+  const mount = document.getElementById("party-handouts");
+  const list = handouts || [];
+  if (mount) {
+    mount.replaceChildren(...(list.length ? [...list].reverse().map((item) => h("div", { class: "gear-row" }, [
+      h("span", {}, `${item.title}${item.to ? " · just for you" : ""}${item.image ? " · picture" : ""}`),
+      h("button", { type: "button", class: "btn", "data-action": "open-handout", "data-id": item.id }, "Read"),
+    ])) : [h("p", { class: "empty" }, "The DM has not handed anything out.")]));
+  }
+  const ids = list.map((item) => item.id);
+  if (seenHandouts && ids.some((id) => !seenHandouts.includes(id))) {
+    const fresh = list.find((item) => !seenHandouts.includes(item.id));
+    setText(document.getElementById("roll-live"), `New handout: ${fresh.title}.`);
+    ping("A handout");
+    void openHandout(fresh.id);
+  }
+  seenHandouts = ids;
+}
+
+async function openHandout(id) {
+  const result = await boardOp({ op: "handout-get", id });
+  if (!result?.handout) return;
+  const { handout } = result;
+  setText(document.getElementById("handout-title"), handout.title);
+  const body = document.getElementById("handout-body");
+  body.replaceChildren(...present([
+    handout.image ? h("img", { src: handout.image, alt: handout.title, class: "handout-image" }) : null,
+    ...(handout.text ? handout.text.split(/\n{2,}/).map((para) => h("p", {}, para)) : []),
+  ]));
+  const dialog = document.getElementById("handout-dialog");
+  if (!dialog.open) dialog.showModal();
+}
+
+function paintWorld(world, mood) {
+  const line = document.getElementById("world-line");
+  if (!line) return;
+  line.hidden = (!world && !mood) || gateMode !== "play";
+  const parts = [];
+  if (world) parts.push(`Day ${world.day} · ${String(world.hour).padStart(2, "0")}:00, ${hourText(world.hour)}${world.weather ? ` · ${world.weather}` : ""}`);
+  if (mood) parts.push(`Mood: ${mood.label}`);
+  line.textContent = parts.join(" · ");
+}
+
+function paintPoll(poll) {
+  const mount = document.getElementById("party-poll");
+  if (!mount || typingInside(mount)) return;
+  const seat = loadSeat();
+  if (!poll) {
+    mount.replaceChildren(h("form", { "data-form": "poll", class: "form", autocomplete: "off" }, [
+      h("label", {}, ["Question", h("input", { name: "question", maxlength: "120", required: "required", value: "When is the next session?", spellcheck: "true" })]),
+      h("label", {}, ["Choices, one per line", h("textarea", { name: "options", rows: "3", maxlength: "500", placeholder: "Friday 7pm\nSaturday 2pm\nSunday 6pm" })]),
+      h("button", { type: "submit", class: "btn" }, "Start the poll"),
+    ]));
+    return;
+  }
+  const most = Math.max(0, ...poll.options.map((option) => option.votes.length));
+  mount.replaceChildren(...present([
+    h("p", { class: "sheet-title" }, poll.question),
+    h("p", { class: "hint" }, `${poll.closed ? "Closed" : "Open"}, started by ${poll.by}. Tap a choice to vote, or tap it again to take the vote back. You can pick more than one.`),
+    ...poll.options.map((option) => h("button", {
+      type: "button",
+      class: option.votes.length && option.votes.length === most ? "btn poll-option is-best" : "btn poll-option",
+      "data-action": "poll-vote",
+      "data-option": option.id,
+      "aria-pressed": option.votes.includes(seat.name) ? "true" : "false",
+      disabled: poll.closed ? "disabled" : null,
+    }, `${option.label} · ${option.votes.length}${option.votes.length ? ` (${option.votes.join(", ")})` : ""}`)),
+    h("div", { class: "turn-actions" }, present([
+      poll.closed ? null : h("button", { type: "button", class: "text-btn", "data-action": "poll-close" }, "Close the poll"),
+      h("button", { type: "button", class: "text-btn", "data-action": "poll-clear" }, "Clear it"),
+    ])),
+  ]));
+}
+
+function paintReady(ready) {
+  const banner = document.getElementById("ready-banner");
+  const mount = document.getElementById("party-ready");
+  const seat = loadSeat();
+  if (mount) {
+    mount.replaceChildren(h("button", { type: "button", class: "btn", "data-action": "ready-call" }, "Call a ready check"));
+  }
+  if (!banner) return;
+  if (!ready || gateMode !== "play") {
+    banner.hidden = true;
+    return;
+  }
+  const names = [...new Set([...seatNames(), ...Object.keys(ready.answers)])];
+  const waiting = names.filter((name) => !ready.answers[name]);
+  const mine = ready.answers[seat.name];
+  const was = banner.hidden;
+  banner.hidden = false;
+  banner.replaceChildren(
+    h("p", {}, `${ready.by} called a ready check. ${names.map((name) => `${name}: ${ready.answers[name] === "ready" ? "ready" : ready.answers[name] === "wait" ? "wait" : "…"}`).join(" · ")}`),
+    h("div", { class: "ask-actions" }, present([
+      h("button", { type: "button", class: mine === "ready" ? "btn primary" : "btn", "data-action": "ready-answer", "data-answer": "ready" }, "Ready"),
+      h("button", { type: "button", class: mine === "wait" ? "btn primary" : "btn", "data-action": "ready-answer", "data-answer": "wait" }, "Wait"),
+      !waiting.length || ready.by === seat.name ? h("button", { type: "button", class: "text-btn", "data-action": "ready-clear" }, "Done") : null,
+    ])),
+  );
+  if (was && !mine && ready.by !== seat.name) ping("Ready check");
+}
+
+function queuePartyNotes(text) {
+  clearTimeout(partyNotesTimer);
+  partyNotesTimer = setTimeout(async () => {
+    partyNotesTimer = null;
+    await boardOp({ op: "notes", text }, "Saved for the party.");
+  }, 900);
+}
+
+function openGlossary(name) {
+  showTab("party");
+  const row = document.querySelector(`#party-glossary [data-name="${CSS.escape(name.toLowerCase())}"]`);
+  if (row) {
+    row.scrollIntoView({ block: "center" });
+    row.classList.add("is-found");
+    setTimeout(() => row.classList.remove("is-found"), 1600);
+  } else {
+    const form = document.querySelector("form[data-form='glossary']");
+    if (form) {
+      form.elements.name.value = name;
+      form.elements.body.focus();
+    }
+  }
+}
+
+async function putInStash(form) {
+  const id = form.elements.piece.value;
+  const item = (state.character.items || []).find((entry) => entry.id === id);
+  if (!item) return;
+  const result = await boardOp({ op: "stash-put", name: item.name, gearId: item.id, qty: 1 }, `Put ${item.name} in the stash.`);
+  if (!result) return;
+  state.character.items = item.qty > 1
+    ? state.character.items.map((entry) => (entry.id === id ? { ...entry, qty: entry.qty - 1 } : entry))
+    : state.character.items.filter((entry) => entry.id !== id);
+  persist(`Puts ${item.name} in the party stash.`);
+  renderKit();
+}
+
+async function takeFromStash(id) {
+  const result = await boardOp({ op: "stash-take", id }, "Taken.");
+  if (!result?.taken) return;
+  const { name, gearId } = result.taken;
+  if (gearId && findGear(gearId)) {
+    const found = state.character.items.find((entry) => entry.id === gearId);
+    state.character.items = found
+      ? state.character.items.map((entry) => (entry.id === gearId ? { ...entry, qty: Math.min(99, entry.qty + 1) } : entry))
+      : [...state.character.items, { id: gearId, name, qty: 1 }];
+  } else {
+    const ex = extras();
+    state.character.extras = cleanExtras({ ...ex, trinkets: [...ex.trinkets, { id: uid(), name, qty: 1 }] });
+  }
+  persist(`Takes ${name} from the party stash.`);
+  renderKit();
+}
+
+async function moveCoin(op, cp) {
+  if (!Number.isInteger(cp) || cp <= 0) return;
+  const purse = state.character.purse || 0;
+  if (op === "coin-put" && cp > purse) {
+    setText(document.getElementById("party-status"), "The purse does not hold that much.");
+    return;
+  }
+  const result = await boardOp({ op, cp }, op === "coin-put" ? `Put ${formatCoin(cp)} in the pot.` : `Took ${formatCoin(cp)}.`);
+  if (!result) return;
+  state.character.purse = op === "coin-put" ? purse - cp : purse + cp;
+  persist(op === "coin-put" ? `Puts ${formatCoin(cp)} in the party pot.` : `Takes ${formatCoin(cp)} from the party pot.`);
+  renderKit();
+  if (lastRoom?.board) paintBoard(lastRoom.board);
+}
+
+// --- Chat: voice, typing, mentions, and the table's rolls.
+
+function roomColors(players) {
+  const colors = {};
+  const portraits = {};
+  for (const player of players || []) {
+    const ex = player.snapshot?.character?.extras;
+    if (ex?.color) colors[player.name] = ex.color;
+    if (typeof ex?.portrait === "string" && ex.portrait.startsWith("data:image/")) portraits[player.name] = ex.portrait;
+  }
+  return { colors, portraits };
+}
+
+function paintTableRolls(events, players) {
+  const mount = document.getElementById("table-rolls");
+  if (!mount) return;
+  const { colors } = roomColors(players);
+  const rolls = (events || []).filter((event) => /^Rolled /.test(event.summary)).slice(0, 15);
+  mount.replaceChildren(...(rolls.length ? rolls.map((event) => h("p", { class: event.secret ? "roll-line is-secret" : "roll-line", style: colors[event.name] ? `--who:${colors[event.name]}` : null }, [
+    h("span", { class: "roll-who" }, event.secret ? `${event.name} (secret)` : event.name),
+    ` ${event.summary.replace(/^Rolled /, "rolled ")}`,
+  ])) : [h("p", { class: "hint" }, "No rolls at the table yet.")]));
+}
+
+function noticeMentions(messages, seat) {
+  const names = [seat.name, state.character.name].filter(Boolean);
+  let fresh = null;
+  for (const message of messages) {
+    if (seenMessages.has(message.id)) continue;
+    seenMessages.add(message.id);
+    if (messagesPrimed && message.from !== seat.name && mentions(message.text, names)) fresh = message;
+    if (messagesPrimed && message.from !== seat.name) {
+      const live = document.getElementById("talk-live");
+      if (live) live.textContent = `${message.as || message.from}${message.kind === "emote" ? " " : ": "}${message.text}`;
+    }
+  }
+  messagesPrimed = true;
+  if (fresh && alertPrefs().mention) {
+    ping("Mentioned");
+    setText(document.getElementById("talk-status"), `${fresh.as || fresh.from} mentioned you.`);
+  }
+}
+
+function paintRoomExtras(room, seat) {
+  lastRoom = room;
+  const { colors, portraits } = roomColors(room.players);
+  paintTalk(document.getElementById("talk-log"), room.messages || [], {
+    interactive: true,
+    selfName: seat.name,
+    mentionNames: [seat.name, state.character.name].filter(Boolean),
+    colors,
+    portraits,
+  });
+  paintPins(document.getElementById("talk-pins"), room.messages || []);
+  setText(document.getElementById("talk-typing"), typingLine(room.players, seat.name));
+  noticeMentions(room.messages || [], seat);
+  paintTableRolls(room.events, room.players);
+  if (room.board) paintBoard(room.board);
+  paintPlayerMap(room, seat);
+  const xcard = document.getElementById("xcard");
+  if (xcard) xcard.hidden = false;
+  paintTurnHelper();
+}
+
+function sendTyping() {
+  if (!atSharedTable()) return;
+  const now = Date.now();
+  if (now - typingSentAt < 3000) return;
+  typingSentAt = now;
+  void postBoard(loadSeat().room, { op: "typing" }).catch(() => {});
+}
+
+function talkPayload(raw) {
+  let text = raw;
+  let kind = document.getElementById("talk-kind")?.value === "ooc" ? "ooc" : "ic";
+  if (/^\/me\s+/i.test(text)) {
+    kind = "emote";
+    text = text.replace(/^\/me\s+/i, "");
+  } else if (/^\/ooc\s+/i.test(text)) {
+    kind = "ooc";
+    text = text.replace(/^\/ooc\s+/i, "");
+  }
+  const as = kind === "ooc" ? "" : state.character.name || "";
+  return { text, kind, as };
+}
+
+function boardClick(action, button) {
+  const handlers = {
+    "end-turn": () => void endMyTurn(),
+    "open-recap": () => {
+      paintRecap();
+      document.getElementById("recap-dialog")?.showModal();
+    },
+    "close-recap": () => document.getElementById("recap-dialog")?.close(),
+    "copy-recap": () => void copyRecap(),
+    "turn-use": () => useEconomy(button.dataset.use),
+    "use-reaction": () => void useReaction(),
+    react: () => void boardOp({ op: "react", id: button.dataset.id, emoji: button.dataset.emoji }).then(() => watchShop()),
+    pin: () => void boardOp({ op: "pin", id: button.dataset.id, on: button.dataset.on === "true" }).then(() => watchShop()),
+    "glossary-open": () => openGlossary(button.dataset.name),
+    "glossary-remove": () => void boardOp({ op: "glossary-remove", id: button.dataset.id }),
+    "quest-remove": () => void boardOp({ op: "quest-remove", id: button.dataset.id }),
+    "stash-take": () => void takeFromStash(button.dataset.id),
+    "open-handout": () => void openHandout(button.dataset.id),
+    "next-ics": () => nextIcs(),
+    "close-handout": () => document.getElementById("handout-dialog").close(),
+    "gift-ok": () => { document.getElementById("gift-banner").hidden = true; },
+    "coin-put": () => void moveCoin("coin-put", readInt(document.getElementById("coin-amount"), 0, 0, 1_000_000) * 100),
+    "coin-take": () => void moveCoin("coin-take", readInt(document.getElementById("coin-amount"), 0, 0, 1_000_000) * 100),
+    "coin-share": () => void moveCoin("coin-take", Number(button.dataset.cp)),
+    "poll-vote": () => void boardOp({ op: "poll-vote", option: button.dataset.option }),
+    "poll-close": () => void boardOp({ op: "poll-close" }),
+    "poll-clear": () => void boardOp({ op: "poll-clear" }),
+    "ready-call": () => void boardOp({ op: "ready-call" }, "Ready check called."),
+    "ready-answer": () => void boardOp({ op: "ready-answer", answer: button.dataset.answer }),
+    "ready-clear": () => void boardOp({ op: "ready-clear" }),
+    xcard: () => void boardOp({ op: "xcard" }).then((result) => {
+      if (result) document.getElementById("xcard-banner").hidden = false;
+    }),
+    "xcard-clear": () => void boardOp({ op: "xcard-clear" }).then(() => {
+      document.getElementById("xcard-banner").hidden = true;
+    }),
+  };
+  const run = handlers[action];
+  if (!run) return false;
+  run();
+  return true;
+}
+
+function boardSubmit(form) {
+  const kind = form.dataset.form;
+  if (kind === "quest") {
+    const title = form.elements.title.value.trim();
+    if (title) void boardOp({ op: "quest-add", title }, "Added the quest.").then((ok) => ok && form.reset());
+  } else if (kind === "glossary") {
+    const name = form.elements.name.value.trim();
+    if (name) void boardOp({ op: "glossary-add", name, body: form.elements.body.value }, `Saved ${name}.`).then((ok) => ok && form.reset());
+  } else if (kind === "stash") void putInStash(form);
+  else if (kind === "help") {
+    const to = form.elements.to.value;
+    if (to) void boardOp({ op: "help", to }, `Helping ${to}. Their next d20 roll has advantage.`).then((ok) => ok && persist(`${state.character.name || loadSeat().name} helps ${to}.`));
+  } else if (kind === "poll") {
+    const options = form.elements.options.value.split("\n").map((line) => line.trim()).filter(Boolean);
+    void boardOp({ op: "poll-open", question: form.elements.question.value, options }, "Poll started.");
+  } else return false;
+  return true;
+}
+
+function boardChange(target) {
+  if (target.dataset?.quest) {
+    void boardOp({ op: "quest-toggle", id: target.dataset.quest });
+    return true;
+  }
+  if (target.id === "recap-since") {
+    paintRecap();
+    return true;
+  }
+  if (target.id === "alert-turn" || target.id === "alert-mention") {
+    saveAlertPrefs({ ...alertPrefs(), [target.id === "alert-turn" ? "turn" : "mention"]: target.checked });
+    return true;
+  }
+  return false;
+}
+
+function boardInput(target) {
+  if (target.id === "party-notes") {
+    queuePartyNotes(target.value);
+    return true;
+  }
+  if (target.id === "talk-text") {
+    sendTyping();
+    return false;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Session recap: the table's talk and rolls in one scroll.
+
+function recapEntries(room, hours) {
+  const since = Date.now() - hours * 60 * 60 * 1000;
+  const talk = (room?.messages || []).filter((message) => message.at >= since).map((message) => ({
+    at: message.at,
+    kind: "talk",
+    who: message.as || message.from,
+    text: message.kind === "emote" ? `${message.as || message.from} ${message.text}` : message.text,
+    whisper: Boolean(message.to),
+    ooc: message.kind === "ooc",
+  }));
+  const quiet = /^(Set |Named |Chose |Changed |Removed |Added |Saved |Cleared |Filled |Marked |Stopped |Counting |Using the suggested)/;
+  const rolls = (room?.events || []).filter((event) => event.at >= since && !quiet.test(event.summary)).map((event) => ({
+    at: event.at,
+    kind: /^Rolled /.test(event.summary) ? "roll" : "event",
+    who: event.name,
+    text: event.summary,
+    tag: /Natural 20/.test(event.summary) ? "natural-20" : /Natural 1\b/.test(event.summary) ? "natural-1" : "",
+    secret: event.secret === true,
+  }));
+  return [...talk, ...rolls].sort((a, b) => a.at - b.at);
+}
+
+function recapText(entries) {
+  return entries.map((entry) => {
+    const time = new Date(entry.at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+    return `[${time}] ${entry.who}: ${entry.text}${entry.whisper ? " (whisper)" : ""}${entry.secret ? " (secret)" : ""}`;
+  }).join("\n");
+}
+
+function paintRecap() {
+  const mount = document.getElementById("recap-list");
+  if (!mount) return;
+  if (!atSharedTable()) {
+    mount.replaceChildren(h("p", { class: "hint" }, "The recap gathers a shared table. Playing alone, your rolls are on the dice panel."));
+    return;
+  }
+  const hours = Number(document.getElementById("recap-since")?.value) || 6;
+  const entries = recapEntries(lastRoom, hours);
+  mount.replaceChildren(...(entries.length ? entries.map((entry) => h("article", {
+    class: ["recap-row", `is-${entry.kind}`, entry.tag, entry.ooc ? "is-ooc" : "", entry.whisper ? "is-whisper" : ""].filter(Boolean).join(" "),
+  }, [
+    h("time", { datetime: new Date(entry.at).toISOString() }, new Date(entry.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
+    h("p", {}, [h("strong", {}, entry.who), ` ${entry.text}`]),
+  ])) : [h("p", { class: "hint" }, "Nothing at the table in that time.")]));
+}
+
+async function copyRecap() {
+  const hours = Number(document.getElementById("recap-since")?.value) || 6;
+  const text = recapText(recapEntries(lastRoom, hours));
+  try {
+    await navigator.clipboard.writeText(text);
+    setText(document.getElementById("recap-status"), "Copied.");
+  } catch {
+    setText(document.getElementById("recap-status"), "This browser would not copy. Select the list and copy it by hand.");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Spellbook and magic items read from a PDF or a Lantern file.
+
+const SPELL_ORDINAL = ["Cantrip", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th"];
+
+function paintSpellbook() {
+  const mount = document.getElementById("kit-spellbook");
+  if (!mount || typingInside(mount)) return;
+  const book = extras().spellbook || [];
+  mount.replaceChildren(...present([
+    h("h3", {}, "Spellbook"),
+    h("p", { class: "hint" }, "Spells you know. Prepare one to put it under Tonight with its slot."),
+    ...book.map((spell) => h("details", { class: "lib-row" }, [
+      h("summary", {}, [h("span", { class: "lib-name" }, spell.name), h("span", { class: "hint" }, ` ${SPELL_ORDINAL[spell.level]}${spell.school ? ` ${spell.school}` : ""}${spell.concentration ? " · concentration" : ""}${spell.range ? ` · ${spell.range}` : ""}`)]),
+      h("p", { class: "hint" }, [spell.castingTime, spell.components, spell.duration].filter(Boolean).join(" · ")),
+      spell.text ? h("p", { class: "lib-text" }, spell.text) : null,
+      h("div", { class: "turn-actions" }, [
+        h("button", { type: "button", class: "btn", "data-action": "prepare-spell", "data-id": spell.id }, "Prepare for tonight"),
+        h("button", { type: "button", class: "text-btn", "data-action": "forget-spell", "data-id": spell.id }, "Remove"),
+      ]),
+    ])),
+    book.length ? null : h("p", { class: "empty" }, "No spells in the book yet."),
+    h("div", { class: "turn-actions" }, [
+      h("button", { type: "button", class: "btn", "data-action": "read-spells" }, "Read spells from a PDF or Lantern file"),
+    ]),
+    h("p", { id: "spell-status", class: "hint", role: "status" }, ""),
+  ]));
+}
+
+async function readLibraryInput(file, want) {
+  if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+    const { readPdf, looksScanned } = await import("./pdfread.js");
+    const pdf = await readPdf(file);
+    if (looksScanned(pdf)) throw new Error("That PDF is a picture of a page, with no text to read.");
+    return readPdfContent(pdf, want);
+  }
+  return readLibraryFile(JSON.parse(await file.text()));
+}
+
+async function importSpells(file) {
+  const status = () => document.getElementById("spell-status");
+  setText(status(), "Reading…");
+  try {
+    const found = await readLibraryInput(file, "spells");
+    const spells = (found.spells || []).map((spell) => cleanSpell(spell, 800)).filter(Boolean);
+    if (!spells.length) throw new Error("No spells found. Lantern reads spells laid out like the SRD: name, then level and school.");
+    const ex = extras();
+    const known = new Set(ex.spellbook.map((spell) => spell.name.toLowerCase()));
+    const fresh = spells.filter((spell) => !known.has(spell.name.toLowerCase()));
+    state.character.extras = cleanExtras({ ...ex, spellbook: [...ex.spellbook, ...fresh] });
+    const kept = state.character.extras.spellbook.length - ex.spellbook.length;
+    persist(`Added ${kept} spells to the spellbook.`);
+    renderKit();
+    setText(status(), `Added ${kept} of ${spells.length}.${kept < fresh.length ? " The book holds forty." : ""}`);
+  } catch (error) {
+    setText(status(), error instanceof SyntaxError ? "That file is not a Lantern file or a PDF." : error.message);
+  }
+}
+
+async function importItems(file) {
+  const status = document.getElementById("item-status");
+  setText(status, "Reading…");
+  try {
+    const found = await readLibraryInput(file, "items");
+    const items = found.items || [];
+    if (!items.length) throw new Error("No magic items found. Lantern reads items laid out like the SRD: name, then type and rarity.");
+    const ex = extras();
+    const room = TRINKET_CAP - ex.trinkets.length;
+    const adding = items.slice(0, Math.max(0, room)).map((item) => ({
+      id: uid(),
+      name: item.name,
+      qty: 1,
+      weight: item.weight || 0,
+      attune: item.attune,
+      note: [item.rarity, item.text].filter(Boolean).join(". ").slice(0, 120),
+    }));
+    setExtras({ ...ex, trinkets: [...ex.trinkets, ...adding] }, `Added ${adding.length} magic items.`);
+    setText(status, `Added ${adding.length} of ${items.length}.${adding.length < items.length ? " The pack holds twenty magic items." : ""}`);
+  } catch (error) {
+    setText(status, error instanceof SyntaxError ? "That file is not a Lantern file or a PDF." : error.message);
+  }
+}
+
+function prepareSpell(id) {
+  const spell = extras().spellbook.find((item) => item.id === id);
+  if (!spell) return;
+  if ((state.character.spells || []).some((item) => item.name === spell.name)) {
+    setText(document.getElementById("spell-status"), `${spell.name} is already under Tonight.`);
+    return;
+  }
+  state.character.spells = [...(state.character.spells || []), { id: uid(), name: spell.name, slot: spell.level, used: false }];
+  persist(`Prepared ${spell.name}.`);
+  renderKit();
+}
+
+function libraryClick(action, button) {
+  if (action === "read-spells") document.getElementById("spell-file")?.click();
+  else if (action === "read-items") document.getElementById("item-file")?.click();
+  else if (action === "prepare-spell") prepareSpell(button.dataset.id);
+  else if (action === "forget-spell") setExtras({ ...extras(), spellbook: extras().spellbook.filter((item) => item.id !== button.dataset.id) }, "Removed a spell from the book.");
+  else return false;
+  return true;
+}
+
 function boot() {
   bootTextSize(document.getElementById("text-size"));
+  bootDisplay({ contrast: document.getElementById("contrast-switch"), motion: document.getElementById("motion-switch") });
   registerOffline();
+  setInterval(() => {
+    const timer = document.getElementById("turn-timer");
+    if (timer) timer.textContent = turnTimerText(turnFacts().order);
+  }, 1000);
   document.addEventListener("visibilitychange", onVisibility);
   if (state.pauseReason === "hidden") {
     resumeLights();
@@ -3553,6 +5281,24 @@ function boot() {
     event.target.value = "";
     if (file) void importCharacter(file);
   });
+  document.getElementById("portrait-file")?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void loadPortrait(file);
+  });
+  renderMacros();
+  for (const [id, read] of [["spell-file", importSpells], ["item-file", importItems]]) {
+    document.getElementById(id)?.addEventListener("change", (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) void read(file);
+    });
+  }
+  const prefs = alertPrefs();
+  const turnBox = document.getElementById("alert-turn");
+  const mentionBox = document.getElementById("alert-mention");
+  if (turnBox) turnBox.checked = prefs.turn;
+  if (mentionBox) mentionBox.checked = prefs.mention;
   document.getElementById("import-file")?.addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (file) void restoreNight(file);
@@ -3584,6 +5330,7 @@ function boot() {
   }, { passive: true });
   setInterval(renderFlames, 1000);
   setInterval(() => { void flushShare(); }, 8000);
+  bootPlayerMap();
   setInterval(() => { void watchShop(); }, 2000);
   void watchShop();
 }

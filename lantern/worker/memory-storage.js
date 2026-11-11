@@ -20,6 +20,9 @@ export function memoryStorage() {
       }
       return out;
     },
+    async delete(key) {
+      return data.delete(key);
+    },
     async setAlarm() {},
     async deleteAll() {
       data.clear();

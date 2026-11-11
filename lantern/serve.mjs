@@ -24,6 +24,7 @@ const TYPES = {
   ".ico": "image/x-icon",
 };
 
+
 function facade(code) {
   if (!rooms.has(code)) rooms.set(code, new TableRoom(memoryStorage()));
   const room = rooms.get(code);
@@ -38,6 +39,9 @@ function facade(code) {
     setOrder: (token, body) => room.setOrder(token, body),
     rollInitiative: (token, body) => room.rollInitiative(token, body),
     setVitals: (token, body) => room.setVitals(token, body),
+    board: (token, body) => room.board(token, body),
+    map: (token, body) => room.map(token, body),
+    recap: (token, body) => room.recap(token, body),
   };
 }
 
