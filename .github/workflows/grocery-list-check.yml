@@ -15,7 +15,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # PRs from branches in this repo may build on Azrael's PC when GROCERY_RUNNER is "pc".
+    # Fork PRs always use GitHub's runners, so outside code never runs on the PC.
+    runs-on: ${{ vars.GROCERY_RUNNER == 'pc' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON('["self-hosted","grocery-pc"]') || 'ubuntu-latest' }}
     defaults:
       run:
         working-directory: grocery-list
