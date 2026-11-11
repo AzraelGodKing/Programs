@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -65,8 +66,10 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.azrael.grocery.barcode.SodiumLevel
 import dev.azrael.grocery.data.CabinetItem
 import dev.azrael.grocery.expiry.ExpiryReminders
+import dev.azrael.grocery.nutrition.Dash
 import dev.azrael.grocery.parse.Expiry
 import java.time.LocalDate
 import kotlinx.coroutines.launch
@@ -79,6 +82,8 @@ fun CabinetScreen(
     onBack: () -> Unit,
     /** Opens the Claude photo scan. Null hides the button (Claude turned off). */
     onScanWithClaude: (() -> Unit)? = null,
+    /** Opens the barcode scanner. */
+    onScanBarcode: () -> Unit = {},
 ) {
     val items by vm.cabinet.collectAsStateWithLifecycle()
     var newName by rememberSaveable { mutableStateOf("") }
@@ -143,8 +148,9 @@ fun CabinetScreen(
                         Text("Cabinet")
                         val list = items.orEmpty()
                         if (list.isNotEmpty()) {
+                            val salty = list.count { it.sodiumLevel == SodiumLevel.HIGH }
                             Text(
-                                "${list.size} on hand",
+                                "${list.size} on hand" + if (salty > 0) " · $salty high sodium" else "",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -155,6 +161,7 @@ fun CabinetScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
                 actions = {
+                    IconButton(onClick = onScanBarcode) { Icon(Icons.Default.QrCodeScanner, "Scan a barcode") }
                     if (onScanWithClaude != null) {
                         IconButton(onClick = onScanWithClaude) { Icon(Icons.Default.PhotoCamera, "Scan a photo") }
                     }
@@ -299,7 +306,8 @@ private fun CabinetRow(
                 modifier = Modifier.fillMaxWidth().clickable(onClick = onSetExpiry).padding(start = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f).padding(vertical = if (item.expiresOn == null) 14.dp else 8.dp)) {
+                val hasDetail = item.expiresOn != null || item.sodiumLevel != null
+                Column(modifier = Modifier.weight(1f).padding(vertical = if (hasDetail) 8.dp else 14.dp)) {
                     Text(item.name, style = MaterialTheme.typography.bodyLarge)
                     item.expiresOn?.let {
                         Text(
@@ -309,6 +317,19 @@ private fun CabinetRow(
                                 MaterialTheme.colorScheme.error
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                    item.sodiumLevel?.let { level ->
+                        val amount = item.sodiumMgPerServing?.let { "${Dash.mg(it)} mg per serving" }
+                            ?: item.sodiumMgPer100g?.let { "${Dash.mg(it)} mg per 100 g" }
+                        Text(
+                            listOfNotNull(level.label, amount).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = when (level) {
+                                SodiumLevel.HIGH -> MaterialTheme.colorScheme.error
+                                SodiumLevel.MODERATE -> MaterialTheme.colorScheme.onSurfaceVariant
+                                SodiumLevel.LOW -> MaterialTheme.colorScheme.primary
                             },
                         )
                     }

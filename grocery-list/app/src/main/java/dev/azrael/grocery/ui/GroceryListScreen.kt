@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Restaurant
@@ -75,6 +76,7 @@ fun GroceryListScreen(
     versionLabel: String,
     claudeEnabled: Boolean = false,
     onAskClaude: () -> Unit = {},
+    onOpenSodium: () -> Unit = {},
     onClaudeSettings: () -> Unit = {},
 ) {
     val items by vm.items.collectAsStateWithLifecycle()
@@ -123,6 +125,7 @@ fun GroceryListScreen(
                 },
                 actions = {
                     IconButton(onClick = onOpenRecipeBox) { Icon(Icons.AutoMirrored.Filled.MenuBook, "Recipe box") }
+                    IconButton(onClick = onOpenSodium) { Icon(Icons.Default.Insights, "Sodium tracker") }
                     IconButton(onClick = onOpenCabinet) { Icon(Icons.Default.Kitchen, "Cabinet") }
                     IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add item") }
                     Box {

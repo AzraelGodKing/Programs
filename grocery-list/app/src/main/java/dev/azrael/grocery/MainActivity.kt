@@ -14,6 +14,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.azrael.grocery.barcode.BarcodeScreen
+import dev.azrael.grocery.barcode.BarcodeViewModel
 import dev.azrael.grocery.claude.AskClaudeScreen
 import dev.azrael.grocery.claude.AskClaudeViewModel
 import dev.azrael.grocery.claude.CabinetScan
@@ -21,6 +23,9 @@ import dev.azrael.grocery.claude.CabinetScanScreen
 import dev.azrael.grocery.claude.CabinetScanViewModel
 import dev.azrael.grocery.claude.ClaudeSettingsScreen
 import dev.azrael.grocery.expiry.ExpiryReminders
+import dev.azrael.grocery.tracker.LogRecipeScreen
+import dev.azrael.grocery.tracker.SodiumScreen
+import dev.azrael.grocery.tracker.TrackerViewModel
 import dev.azrael.grocery.ui.AddRecipeScreen
 import dev.azrael.grocery.ui.CabinetScreen
 import dev.azrael.grocery.ui.GroceryListScreen
@@ -68,7 +73,9 @@ class MainActivity : ComponentActivity() {
         if (this?.action == Intent.ACTION_SEND) getStringExtra(Intent.EXTRA_TEXT) else null
 }
 
-private enum class Screen { LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX }
+private enum class Screen {
+    LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX, SODIUM, LOG_RECIPE, BARCODE,
+}
 
 @Composable
 private fun AppRoot(
@@ -93,6 +100,13 @@ private fun AppRoot(
     val scan: CabinetScanViewModel = viewModel(factory = CabinetScanViewModel.Factory)
     // A Claude app reply listing Cabinet items, shared into the app; the scan screen reads it.
     var cabinetReply by rememberSaveable { mutableStateOf<String?>(null) }
+    val tracker: TrackerViewModel = viewModel(factory = TrackerViewModel.Factory)
+    // Recipe text and name handed to Log a recipe, and where it returns to.
+    var logText by rememberSaveable { mutableStateOf("") }
+    var logTitle by rememberSaveable { mutableStateOf("") }
+    var logReturn by rememberSaveable { mutableStateOf(Screen.SODIUM) }
+    val barcode: BarcodeViewModel = viewModel(factory = BarcodeViewModel.Factory)
+    val sodiumLimit by tracker.settings.sodiumLimit.collectAsState()
 
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
@@ -123,6 +137,7 @@ private fun AppRoot(
             onCheckForUpdates = { updates.check(manual = true) },
             claudeEnabled = claudeConfig.enabled,
             onAskClaude = { screen = Screen.ASK_CLAUDE },
+            onOpenSodium = { screen = Screen.SODIUM },
             onClaudeSettings = { openClaudeSettings(Screen.LIST) },
             versionLabel = "Version ${updates.versionName} (build ${updates.currentBuild})",
         )
@@ -137,6 +152,12 @@ private fun AppRoot(
                 screen = Screen.LIST
             },
             onSaveRecipe = { title, servings, text -> vm.saveRecipe(title, servings, text) },
+            onLogSodium = { text, title ->
+                logText = text
+                logTitle = title
+                logReturn = Screen.ADD_RECIPE
+                screen = Screen.LOG_RECIPE
+            },
             onReadWithClaude = if (claudeConfig.enabled) {
                 { text: String ->
                     claudeDraft = text
@@ -168,6 +189,7 @@ private fun AppRoot(
         Screen.CABINET -> CabinetScreen(
             vm = vm,
             onBack = { screen = Screen.LIST },
+            onScanBarcode = { screen = Screen.BARCODE },
             onScanWithClaude = if (claudeConfig.enabled) {
                 { screen = Screen.CABINET_SCAN }
             } else {
@@ -190,6 +212,35 @@ private fun AppRoot(
             onAdd = { names ->
                 names.forEach { vm.addToCabinet(it) }
                 screen = Screen.CABINET
+            },
+        )
+        Screen.BARCODE -> BarcodeScreen(
+            vm = barcode,
+            sodiumLimit = sodiumLimit,
+            onBack = { screen = Screen.CABINET },
+            onLogServing = { name, na, k, servings ->
+                tracker.goToToday()
+                tracker.log(name, na, k, servings)
+            },
+        )
+        Screen.SODIUM -> SodiumScreen(
+            vm = tracker,
+            onBack = { screen = Screen.LIST },
+            onLogRecipe = {
+                logText = ""
+                logTitle = ""
+                logReturn = Screen.SODIUM
+                screen = Screen.LOG_RECIPE
+            },
+        )
+        Screen.LOG_RECIPE -> LogRecipeScreen(
+            vm = tracker,
+            initialText = logText,
+            initialTitle = logTitle,
+            onBack = { screen = logReturn },
+            onLogged = {
+                tracker.goToToday()
+                screen = Screen.SODIUM
             },
         )
     }

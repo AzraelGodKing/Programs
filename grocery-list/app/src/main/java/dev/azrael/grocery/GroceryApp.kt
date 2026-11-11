@@ -4,9 +4,11 @@ import android.app.Application
 import androidx.glance.appwidget.updateAll
 import dev.azrael.grocery.claude.ClaudeSettings
 import dev.azrael.grocery.claude.GeminiNano
+import dev.azrael.grocery.data.FoodLogDao
 import dev.azrael.grocery.data.GroceryDatabase
 import dev.azrael.grocery.data.GroceryRepository
 import dev.azrael.grocery.expiry.ExpiryReminders
+import dev.azrael.grocery.tracker.TrackerSettings
 import dev.azrael.grocery.widget.GroceryWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +18,10 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 class GroceryApp : Application() {
-    val repository: GroceryRepository by lazy { GroceryRepository(GroceryDatabase.create(this)) }
+    private val database: GroceryDatabase by lazy { GroceryDatabase.create(this) }
+    val repository: GroceryRepository by lazy { GroceryRepository(database) }
+    val foodLog: FoodLogDao by lazy { database.foodLogDao() }
+    val trackerSettings: TrackerSettings by lazy { TrackerSettings(this) }
     val claudeSettings: ClaudeSettings by lazy { ClaudeSettings(this) }
     /** Only created when Gemini Nano is picked in AI settings; lives as long as the app. */
     val nano: GeminiNano by lazy { GeminiNano() }
