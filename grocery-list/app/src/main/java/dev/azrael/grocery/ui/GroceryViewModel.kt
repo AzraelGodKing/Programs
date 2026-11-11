@@ -11,6 +11,7 @@ import dev.azrael.grocery.data.GroceryItem
 import dev.azrael.grocery.data.GroceryRepository
 import dev.azrael.grocery.data.MealPlanEntry
 import dev.azrael.grocery.data.Recipe
+import dev.azrael.grocery.data.StoreLayout
 import dev.azrael.grocery.parse.CombinedLine
 import dev.azrael.grocery.parse.MealPlan
 import dev.azrael.grocery.parse.ParsedIngredient
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-class GroceryViewModel(private val repo: GroceryRepository) : ViewModel() {
+class GroceryViewModel(private val repo: GroceryRepository, val layout: StoreLayout) : ViewModel() {
     /** null until the database has loaded, so the UI doesn't flash the empty state. */
     val items: StateFlow<List<GroceryItem>?> =
         repo.items.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -58,6 +59,12 @@ class GroceryViewModel(private val repo: GroceryRepository) : ViewModel() {
 
     fun toggle(item: GroceryItem) = launch { repo.setChecked(item, !item.checked) }
     fun update(item: GroceryItem) = launch { repo.update(item) }
+
+    /** Saves an edit; moving an item to another section is remembered for next time. */
+    fun edit(before: GroceryItem, after: GroceryItem) {
+        if (after.category != before.category) layout.remember(after.name, after.categoryEnum)
+        update(after)
+    }
     fun delete(item: GroceryItem) = launch { repo.delete(item) }
     fun restore(item: GroceryItem) = launch { repo.restore(item) }
     fun uncheckAll() = launch { repo.uncheckAll() }
@@ -95,7 +102,7 @@ class GroceryViewModel(private val repo: GroceryRepository) : ViewModel() {
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as GroceryApp
-                GroceryViewModel(app.repository)
+                GroceryViewModel(app.repository, app.storeLayout)
             }
         }
     }
