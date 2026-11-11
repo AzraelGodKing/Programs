@@ -1,11 +1,19 @@
 package dev.azrael.grocery
 
 import android.app.Application
+import androidx.glance.appwidget.updateAll
 import dev.azrael.grocery.claude.ClaudeSettings
 import dev.azrael.grocery.claude.GeminiNano
 import dev.azrael.grocery.data.GroceryDatabase
 import dev.azrael.grocery.data.GroceryRepository
 import dev.azrael.grocery.expiry.ExpiryReminders
+import dev.azrael.grocery.widget.GroceryWidget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 
 class GroceryApp : Application() {
     val repository: GroceryRepository by lazy { GroceryRepository(GroceryDatabase.create(this)) }
@@ -16,5 +24,9 @@ class GroceryApp : Application() {
     override fun onCreate() {
         super.onCreate()
         ExpiryReminders.schedule(this)
+        // Redraw the home-screen widget whenever the list changes in the app.
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            repository.items.distinctUntilChanged().drop(1).collect { GroceryWidget().updateAll(this@GroceryApp) }
+        }
     }
 }

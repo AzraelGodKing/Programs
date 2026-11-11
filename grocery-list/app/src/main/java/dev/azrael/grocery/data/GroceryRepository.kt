@@ -65,6 +65,7 @@ class GroceryRepository(private val db: GroceryDatabase) {
     suspend fun delete(item: GroceryItem) = dao.delete(item)
     suspend fun restore(item: GroceryItem) { dao.insert(item) }
     suspend fun setChecked(item: GroceryItem, checked: Boolean) = dao.setChecked(item.id, checked)
+    suspend fun setChecked(id: Long, checked: Boolean) = dao.setChecked(id, checked)
     suspend fun uncheckAll() = dao.uncheckAll()
     suspend fun deleteChecked() = dao.deleteChecked()
     suspend fun deleteAll() = dao.deleteAll()

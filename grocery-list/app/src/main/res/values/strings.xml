@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Grocery List</string>
+    <string name="widget_description">Your grocery list. Tick items off without opening the app.</string>
 </resources>

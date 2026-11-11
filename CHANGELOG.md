@@ -4,6 +4,7 @@
 
 ### Added
 
+- Grocery List has a home-screen widget. It lists what's left to buy in store-section order with checkboxes, so you can tick items off without opening the app, and it updates when the list changes in the app.
 - Grocery List reminds you before Cabinet food goes bad. Tap a Cabinet item to give it an expiry date with a quick pick (3 days to 1 month) or the calendar. Anything expired or expiring within two days moves to a Use soon section, and a morning notification lists those items and opens the Cabinet when tapped. Updating keeps your Cabinet; existing items start without a date.
 - Grocery List can use Gemini Nano, the free AI built into newer Android phones such as the Galaxy S26 Ultra. AI settings → Connect with → Gemini Nano on this phone runs recipe requests, pasted recipes and Cabinet photo scans on the phone itself, offline and at no cost, after a one-time model download. It's less capable than Claude and can't open links, so the Claude options stay available. Claude settings is now called AI settings.
 - Grocery List can scan your Cabinet. In the Cabinet, the camera button takes or picks a photo of a shelf or the fridge, Claude lists the groceries it sees, and you untick anything wrong before the rest goes in. Items already in the Cabinet start unticked.
