@@ -14,6 +14,7 @@
 
 ### Changed
 
+- Grocery List builds with Kotlin 2.4, KSP 2.3, Room 2.7, Android Gradle plugin 8.13 and Gradle 8.14, which the on-device Gemini Nano library needs. Your list and Cabinet are unchanged.
 - Grocery List release builds are numbered without gaps from now on. Pull requests are checked by a separate workflow, so they no longer use up build numbers.
 
 - `npm start` runs the local table server with Node. Room POST routes, in-memory table storage, and the offline cache write each have one code path.
