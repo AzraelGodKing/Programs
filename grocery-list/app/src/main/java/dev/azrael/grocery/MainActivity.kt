@@ -10,6 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -17,6 +18,7 @@ import dev.azrael.grocery.claude.AskClaudeScreen
 import dev.azrael.grocery.claude.AskClaudeViewModel
 import dev.azrael.grocery.claude.ClaudeSettingsScreen
 import dev.azrael.grocery.ui.AddRecipeScreen
+import dev.azrael.grocery.ui.CabinetScreen
 import dev.azrael.grocery.ui.GroceryListScreen
 import dev.azrael.grocery.ui.GroceryTheme
 import dev.azrael.grocery.ui.GroceryViewModel
@@ -47,7 +49,7 @@ class MainActivity : ComponentActivity() {
         if (this?.action == Intent.ACTION_SEND) getStringExtra(Intent.EXTRA_TEXT) else null
 }
 
-private enum class Screen { LIST, ADD_RECIPE, ASK_CLAUDE, CLAUDE_SETTINGS }
+private enum class Screen { LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS }
 
 @Composable
 private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
@@ -62,6 +64,8 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
     // Where Claude settings returns to.
     var settingsReturn by rememberSaveable { mutableStateOf(Screen.LIST) }
     val openClaudeSettings = { from: Screen -> settingsReturn = from; screen = Screen.CLAUDE_SETTINGS }
+    val cabinet by vm.cabinet.collectAsState()
+    val cabinetKeys = remember(cabinet) { cabinet.orEmpty().map { it.key }.toSet() }
 
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
@@ -75,6 +79,7 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
         Screen.LIST -> GroceryListScreen(
             vm = vm,
             onAddRecipe = { screen = Screen.ADD_RECIPE },
+            onOpenCabinet = { screen = Screen.CABINET },
             onCheckForUpdates = { updates.check(manual = true) },
             claudeEnabled = claudeConfig.enabled,
             onAskClaude = { screen = Screen.ASK_CLAUDE },
@@ -83,6 +88,7 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
         )
         Screen.ADD_RECIPE -> AddRecipeScreen(
             text = draft,
+            cabinetKeys = cabinetKeys,
             onTextChange = { draft = it },
             onBack = { screen = Screen.LIST },
             onAdd = { ingredients, source ->
@@ -117,6 +123,7 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
             // If Claude was just switched off, don't drop back into a Claude screen.
             onBack = { screen = if (claudeConfig.enabled) settingsReturn else Screen.LIST },
         )
+        Screen.CABINET -> CabinetScreen(vm = vm, onBack = { screen = Screen.LIST })
     }
 
     UpdateDialog(state = updateState, currentBuild = updates.currentBuild, vm = updates)

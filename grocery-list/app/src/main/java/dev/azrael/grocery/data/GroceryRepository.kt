@@ -10,8 +10,10 @@ import kotlinx.coroutines.flow.Flow
 
 class GroceryRepository(private val db: GroceryDatabase) {
     private val dao = db.groceryDao()
+    private val cabinetDao = db.cabinetDao()
 
     val items: Flow<List<GroceryItem>> = dao.observeAll()
+    val cabinet: Flow<List<CabinetItem>> = cabinetDao.observeAll()
 
     /** Adds recipe ingredients, folding each into a matching unchecked line when the units allow. */
     suspend fun addIngredients(ingredients: List<ParsedIngredient>, source: String?) = db.withTransaction {
@@ -66,6 +68,39 @@ class GroceryRepository(private val db: GroceryDatabase) {
     suspend fun uncheckAll() = dao.uncheckAll()
     suspend fun deleteChecked() = dao.deleteChecked()
     suspend fun deleteAll() = dao.deleteAll()
+
+    // Cabinet: things already at home.
+
+    /** Adds to the Cabinet; does nothing when an item with the same key is already there. */
+    suspend fun addToCabinet(name: String, category: String? = null) {
+        val clean = name.trim()
+        if (clean.isEmpty()) return
+        cabinetDao.insert(cabinetItemFor(clean, category))
+    }
+
+    suspend fun removeFromCabinet(item: CabinetItem) = cabinetDao.delete(item)
+    suspend fun restoreToCabinet(item: CabinetItem) { cabinetDao.insert(item) }
+    suspend fun clearCabinet() = cabinetDao.deleteAll()
+
+    /** Ran out of something: takes it out of the Cabinet and puts it on the grocery list. */
+    suspend fun cabinetToList(item: CabinetItem) = db.withTransaction {
+        cabinetDao.delete(item)
+        addOne(item.name, null, null, null, null, item.category)
+    }
+
+    /** Bought it: every checked line goes into the Cabinet and off the list. Returns how many moved. */
+    suspend fun moveCheckedToCabinet(): Int = db.withTransaction {
+        val checked = dao.getChecked()
+        checked.forEach { cabinetDao.insert(cabinetItemFor(it.name, it.category)) }
+        dao.deleteChecked()
+        checked.size
+    }
+
+    private fun cabinetItemFor(name: String, category: String?) = CabinetItem(
+        name = name.replaceFirstChar { it.uppercase() },
+        key = NameKey.of(name),
+        category = category ?: Categorizer.categorize(name, null).name,
+    )
 
     private fun joinDistinct(a: String?, b: String?, sep: String): String? {
         val parts = (a?.split(sep).orEmpty() + listOfNotNull(b)).map { it.trim() }.filter { it.isNotEmpty() }.distinct()

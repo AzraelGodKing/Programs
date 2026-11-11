@@ -21,9 +21,7 @@ function stubFor(env, code) {
 
 function tokenFrom(request) {
   const header = request.headers.get("x-lantern-token") || "";
-  if (validToken(header)) return header;
-  const query = new URL(request.url).searchParams.get("token") || "";
-  return validToken(query) ? query : "";
+  return validToken(header) ? header : "";
 }
 
 async function readJson(request) {
