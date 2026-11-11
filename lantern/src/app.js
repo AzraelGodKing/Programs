@@ -922,7 +922,7 @@ function findCombatant(id) {
 }
 
 function turnOrder() {
-  return [...state.combat.combatants].sort((a, b) => b.init - a.init || a.order - b.order);
+  return sortOrder(state.combat.combatants);
 }
 
 function ensureActive() {
@@ -1266,7 +1266,7 @@ function renderCombat() {
   if (!mount) return;
   if (shared) {
     const order = sharedOrder || cleanOrder(null);
-    const list = [...order.combatants].sort((a, b) => b.init - a.init || a.order - b.order);
+    const list = sortOrder(order.combatants);
     const banner = document.getElementById("turn-banner");
     const meta = document.getElementById("turn-meta");
     if (!list.length) {
