@@ -4,15 +4,18 @@ import androidx.room.withTransaction
 import dev.azrael.grocery.barcode.ScannedProduct
 import dev.azrael.grocery.parse.Amount
 import dev.azrael.grocery.parse.Categorizer
+import dev.azrael.grocery.parse.CombinedLine
 import dev.azrael.grocery.parse.Merge
 import dev.azrael.grocery.parse.NameKey
 import dev.azrael.grocery.parse.ParsedIngredient
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 class GroceryRepository(private val db: GroceryDatabase) {
     private val dao = db.groceryDao()
     private val cabinetDao = db.cabinetDao()
     private val recipeDao = db.recipeDao()
+    private val mealPlanDao = db.mealPlanDao()
 
     val items: Flow<List<GroceryItem>> = dao.observeAll()
     val cabinet: Flow<List<CabinetItem>> = cabinetDao.observeAll()
@@ -139,13 +142,38 @@ class GroceryRepository(private val db: GroceryDatabase) {
         recipeDao.insert(Recipe(title = title.trim(), servings = servings.coerceAtLeast(1), text = text.trim()))
 
     suspend fun updateRecipe(recipe: Recipe) = recipeDao.update(recipe)
-    suspend fun deleteRecipe(recipe: Recipe) = recipeDao.delete(recipe)
+    /** Also takes the recipe off the meal plan. */
+    suspend fun deleteRecipe(recipe: Recipe) = db.withTransaction {
+        mealPlanDao.deleteForRecipe(recipe.id)
+        recipeDao.delete(recipe)
+    }
     suspend fun restoreRecipe(recipe: Recipe) { recipeDao.insert(recipe) }
 
     /** Puts a saved recipe's chosen (already scaled) ingredients on the list. */
     suspend fun addRecipeToList(recipe: Recipe, ingredients: List<ParsedIngredient>) = db.withTransaction {
         ingredients.forEach { addOne(it.name, it.quantity, it.unit, it.note, recipe.title) }
         recipeDao.markAdded(recipe.id, System.currentTimeMillis())
+    }
+
+    // Meal plan.
+
+    fun mealPlan(from: LocalDate, to: LocalDate): Flow<List<MealPlanEntry>> =
+        mealPlanDao.observeRange(from.toEpochDay(), to.toEpochDay())
+
+    suspend fun planMeal(day: LocalDate, recipe: Recipe, servings: Int) {
+        mealPlanDao.insert(MealPlanEntry(day = day.toEpochDay(), recipeId = recipe.id, servings = servings))
+    }
+
+    suspend fun updatePlanned(entry: MealPlanEntry) = mealPlanDao.update(entry)
+    suspend fun unplan(entry: MealPlanEntry) = mealPlanDao.delete(entry)
+    suspend fun restorePlanned(entry: MealPlanEntry) { mealPlanDao.insert(entry) }
+    suspend fun clearPlan(from: LocalDate, to: LocalDate) = mealPlanDao.deleteRange(from.toEpochDay(), to.toEpochDay())
+
+    /** Puts the week's combined lines on the list; each merges into the list like any other line. */
+    suspend fun addCombinedToList(lines: List<CombinedLine>, recipeIds: Collection<Long>) = db.withTransaction {
+        lines.forEach { addOne(it.name, it.quantity, it.unit, it.note, it.sources.joinToString(" · ").ifEmpty { null }) }
+        val now = System.currentTimeMillis()
+        recipeIds.forEach { recipeDao.markAdded(it, now) }
     }
 
     private fun cabinetItemFor(name: String, category: String?) = CabinetItem(

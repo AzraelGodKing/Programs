@@ -461,7 +461,7 @@ private fun RecipeBoxEmptyState() {
         )
         Text(
             "Tick \"Save to recipe box\" when you add a recipe, use the bookmark on an AI recipe, " +
-                "or tap New recipe. Then the cart button puts it back on your list in one tap.",
+                "or tap New recipe. Then the cart button puts it back on your list in one tap, and the meal plan can use it.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
