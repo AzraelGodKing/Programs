@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -16,6 +17,8 @@ import dev.azrael.grocery.ui.AddRecipeScreen
 import dev.azrael.grocery.ui.GroceryListScreen
 import dev.azrael.grocery.ui.GroceryTheme
 import dev.azrael.grocery.ui.GroceryViewModel
+import dev.azrael.grocery.update.UpdateDialog
+import dev.azrael.grocery.update.UpdateViewModel
 
 class MainActivity : ComponentActivity() {
     /** Recipe text shared into the app from another app (browser, notes, etc.). */
@@ -46,6 +49,8 @@ private enum class Screen { LIST, ADD_RECIPE }
 @Composable
 private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
     val vm: GroceryViewModel = viewModel(factory = GroceryViewModel.Factory)
+    val updates: UpdateViewModel = viewModel(factory = UpdateViewModel.Factory)
+    val updateState by updates.state.collectAsState()
     var screen by rememberSaveable { mutableStateOf(Screen.LIST) }
     var draft by rememberSaveable { mutableStateOf("") }
 
@@ -58,7 +63,12 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
     }
 
     when (screen) {
-        Screen.LIST -> GroceryListScreen(vm = vm, onAddRecipe = { screen = Screen.ADD_RECIPE })
+        Screen.LIST -> GroceryListScreen(
+            vm = vm,
+            onAddRecipe = { screen = Screen.ADD_RECIPE },
+            onCheckForUpdates = { updates.check(manual = true) },
+            versionLabel = "Version ${updates.versionName} (build ${updates.currentBuild})",
+        )
         Screen.ADD_RECIPE -> AddRecipeScreen(
             text = draft,
             onTextChange = { draft = it },
@@ -70,4 +80,6 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
             },
         )
     }
+
+    UpdateDialog(state = updateState, currentBuild = updates.currentBuild, vm = updates)
 }

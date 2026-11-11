@@ -64,7 +64,12 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun GroceryListScreen(vm: GroceryViewModel, onAddRecipe: () -> Unit) {
+fun GroceryListScreen(
+    vm: GroceryViewModel,
+    onAddRecipe: () -> Unit,
+    onCheckForUpdates: () -> Unit,
+    versionLabel: String,
+) {
     val items by vm.items.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<GroceryItem?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -114,6 +119,22 @@ fun GroceryListScreen(vm: GroceryViewModel, onAddRecipe: () -> Unit) {
                             DropdownMenuItem(
                                 text = { Text("Clear whole list") },
                                 onClick = { menuOpen = false; confirmClearAll = true },
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Check for updates") },
+                                onClick = { menuOpen = false; onCheckForUpdates() },
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        versionLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                onClick = { menuOpen = false },
+                                enabled = false,
                             )
                         }
                     }

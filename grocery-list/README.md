@@ -7,7 +7,8 @@ A personal Android app: paste a recipe, get an interactive grocery list.
 - **Add recipe**: paste a whole recipe (or just its ingredients), or share text into the app from a browser or notes app. It finds the "Ingredients" section, parses each line into amount, unit and item, and sorts items into store sections. Untick anything you already have, then add the rest.
 - **Interactive list**: tap to check off (checked items drop to "In cart"), the pencil to edit, swipe left to delete (with Undo), + to add an item by hand. The menu can remove checked items, uncheck everything, or clear the list.
 - **Merging**: adding the same ingredient again combines amounts when the units allow it: 1 cup + 4 tbsp milk becomes 1 1/4 cups, 2 tsp + 1 tsp becomes 1 tbsp. Different kinds of units (2 cans vs 1 lb) stay as separate lines.
-- Everything is stored on the phone (Room/SQLite). No account, no network.
+- **Updates**: on launch the app checks this repo's releases for a newer Grocery List build and offers to download it. Menu → Check for updates does the same on demand. The first time, Android asks you to allow Grocery List to install apps.
+- Your list is stored on the phone (Room/SQLite), with no account. The only network use is the update check.
 
 ## Installing on your phone
 
@@ -15,7 +16,7 @@ Every push to `main` builds an APK in GitHub Actions and publishes it as a relea
 
 1. On the phone, open this repo's **Releases** page, find the newest **Grocery List build N**, and download its `grocery-list-N.apk`.
 2. Open it. The first time, Android asks you to allow installs from your browser; allow it.
-3. Later builds install over the old one and keep your list.
+3. Later builds install over the old one and keep your list. From build 3 on, the app finds and installs them itself.
 
 The APK is signed with `app/signing/debug.keystore`, which is checked in on purpose so every build can update the previous one. Since this repo is public, only install APKs from this repo's own releases.
 
