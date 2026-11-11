@@ -25,6 +25,7 @@ import dev.azrael.grocery.ui.CabinetScreen
 import dev.azrael.grocery.ui.GroceryListScreen
 import dev.azrael.grocery.ui.GroceryTheme
 import dev.azrael.grocery.ui.GroceryViewModel
+import dev.azrael.grocery.ui.RecipeBoxScreen
 import dev.azrael.grocery.update.UpdateDialog
 import dev.azrael.grocery.update.UpdateViewModel
 
@@ -52,7 +53,7 @@ class MainActivity : ComponentActivity() {
         if (this?.action == Intent.ACTION_SEND) getStringExtra(Intent.EXTRA_TEXT) else null
 }
 
-private enum class Screen { LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN }
+private enum class Screen { LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX }
 
 @Composable
 private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
@@ -91,6 +92,7 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
             vm = vm,
             onAddRecipe = { screen = Screen.ADD_RECIPE },
             onOpenCabinet = { screen = Screen.CABINET },
+            onOpenRecipeBox = { screen = Screen.RECIPE_BOX },
             onCheckForUpdates = { updates.check(manual = true) },
             claudeEnabled = claudeConfig.enabled,
             onAskClaude = { screen = Screen.ASK_CLAUDE },
@@ -107,6 +109,7 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
                 draft = ""
                 screen = Screen.LIST
             },
+            onSaveRecipe = { title, servings, text -> vm.saveRecipe(title, servings, text) },
             onReadWithClaude = if (claudeConfig.enabled) {
                 { text: String ->
                     claudeDraft = text
@@ -128,6 +131,7 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
                 claudeDraft = ""
                 screen = Screen.LIST
             },
+            onSaveRecipe = { title, servings, text -> vm.saveRecipe(title, servings, text) },
         )
         Screen.CLAUDE_SETTINGS -> ClaudeSettingsScreen(
             vm = claude,
@@ -142,6 +146,12 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
             } else {
                 null
             },
+        )
+        Screen.RECIPE_BOX -> RecipeBoxScreen(
+            vm = vm,
+            cabinetKeys = cabinetKeys,
+            onBack = { screen = Screen.LIST },
+            onAddedToList = { screen = Screen.LIST },
         )
         Screen.CABINET_SCAN -> CabinetScanScreen(
             vm = scan,

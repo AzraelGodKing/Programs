@@ -1,6 +1,7 @@
 package dev.azrael.grocery.claude
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -73,6 +75,8 @@ fun AskClaudeScreen(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onAdd: (ingredients: List<ParsedIngredient>, source: String?) -> Unit,
+    /** Saves the recipe to the recipe box: name, servings, text. */
+    onSaveRecipe: (title: String, servings: Int, text: String) -> Unit = { _, _, _ -> },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val config by vm.settings.config.collectAsStateWithLifecycle()
@@ -97,6 +101,10 @@ fun AskClaudeScreen(
                 },
                 actions = {
                     if (recipe != null) {
+                        IconButton(onClick = {
+                            onSaveRecipe(recipe.title.ifBlank { "AI recipe" }, recipe.servings ?: 4, recipe.asText())
+                            Toast.makeText(context, "Saved to your recipe box", Toast.LENGTH_SHORT).show()
+                        }) { Icon(Icons.Default.BookmarkAdd, "Save to recipe box") }
                         IconButton(onClick = {
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"

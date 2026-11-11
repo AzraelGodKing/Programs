@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -69,6 +70,7 @@ fun GroceryListScreen(
     vm: GroceryViewModel,
     onAddRecipe: () -> Unit,
     onOpenCabinet: () -> Unit,
+    onOpenRecipeBox: () -> Unit,
     onCheckForUpdates: () -> Unit,
     versionLabel: String,
     claudeEnabled: Boolean = false,
@@ -120,6 +122,7 @@ fun GroceryListScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenRecipeBox) { Icon(Icons.AutoMirrored.Filled.MenuBook, "Recipe box") }
                     IconButton(onClick = onOpenCabinet) { Icon(Icons.Default.Kitchen, "Cabinet") }
                     IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add item") }
                     Box {
