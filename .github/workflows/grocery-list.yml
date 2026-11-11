@@ -1,12 +1,10 @@
 name: Grocery List
 
+# Builds on main and publishes them as releases. The run number is the app's build number
+# (versionCode), so pull requests are checked by grocery-list-check.yml instead: that keeps
+# their runs from using up numbers and release builds stay sequential.
 on:
   push:
-    branches: [ main ]
-    paths:
-      - "grocery-list/**"
-      - ".github/workflows/grocery-list.yml"
-  pull_request:
     branches: [ main ]
     paths:
       - "grocery-list/**"
@@ -45,7 +43,7 @@ jobs:
 
       # On main, publish a release so the APK can be downloaded straight from the phone.
       - name: Publish release
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: grocery-list-build-${{ github.run_number }}
