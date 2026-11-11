@@ -75,16 +75,15 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  const fetched = fetch(request).then((response) => {
+    if (response.ok) {
+      const copy = response.clone();
+      event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, copy)));
+    }
+    return response;
+  });
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      })
-      .catch(() => caches.match(request, { ignoreSearch: true })
-        .then((hit) => hit || caches.match("/index.html"))),
+    fetched.catch(() => caches.match(request, { ignoreSearch: true })
+      .then((hit) => hit || caches.match("/index.html"))),
   );
 });

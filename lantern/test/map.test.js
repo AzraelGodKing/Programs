@@ -3,25 +3,8 @@ import test from "node:test";
 import { blankMap, cellAt, cleanMap, fogged, freeCell, mapFor, paintFog, resizeMap, tokenLabel } from "../src/mapgrid.js";
 import { discordRecap, nextSessionLine, recapDraft, validWebhook } from "../src/recap.js";
 import { TableError, TableRoom } from "../worker/room.js";
+import { memoryStorage } from "../worker/memory-storage.js";
 
-function memoryStorage() {
-  const data = new Map();
-  return {
-    async get(key) { return data.has(key) ? structuredClone(data.get(key)) : undefined; },
-    async put(key, value) {
-      if (typeof key === "object") { for (const [name, stored] of Object.entries(key)) data.set(name, structuredClone(stored)); return; }
-      data.set(key, structuredClone(value));
-    },
-    async list({ prefix }) {
-      const out = new Map();
-      for (const [name, stored] of data) if (name.startsWith(prefix)) out.set(name, structuredClone(stored));
-      return out;
-    },
-    async delete(key) { return data.delete(key); },
-    async setAlarm() {},
-    async deleteAll() { data.clear(); },
-  };
-}
 
 async function table() {
   const room = new TableRoom(memoryStorage());
