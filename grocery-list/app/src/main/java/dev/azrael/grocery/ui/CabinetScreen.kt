@@ -115,7 +115,7 @@ fun CabinetScreen(
                 },
                 actions = {
                     if (onScanWithClaude != null) {
-                        IconButton(onClick = onScanWithClaude) { Icon(Icons.Default.PhotoCamera, "Scan with Claude") }
+                        IconButton(onClick = onScanWithClaude) { Icon(Icons.Default.PhotoCamera, "Scan a photo") }
                     }
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "More") }

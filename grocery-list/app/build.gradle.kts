@@ -82,6 +82,8 @@ dependencies {
     // Claude API (optional feature, off by default; the user supplies their own key).
     implementation("com.anthropic:anthropic-java:3.8.0")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.19.4")
+    // Gemini Nano on the phone through Android AICore (optional, free, on supported devices only).
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta5")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     testImplementation("junit:junit:4.13.2")

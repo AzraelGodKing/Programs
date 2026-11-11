@@ -121,7 +121,7 @@ fun CabinetScanScreen(
             TopAppBar(
                 title = { Text("Scan with Claude") },
                 navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                actions = { IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, "Claude settings") } },
+                actions = { IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, "AI settings") } },
             )
         },
         bottomBar = {
@@ -143,7 +143,7 @@ fun CabinetScanScreen(
                     item {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(
-                                "Take a photo of a shelf, the fridge or the counter. Claude lists the groceries it can see, " +
+                                "Take a photo of a shelf, the fridge or the counter. ${config.assistant} lists the groceries it can see, " +
                                     "you untick anything wrong, and the rest goes into your Cabinet.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -161,7 +161,10 @@ fun CabinetScanScreen(
                                 Text("  Choose a photo")
                             }
                             Text(
-                                if (config.usesApi) {
+                                if (config.onDevice) {
+                                    "Uses Gemini Nano on this phone, free and offline. It misses or misnames more " +
+                                        "items than Claude, so check the list."
+                                } else if (config.usesApi) {
                                     "Uses ${config.model.label} with your API key."
                                 } else {
                                     "Opens the Claude app with the photo and a prompt, using your Claude plan. " +
@@ -172,7 +175,7 @@ fun CabinetScanScreen(
                             )
                         }
                     }
-                    if (!config.usesApi) item { PasteReply(pasted, { pasted = it }, clipboard, vm) }
+                    if (!config.inApp) item { PasteReply(pasted, { pasted = it }, clipboard, vm) }
                 }
                 is ScanState.SentToApp -> {
                     item {
@@ -195,7 +198,7 @@ fun CabinetScanScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         CircularProgressIndicator()
-                        Text("Claude is looking at the photo…")
+                        Text("${config.assistant} is looking at the photo…")
                         TextButton(onClick = { vm.reset() }) { Text("Cancel") }
                     }
                 }
@@ -203,7 +206,7 @@ fun CabinetScanScreen(
                     if (s.note.isNotBlank()) item { Note(s.note) }
                     item {
                         Text(
-                            "Claude found ${s.items.size}. Untick anything that's wrong.",
+                            "${config.assistant} found ${s.items.size}. Untick anything that's wrong.",
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )

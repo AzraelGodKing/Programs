@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -62,7 +63,7 @@ fun ClaudeSettingsScreen(vm: AskClaudeViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Claude settings") },
+                title = { Text("AI settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
@@ -84,11 +85,11 @@ fun ClaudeSettingsScreen(vm: AskClaudeViewModel, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Use Claude", style = MaterialTheme.typography.titleMedium)
+                    Text("Use AI", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Ask Claude for DASH recipes, have it read recipes or links into your list, and scan " +
-                            "photos into your Cabinet. " +
-                            "When this is off, the app never contacts Anthropic and the Claude buttons are hidden.",
+                        "Ask for DASH recipes, have pasted recipes read into your list, and scan photos into your " +
+                            "Cabinet, with Claude or with Gemini Nano on this phone. " +
+                            "When this is off, the app never contacts Anthropic and the AI buttons are hidden.",
                         style = MaterialTheme.typography.bodySmall,
                         color = muted,
                     )
@@ -129,12 +130,21 @@ fun ClaudeSettingsScreen(vm: AskClaudeViewModel, onBack: () -> Unit) {
                                     "Everything happens inside this app in one tap. Needs an API key from the " +
                                         "Anthropic Console, billed per use (a recipe is a few cents, a photo scan " +
                                         "less than that)."
+                                ClaudeMode.ON_DEVICE ->
+                                    "Google's small AI model built into Android on supported phones (Galaxy S25 " +
+                                        "and S26, Pixel 9 and later). Free, works offline, nothing leaves the " +
+                                        "phone. Much less capable than Claude: it can't open links, and its " +
+                                        "recipes and photo lists need more checking."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = muted,
                         )
                     }
                 }
+            }
+
+            if (config.onDevice) {
+                NanoSection(vm)
             }
 
             if (config.usesApi) {
@@ -225,5 +235,66 @@ fun ClaudeSettingsScreen(vm: AskClaudeViewModel, onBack: () -> Unit) {
             }
             Spacer(Modifier.size(24.dp))
         }
+    }
+}
+
+@Composable
+private fun NanoSection(vm: AskClaudeViewModel) {
+    val status by vm.nanoStatus.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { vm.checkNano() }
+
+    Text(
+        "Gemini Nano",
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+    )
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        when (val s = status) {
+            NanoStatus.Checking -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(12.dp))
+                Text("Checking this phone…")
+            }
+            NanoStatus.Ready -> Text("Ready on this phone.", color = MaterialTheme.colorScheme.primary)
+            NanoStatus.Downloadable -> {
+                Text(
+                    "Supported on this phone, but the model needs a one-time download (Android shares it " +
+                        "between apps). Wi-Fi recommended.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted,
+                )
+                OutlinedButton(onClick = { vm.downloadNano() }, modifier = Modifier.padding(top = 4.dp)) {
+                    Text("Download Gemini Nano")
+                }
+            }
+            is NanoStatus.Downloading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    if (s.total > 0) {
+                        "Downloading… ${s.downloaded * 100 / s.total}%"
+                    } else {
+                        "Downloading… Android may finish this in the background."
+                    },
+                )
+            }
+            NanoStatus.Unavailable -> Text(
+                GeminiNano.UNAVAILABLE,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            is NanoStatus.Failed -> Text(s.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        if (status is NanoStatus.Unavailable || status is NanoStatus.Failed || status is NanoStatus.Downloading) {
+            TextButton(onClick = { vm.checkNano() }) { Text("Check again") }
+        }
+        Text(
+            "Only works while Grocery List is on screen, and Android limits how much each app can use per day.",
+            style = MaterialTheme.typography.bodySmall,
+            color = muted,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
