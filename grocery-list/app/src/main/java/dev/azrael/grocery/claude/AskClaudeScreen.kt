@@ -123,6 +123,11 @@ fun AskClaudeScreen(
                         modifier = mod,
                     ) { Text(if (selected.isEmpty()) "Nothing selected" else "Add ${selected.size} items to list") }
                     state is AskState.Working -> Unit
+                    !config.usesApi -> Button(
+                        onClick = { ClaudeApp.send(context, ClaudeAppPrompts.recipe(input)) },
+                        enabled = input.isNotBlank(),
+                        modifier = mod,
+                    ) { Text("Ask in the Claude app") }
                     else -> Button(
                         onClick = { vm.ask(input) },
                         enabled = config.hasKey && input.isNotBlank(),
@@ -135,7 +140,7 @@ fun AskClaudeScreen(
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
             when (val s = state) {
                 AskState.Idle, is AskState.Failed -> {
-                    if (!config.hasKey) {
+                    if (config.usesApi && !config.hasKey) {
                         item {
                             InfoCard(
                                 "Add your Anthropic API key in Claude settings to start.",
@@ -173,8 +178,14 @@ fun AskClaudeScreen(
                             }
                         }
                         Text(
-                            "Uses ${config.model.label} with your API key. Recipes are written to fit the DASH diet; " +
-                                "pasted recipes are kept as written, with DASH swaps suggested.",
+                            if (config.usesApi) {
+                                "Uses ${config.model.label} with your API key. Recipes are written to fit the DASH diet; " +
+                                    "pasted recipes are kept as written, with DASH swaps suggested."
+                            } else {
+                                "Opens the Claude app with a DASH prompt, using your Claude plan. When Claude answers, " +
+                                    "share its reply to Grocery List (or copy it and use Add recipe → Paste), " +
+                                    "and you'll pick the ingredients to add."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp),
