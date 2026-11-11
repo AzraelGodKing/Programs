@@ -4,6 +4,7 @@
 
 ### Added
 
+- Grocery List has a weekly meal plan. Menu → Meal plan shows Monday to Sunday; add recipes from the recipe box to any day at the servings you want, then Make the grocery list combines the whole week into one list, adding up shared ingredients and leaving Cabinet items unticked, before it goes on the list. Arrows move between weeks.
 - Grocery List has a recipe box. Tick Save to recipe box when you add a recipe, tap the bookmark on an AI recipe, or write one in with New recipe. The book icon on the list opens the box: the cart button puts a recipe back on the list in one tap, skipping what's in the Cabinet, and opening it lets you change the servings first. Scaling rounds things you buy whole up (1 can for 4 becomes 2 cans for 6) and keeps measured amounts exact. Updating keeps your list and Cabinet.
 - Grocery List has a home-screen widget. It lists what's left to buy in store-section order with checkboxes, so you can tick items off without opening the app, and it updates when the list changes in the app.
 - Grocery List reminds you before Cabinet food goes bad. Tap a Cabinet item to give it an expiry date with a quick pick (3 days to 1 month) or the calendar. Anything expired or expiring within two days moves to a Use soon section, and a morning notification lists those items and opens the Cabinet when tapped. Updating keeps your Cabinet; existing items start without a date.

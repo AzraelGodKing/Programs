@@ -72,6 +72,7 @@ fun GroceryListScreen(
     onAddRecipe: () -> Unit,
     onOpenCabinet: () -> Unit,
     onOpenRecipeBox: () -> Unit,
+    onOpenMealPlan: () -> Unit,
     onCheckForUpdates: () -> Unit,
     versionLabel: String,
     claudeEnabled: Boolean = false,
@@ -131,6 +132,11 @@ fun GroceryListScreen(
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "More") }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Meal plan") },
+                                onClick = { menuOpen = false; onOpenMealPlan() },
+                            )
+                            HorizontalDivider()
                             DropdownMenuItem(
                                 text = { Text("Put checked items in Cabinet") },
                                 onClick = {

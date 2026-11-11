@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [GroceryItem::class, CabinetItem::class, Recipe::class, FoodLogEntry::class],
-    version = 5,
+    entities = [GroceryItem::class, CabinetItem::class, Recipe::class, FoodLogEntry::class, MealPlanEntry::class],
+    version = 6,
     exportSchema = false,
 )
 abstract class GroceryDatabase : RoomDatabase() {
@@ -17,6 +17,7 @@ abstract class GroceryDatabase : RoomDatabase() {
     abstract fun cabinetDao(): CabinetDao
     abstract fun recipeDao(): RecipeDao
     abstract fun foodLogDao(): FoodLogDao
+    abstract fun mealPlanDao(): MealPlanDao
 
     companion object {
         /** Builds before the Cabinet had only the grocery list; this adds the Cabinet and keeps the list. */
@@ -83,9 +84,22 @@ abstract class GroceryDatabase : RoomDatabase() {
             if (!exists) execSQL("ALTER TABLE `$table` ADD COLUMN `$column` $type")
         }
 
+        /** Adds the weekly meal plan. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `meal_plan` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`day` INTEGER NOT NULL, `recipeId` INTEGER NOT NULL, `servings` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_meal_plan_day` ON `meal_plan` (`day`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_meal_plan_recipeId` ON `meal_plan` (`recipeId`)")
+            }
+        }
+
         fun create(context: Context): GroceryDatabase =
             Room.databaseBuilder(context, GroceryDatabase::class.java, "grocery.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }

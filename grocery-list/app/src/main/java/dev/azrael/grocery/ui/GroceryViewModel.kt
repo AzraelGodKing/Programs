@@ -9,12 +9,19 @@ import dev.azrael.grocery.GroceryApp
 import dev.azrael.grocery.data.CabinetItem
 import dev.azrael.grocery.data.GroceryItem
 import dev.azrael.grocery.data.GroceryRepository
+import dev.azrael.grocery.data.MealPlanEntry
 import dev.azrael.grocery.data.Recipe
+import dev.azrael.grocery.parse.CombinedLine
+import dev.azrael.grocery.parse.MealPlan
 import dev.azrael.grocery.parse.ParsedIngredient
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class GroceryViewModel(private val repo: GroceryRepository) : ViewModel() {
     /** null until the database has loaded, so the UI doesn't flash the empty state. */
@@ -28,6 +35,26 @@ class GroceryViewModel(private val repo: GroceryRepository) : ViewModel() {
     /** Saved recipes, by title; null until loaded. */
     val recipes: StateFlow<List<Recipe>?> =
         repo.recipes.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Monday of the week the meal plan shows. */
+    val weekStart: StateFlow<LocalDate> get() = _weekStart
+    private val _weekStart = MutableStateFlow(MealPlan.weekStart(LocalDate.now()))
+
+    /** That week's planned meals; null while loading. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val week: StateFlow<List<MealPlanEntry>?> = _weekStart
+        .flatMapLatest { start -> repo.mealPlan(start, start.plusDays(6)) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun shiftWeek(weeks: Long) { _weekStart.value = _weekStart.value.plusWeeks(weeks) }
+    fun thisWeek() { _weekStart.value = MealPlan.weekStart(LocalDate.now()) }
+    fun planMeal(day: LocalDate, recipe: Recipe, servings: Int) = launch { repo.planMeal(day, recipe, servings) }
+    fun updatePlanned(entry: MealPlanEntry) = launch { repo.updatePlanned(entry) }
+    fun unplan(entry: MealPlanEntry) = launch { repo.unplan(entry) }
+    fun restorePlanned(entry: MealPlanEntry) = launch { repo.restorePlanned(entry) }
+    fun clearWeek() = _weekStart.value.let { start -> launch { repo.clearPlan(start, start.plusDays(6)) } }
+    fun addCombinedToList(lines: List<CombinedLine>, recipeIds: Collection<Long>) =
+        launch { repo.addCombinedToList(lines, recipeIds) }
 
     fun toggle(item: GroceryItem) = launch { repo.setChecked(item, !item.checked) }
     fun update(item: GroceryItem) = launch { repo.update(item) }
