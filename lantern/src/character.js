@@ -2,6 +2,7 @@
 // The sentences in the sheet are written here. Custom covers anything else.
 
 import { cleanItems, cleanPurse, formatCoin } from "./gear.js";
+import { blankExtras, cleanExtras } from "./extras.js";
 import { blankDeath, cleanDeath } from "./order.js";
 
 export const ABILITIES = [
@@ -423,6 +424,7 @@ export function blankCharacter() {
     hitDiceUsed: 0,
     spells: [],
     death: blankDeath(),
+    extras: blankExtras(),
   };
 }
 
@@ -525,6 +527,7 @@ export function cleanCharacter(input) {
     hitDiceUsed: int(input.hitDiceUsed, 0, 0, 20),
     spells: cleanSpells(input.spells),
     death: cleanDeath(input.death),
+    extras: cleanExtras(input.extras),
   };
 }
 

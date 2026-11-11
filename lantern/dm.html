@@ -56,6 +56,12 @@
     </main>
 
     <main id="dm-main" hidden>
+      <div id="dm-xcard" class="ask-banner xcard-banner" hidden role="alert">
+        <p>A player tapped the X-card. Change or skip what is happening. The card does not say who.</p>
+        <div class="ask-actions">
+          <button type="button" class="btn" data-action="dm-xcard-clear">Clear it</button>
+        </div>
+      </div>
       <div class="dm-command" id="dm-command">
         <div>
           <p class="hint">Say this code, or send the link. The square opens the player seat. The secret stays on this screen.</p>
@@ -81,12 +87,21 @@
         </div>
       </div>
 
+      <div class="dm-toolbar">
       <div class="module-bar" role="toolbar" aria-label="Modules">
         <button type="button" class="btn" data-module="order" aria-haspopup="dialog" aria-controls="module-order" aria-expanded="false">Order</button>
         <button type="button" class="btn" data-module="shop" aria-haspopup="dialog" aria-controls="module-shop" aria-expanded="false">Shop <span id="shop-summary" class="summary-note"></span></button>
         <button type="button" class="btn" data-module="spark" aria-haspopup="dialog" aria-controls="module-spark" aria-expanded="false">Spark</button>
         <button type="button" class="btn" data-module="threat" aria-haspopup="dialog" aria-controls="module-threat" aria-expanded="false">Threat</button>
         <button type="button" class="btn" data-module="notes" aria-haspopup="dialog" aria-controls="module-notes" aria-expanded="false">Notes</button>
+        <button type="button" class="btn" data-module="library" aria-haspopup="dialog" aria-controls="module-library" aria-expanded="false">Library</button>
+        <button type="button" class="btn" data-module="packs" aria-haspopup="dialog" aria-controls="module-packs" aria-expanded="false">Packs</button>
+        <button type="button" class="btn" data-module="rewards" aria-haspopup="dialog" aria-controls="module-rewards" aria-expanded="false">Rewards</button>
+        <button type="button" class="btn" data-module="story" aria-haspopup="dialog" aria-controls="module-story" aria-expanded="false">Story</button>
+        <button type="button" class="btn" data-module="map" aria-haspopup="dialog" aria-controls="module-map" aria-expanded="false">Map</button>
+        <button type="button" class="btn" data-module="table" aria-haspopup="dialog" aria-controls="module-table" aria-expanded="false">Table</button>
+      </div>
+      <div id="dm-layouts" class="chip-row layout-row" role="group" aria-label="Screen layouts"></div>
       </div>
 
       <section id="latest-call" class="latest-call" hidden aria-live="polite"></section>
@@ -100,6 +115,7 @@
               <button type="button" class="btn" data-feed="all" aria-pressed="true">All</button>
               <button type="button" class="btn" data-feed="rolls" aria-pressed="false">Rolls</button>
               <button type="button" class="btn" data-feed="table" aria-pressed="false">The rest</button>
+              <button type="button" class="btn" data-feed="secret" aria-pressed="false">Secret</button>
             </div>
           </div>
           <div id="feed-list" class="stack"></div>
@@ -124,9 +140,26 @@
                 <input id="dm-ask" list="ask-options" maxlength="60" placeholder="Perception, Dexterity save, Initiative" spellcheck="false">
               </label>
               <datalist id="ask-options"></datalist>
+              <label>DC
+                <input id="dm-ask-dc" type="number" min="1" max="40" inputmode="numeric" placeholder="—">
+              </label>
+              <label class="check"><input id="dm-ask-hide" type="checkbox"> Hide the DC</label>
+              <label>Against
+                <select id="dm-ask-against" aria-label="Contest against a creature in the order"><option value="">No one</option></select>
+              </label>
               <button class="btn" type="submit">Ask</button>
+              <button class="text-btn" type="button" id="dm-ask-save">Save as preset</button>
             </form>
-            <p class="hint">The roll goes to whoever is in To. Their screen offers a button that rolls it with their own bonus.</p>
+            <div id="dm-ask-presets" class="chip-row" aria-label="Saved asks"></div>
+            <p class="hint">The roll goes to whoever is in To. Their screen offers a button that rolls it with their own bonus. A hidden DC stays on this screen. Against rolls the creature's side for you.</p>
+            <div id="dm-ask-cards" class="stack" aria-live="polite"></div>
+            <details class="dm-passive">
+              <summary>Passive checks</summary>
+              <label>Against DC
+                <input id="dm-passive-dc" type="number" min="1" max="40" inputmode="numeric" placeholder="15">
+              </label>
+              <div id="dm-passive-list" class="stack"></div>
+            </details>
           </section>
         </div>
       </div>
@@ -144,6 +177,32 @@
       <button type="button" class="btn" id="dm-seat-party">Seat the party</button>
     </div>
     <p id="dm-turn-banner" class="turn-banner">The round has not started</p>
+    <div class="turn-timer-row">
+      <p id="dm-turn-timer" class="hint" aria-live="off"></p>
+      <label>Turn timer
+        <select id="dm-turn-limit">
+          <option value="0">Off</option>
+          <option value="30">30 seconds</option>
+          <option value="60">1 minute</option>
+          <option value="90">90 seconds</option>
+          <option value="120">2 minutes</option>
+          <option value="180">3 minutes</option>
+        </select>
+      </label>
+    </div>
+    <form id="dm-quick-form" class="form quick-add" autocomplete="off">
+      <label>Monster
+        <input name="monster" list="monster-options" maxlength="80" placeholder="Goblin" spellcheck="false">
+      </label>
+      <datalist id="monster-options"></datalist>
+      <label>How many
+        <input name="count" type="number" min="1" max="12" value="1" inputmode="numeric">
+      </label>
+      <label class="check"><input name="shared" type="checkbox" checked> One initiative for the group</label>
+      <label class="check"><input name="hidden" type="checkbox"> Hidden from players</label>
+      <button class="btn primary" type="submit">Quick add</button>
+    </form>
+    <p class="hint">Quick add knows your Library monsters and a short SRD list, with their attacks. Or add one by hand:</p>
     <form id="dm-combatant-form" class="form" autocomplete="off">
       <label>Name
         <input name="name" type="text" maxlength="80" required spellcheck="false" placeholder="The third guard">
@@ -157,9 +216,450 @@
       <label>AC
         <input name="ac" type="number" min="0" inputmode="numeric" placeholder="—">
       </label>
+      <label class="check"><input name="hidden" type="checkbox"> Hidden</label>
       <button class="btn primary" type="submit">Add</button>
     </form>
+    <details id="dm-area" class="dm-area">
+      <summary>Damage several rows</summary>
+      <form id="dm-area-form" class="form" autocomplete="off">
+        <p id="dm-area-count" class="hint">No rows picked</p>
+        <label>Damage
+          <input name="amount" maxlength="10" placeholder="28 or 8d6" spellcheck="false">
+        </label>
+        <label>Save
+          <select name="save">
+            <option value="">No save</option>
+            <option value="str">Strength</option>
+            <option value="dex">Dexterity</option>
+            <option value="con">Constitution</option>
+            <option value="int">Intelligence</option>
+            <option value="wis">Wisdom</option>
+            <option value="cha">Charisma</option>
+          </select>
+        </label>
+        <label>DC
+          <input name="dc" type="number" min="1" max="40" value="15" inputmode="numeric">
+        </label>
+        <label>On a save
+          <select name="onsave">
+            <option value="half">Half</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        <button class="btn primary" type="submit">Apply to picked rows</button>
+      </form>
+      <p class="hint">Each picked row rolls its own save: a seat uses the hero's sheet, a monster its modifiers.</p>
+    </details>
     <div id="dm-order-list" class="stack"></div>
+    <section class="dm-log" aria-label="Your rolls">
+      <h3>Your rolls</h3>
+      <div id="dm-roll-log" class="stack" aria-live="polite"></div>
+    </section>
+  </dialog>
+  <dialog id="module-packs" class="gear-dialog module-dialog" aria-labelledby="packs-title">
+    <div class="module-head">
+      <h2 id="packs-title">Packs</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">What everyone carries and what they have attuned, read from their seats.</p>
+    <label>Who has
+      <input id="dm-pack-search" type="search" placeholder="rope, healing, torch" spellcheck="false">
+    </label>
+    <div id="dm-pack-hits" class="stack" aria-live="polite"></div>
+    <div id="dm-packs" class="pack-grid"></div>
+    <h3>Party notes</h3>
+    <pre id="dm-party-notes" class="dm-note"></pre>
+  </dialog>
+  <dialog id="module-rewards" class="gear-dialog module-dialog" aria-labelledby="rewards-title">
+    <div class="module-head">
+      <h2 id="rewards-title">Rewards</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <h3>Loot</h3>
+    <form id="dm-loot-form" class="form" autocomplete="off">
+      <label>To
+        <select name="to" data-reward-to="stash"></select>
+      </label>
+      <label>Item
+        <input name="name" maxlength="60" placeholder="Ring of the Drowned Moon" spellcheck="false">
+      </label>
+      <label>How many
+        <input name="qty" type="number" min="1" max="99" value="1" inputmode="numeric">
+      </label>
+      <label>Coin
+        <input name="coin" maxlength="20" placeholder="25 gp" spellcheck="false">
+      </label>
+      <label class="wide">What it does
+        <textarea name="text" rows="2" maxlength="600" placeholder="The card the player reads once it is identified."></textarea>
+      </label>
+      <label>Unidentified, shown as
+        <input name="shown" maxlength="60" placeholder="a cold silver ring" spellcheck="false">
+      </label>
+      <label class="check"><input name="attune" type="checkbox"> Needs attunement</label>
+      <label>Why
+        <input name="reason" maxlength="120" placeholder="From the barrow chest">
+      </label>
+      <button class="btn primary" type="submit">Give</button>
+    </form>
+    <p class="hint">A player's pack takes the item when their seat is next open. Leave "shown as" empty for an item they already understand.</p>
+    <h3>Not yet identified</h3>
+    <div id="dm-given" class="stack"></div>
+    <h3>Inspiration</h3>
+    <form id="dm-inspire-form" class="form" autocomplete="off">
+      <label>To
+        <select name="to" data-reward-to="seat"></select>
+      </label>
+      <label>Why
+        <input name="reason" maxlength="120" placeholder="The speech at the gate">
+      </label>
+      <button class="btn primary" type="submit">Inspire</button>
+    </form>
+    <h3>Experience</h3>
+    <form id="dm-xp-form" class="form" autocomplete="off">
+      <label>To
+        <select name="to" data-reward-to="seat"></select>
+      </label>
+      <label>XP
+        <input name="xp" type="number" min="1" max="400000" inputmode="numeric" placeholder="450">
+      </label>
+      <label class="check"><input name="split" type="checkbox" checked> Split it between everyone</label>
+      <label>Why
+        <input name="reason" maxlength="120" placeholder="The wolves of Hollow Road">
+      </label>
+      <button class="btn primary" type="submit">Award</button>
+    </form>
+    <div class="turn-actions">
+      <input id="dm-milestone-reason" maxlength="120" placeholder="Why, like the end of the first act" aria-label="Why the party levels up">
+      <button type="button" class="btn" id="dm-milestone">Milestone: everyone levels up</button>
+    </div>
+    <p class="hint">Each seat shows a level-up prompt once it has the experience or a milestone.</p>
+    <h3>Treasure hoard</h3>
+    <form id="dm-hoard-form" class="form" autocomplete="off">
+      <label>Challenge rating
+        <select name="cr">
+          <option value="2">0 to 4</option>
+          <option value="7">5 to 10</option>
+          <option value="13">11 to 16</option>
+          <option value="18">17 and up</option>
+        </select>
+      </label>
+      <button class="btn primary" type="submit">Roll a hoard</button>
+    </form>
+    <p class="hint">Lantern's own tables, not a book's.</p>
+    <div id="dm-hoard" class="stack"></div>
+  </dialog>
+  <dialog id="module-story" class="gear-dialog module-dialog" aria-labelledby="story-title">
+    <div class="module-head">
+      <h2 id="story-title">Story</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">Your notebook stays in this browser between sessions. Only what you hand out or read reaches the table.</p>
+    <details open>
+      <summary>Day and weather</summary>
+      <p id="dm-world-now" class="hint"></p>
+      <form id="dm-world-form" class="form" autocomplete="off">
+        <label>Day <input name="day" type="number" min="1" max="9999" value="1" inputmode="numeric"></label>
+        <label>Hour <input name="hour" type="number" min="0" max="23" value="8" inputmode="numeric"></label>
+        <label>Weather
+          <input name="weather" list="weather-options" maxlength="40" placeholder="Light rain" spellcheck="false">
+        </label>
+        <datalist id="weather-options">
+          <option value="Clear"></option><option value="Overcast"></option><option value="Light rain"></option><option value="Storm"></option>
+          <option value="Fog"></option><option value="Snow"></option><option value="Bitter cold"></option><option value="Heat haze"></option>
+        </datalist>
+        <button class="btn primary" type="submit">Show the table</button>
+      </form>
+      <div class="turn-actions">
+        <button type="button" class="btn" data-story="time" data-hours="1">An hour</button>
+        <button type="button" class="btn" data-story="time" data-hours="1">Short rest</button>
+        <button type="button" class="btn" data-story="time" data-hours="8">Long rest</button>
+        <button type="button" class="btn" data-story="time" data-hours="10">A day of travel</button>
+        <button type="button" class="text-btn" data-story="world-clear">Hide</button>
+      </div>
+    </details>
+    <details>
+      <summary>Handouts</summary>
+      <form id="dm-handout-form" class="form" autocomplete="off">
+        <label>To <select name="to" id="dm-handout-to"></select></label>
+        <label>Title <input name="title" maxlength="80" placeholder="The ferryman's letter"></label>
+        <label class="wide">Words <textarea name="text" rows="3" maxlength="4000"></textarea></label>
+        <label>Picture <input name="image" type="file" accept="image/*"></label>
+        <button class="btn primary" type="submit">Hand it out</button>
+      </form>
+      <div id="dm-handouts" class="stack"></div>
+    </details>
+    <details>
+      <summary>Read aloud</summary>
+      <form id="dm-box-form" class="form" autocomplete="off">
+        <label>Title <input name="title" maxlength="80" placeholder="The flooded crypt"></label>
+        <label class="wide">Boxed text <textarea name="text" rows="3" maxlength="3000" required></textarea></label>
+        <button class="btn primary" type="submit">Keep it ready</button>
+      </form>
+      <div id="dm-boxes" class="stack"></div>
+    </details>
+    <details>
+      <summary>NPCs</summary>
+      <form id="dm-npc-form" class="form" autocomplete="off">
+        <label>Name <input name="name" maxlength="80" required></label>
+        <label>Voice <input name="voice" maxlength="200" placeholder="Slow, gravel, never says no"></label>
+        <label class="wide">What the players see <textarea name="shown" rows="2" maxlength="600"></textarea></label>
+        <label class="wide">Secrets <textarea name="secrets" rows="2" maxlength="1500"></textarea></label>
+        <button class="btn primary" type="submit">Add the NPC</button>
+      </form>
+      <div id="dm-npcs" class="stack"></div>
+    </details>
+    <details>
+      <summary>Quests</summary>
+      <form id="dm-quest-form" class="form" autocomplete="off">
+        <label>Quest <input name="title" maxlength="120" required></label>
+        <label class="check"><input name="hidden" type="checkbox"> Hidden until revealed</label>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div id="dm-quests" class="stack"></div>
+    </details>
+    <details>
+      <summary>Glossary</summary>
+      <form id="dm-gloss-form" class="form" autocomplete="off">
+        <label>Name <input name="name" maxlength="60" required></label>
+        <label class="wide">Entry <textarea name="body" rows="2" maxlength="600"></textarea></label>
+        <label class="check"><input name="hidden" type="checkbox" checked> Hidden until they learn it</label>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div id="dm-glossary" class="stack"></div>
+    </details>
+    <details>
+      <summary>Session plan</summary>
+      <form id="dm-scene-form" class="form" autocomplete="off">
+        <label>Scene <input name="title" maxlength="120" required placeholder="Ambush at the ford"></label>
+        <label>Content warning <input name="warning" maxlength="160" placeholder="drowning, spiders"></label>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div id="dm-scenes" class="stack"></div>
+    </details>
+    <details>
+      <summary>Ready encounters</summary>
+      <form id="dm-set-form" class="form" autocomplete="off">
+        <label>Name <input name="name" maxlength="80" required placeholder="Wolves at the ford"></label>
+        <label class="wide">Who <input name="lines" maxlength="300" required placeholder="3 Wolf, 1 Dire wolf" spellcheck="false"></label>
+        <button class="btn primary" type="submit">Keep it ready</button>
+      </form>
+      <div id="dm-sets" class="stack"></div>
+    </details>
+    <details>
+      <summary>Random encounters</summary>
+      <form id="dm-enc-form" class="form" autocomplete="off">
+        <label>What happens <input name="text" maxlength="160" required placeholder="Wolves circle the camp"></label>
+        <label>Monster <input name="monster" list="monster-options" maxlength="80" placeholder="Wolf"></label>
+        <label>How many <input name="count" type="number" min="1" max="12" value="1"></label>
+        <label>Weight <input name="weight" type="number" min="1" max="20" value="1"></label>
+        <button class="btn primary" type="submit">Add the row</button>
+      </form>
+      <div id="dm-encounters" class="stack"></div>
+      <button type="button" class="btn primary" data-story="enc-roll">Roll on the table</button>
+      <div id="dm-encounter-result" class="stack" aria-live="polite"></div>
+    </details>
+  </dialog>
+  <dialog id="module-map" class="gear-dialog module-dialog module-map" aria-labelledby="map-title">
+    <div class="module-head">
+      <h2 id="map-title">Battle map</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p id="dm-map-now" class="hint"></p>
+    <div class="turn-actions">
+      <button type="button" class="btn primary" id="dm-map-show" aria-pressed="false">Show the map to players</button>
+      <div class="chip-row" role="group" aria-label="Map tool">
+        <button type="button" class="chip" data-map-tool="move" aria-pressed="true">Move tokens</button>
+        <button type="button" class="chip" data-map-tool="hide" aria-pressed="false">Add fog</button>
+        <button type="button" class="chip" data-map-tool="reveal" aria-pressed="false">Clear fog</button>
+      </div>
+    </div>
+    <p id="dm-map-hint" class="hint"></p>
+    <div id="dm-map" role="group" aria-label="Battle map"></div>
+    <p id="dm-map-status" class="hint" role="status"></p>
+    <details open>
+      <summary>Tokens</summary>
+      <div class="turn-actions">
+        <button type="button" class="btn" id="dm-map-party">Add the party</button>
+        <button type="button" class="btn" id="dm-map-order">Add everyone in the order</button>
+      </div>
+      <form id="dm-map-add" class="form" autocomplete="off">
+        <label>Name <input name="name" maxlength="40" required placeholder="Goblin 2"></label>
+        <label>Kind
+          <select name="kind"><option value="foe">Foe</option><option value="ally">Ally</option><option value="thing">Object</option><option value="pc">Hero</option></select>
+        </label>
+        <label class="inline-field"><input name="hidden" type="checkbox"> Hidden from players</label>
+        <button class="btn primary" type="submit">Add a token</button>
+      </form>
+      <div id="dm-map-tokens" class="stack"></div>
+    </details>
+    <details>
+      <summary>Grid, picture, and fog</summary>
+      <form id="dm-map-size" class="form" autocomplete="off">
+        <label>Squares across <input name="cols" type="number" min="4" max="40" value="20" required></label>
+        <label>Squares down <input name="rows" type="number" min="4" max="40" value="15" required></label>
+        <button class="btn" type="submit">Resize the grid</button>
+      </form>
+      <div class="turn-actions">
+        <label class="btn">Choose a map picture <input id="dm-map-image" type="file" accept="image/png,image/jpeg,image/webp" hidden></label>
+        <button type="button" class="text-btn" id="dm-map-image-clear">Remove the picture</button>
+      </div>
+      <p class="hint">The picture is stretched to the grid, so set the squares to match it. A large picture is shrunk to fit the table.</p>
+      <div class="turn-actions">
+        <button type="button" class="btn" id="dm-map-fog-all">Fog the whole map</button>
+        <button type="button" class="btn" id="dm-map-fog-none">Clear all fog</button>
+        <button type="button" class="text-btn danger" id="dm-map-clear">Clear the map</button>
+      </div>
+      <p class="hint">A creature standing in the fog is not sent to players at all. Heroes always see their own token.</p>
+    </details>
+  </dialog>
+  <dialog id="module-table" class="gear-dialog module-dialog" aria-labelledby="table-title">
+    <div class="module-head">
+      <h2 id="table-title">Table</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <details open>
+      <summary>Start the session</summary>
+      <label class="wide">Recap
+        <textarea id="dm-recap" rows="3" maxlength="4000" placeholder="Leave empty to use where you stopped in the session plan."></textarea>
+      </label>
+      <button type="button" class="btn primary" id="dm-start">Start: recap, ready check, open quests</button>
+    </details>
+    <details open>
+      <summary>Spotlight, the last six hours</summary>
+      <p class="hint">Quietest first. Talk and their own rolls and actions count.</p>
+      <div id="dm-spotlight" class="stack"></div>
+    </details>
+    <details open>
+      <summary>Pause, mood, and chat</summary>
+      <div class="turn-actions">
+        <input id="dm-pause-text" maxlength="120" placeholder="Back in ten minutes" aria-label="What the pause screen says">
+        <button type="button" class="btn primary" id="dm-pause">Pause every seat</button>
+      </div>
+      <div class="chip-row" role="group" aria-label="Mood">
+        <button type="button" class="chip" data-mood="Tavern">Tavern</button>
+        <button type="button" class="chip" data-mood="Storm">Storm</button>
+        <button type="button" class="chip" data-mood="Dungeon">Dungeon</button>
+        <button type="button" class="chip" data-mood="Forest">Forest</button>
+        <button type="button" class="chip" data-mood="Battle">Battle</button>
+        <button type="button" class="chip" data-mood="Dread">Dread</button>
+        <button type="button" class="chip" data-mood="Celebration">Celebration</button>
+        <button type="button" class="chip" data-mood="">No mood</button>
+      </div>
+      <div class="chip-row" role="group" aria-label="Table talk">
+        <button type="button" class="chip" data-chat="open">Talk open</button>
+        <button type="button" class="chip" data-chat="slow">Slow chat</button>
+        <label class="inline-field">every <input id="dm-slow" type="number" min="5" max="600" value="30" inputmode="numeric"> seconds</label>
+        <button type="button" class="chip" data-chat="muted">Pause talk</button>
+      </div>
+      <p class="hint">Paused talk still lets players whisper you.</p>
+    </details>
+    <details>
+      <summary>Seats</summary>
+      <div id="dm-seats" class="stack"></div>
+      <div id="dm-seat-link" class="ask-banner" hidden></div>
+    </details>
+    <details>
+      <summary>Lines and veils</summary>
+      <form id="dm-safety-form" class="form" autocomplete="off">
+        <label class="wide">Lines, never in the game <textarea name="lines" rows="3" placeholder="One per line"></textarea></label>
+        <label class="wide">Veils, off screen only <textarea name="veils" rows="3" placeholder="One per line"></textarea></label>
+        <button class="btn primary" type="submit">Show every seat</button>
+      </form>
+    </details>
+    <details>
+      <summary>X-card history</summary>
+      <p class="hint">Only you see this, to follow up after the session. It never says who.</p>
+      <div id="dm-xlog" class="stack"></div>
+      <button type="button" class="text-btn" id="dm-xlog-clear">Clear the history</button>
+    </details>
+    <details>
+      <summary>Table rules</summary>
+      <form id="dm-rules-form" class="form" autocomplete="off">
+        <label class="wide">House rules <textarea name="text" rows="5" maxlength="4000" placeholder="Crits roll max plus a die. Flanking gives advantage."></textarea></label>
+        <button class="btn primary" type="submit">Show every seat</button>
+      </form>
+    </details>
+    <details>
+      <summary>Next session</summary>
+      <p id="dm-next-now" class="hint"></p>
+      <form id="dm-next-form" class="form" autocomplete="off">
+        <label>When <input name="at" type="datetime-local"></label>
+        <label>Label <input name="label" maxlength="80" placeholder="Session 5: the barrow"></label>
+        <button class="btn primary" type="submit">Tell the table</button>
+      </form>
+      <div class="turn-actions">
+        <button type="button" class="btn" id="dm-poll-leader" hidden></button>
+        <button type="button" class="text-btn" id="dm-next-clear">Clear</button>
+      </div>
+      <p class="hint">Players get an Add to my calendar button with the table link in it.</p>
+    </details>
+    <details>
+      <summary>Post the recap to Discord</summary>
+      <form id="dm-discord-form" class="form" autocomplete="off">
+        <label class="wide">Discord webhook address
+          <input name="webhook" type="password" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…">
+        </label>
+        <label class="wide">Recap
+          <textarea name="recap" rows="6" maxlength="3500" placeholder="What happened tonight, in a few lines."></textarea>
+        </label>
+        <label class="inline-field"><input name="next" type="checkbox" checked> Include the next session</label>
+        <label class="inline-field"><input name="link" type="checkbox" checked> Include the link to join the table</label>
+        <div class="turn-actions">
+          <button type="button" class="btn" id="dm-discord-draft">Draft it from tonight</button>
+          <button class="btn primary" type="submit">Post to Discord</button>
+        </div>
+      </form>
+      <p id="dm-discord-status" class="hint" role="status"></p>
+      <p class="hint">In Discord, open the channel's settings, then Integrations, then Webhooks, and copy the webhook address. It stays in this browser. The next session shows in each reader's own time zone, and the post cannot ping anyone.</p>
+    </details>
+    <details>
+      <summary>Spectator link</summary>
+      <p class="hint">A read-only page for someone who wants to watch: the order, the map, table talk, public rolls, and open quests. No whispers, secret rolls, sheets, or notes, and nothing on it can be changed.</p>
+      <div class="turn-actions">
+        <button type="button" class="btn primary" id="dm-watch-make">Make a spectator link</button>
+        <button type="button" class="text-btn danger" id="dm-watch-off" hidden>Turn the link off</button>
+      </div>
+      <div id="dm-watch-link" class="stack" hidden></div>
+    </details>
+    <details>
+      <summary>Prep and the session log</summary>
+      <div class="turn-actions">
+        <button type="button" class="btn" id="dm-export-notebook">Save the notebook</button>
+        <label class="btn">Open a notebook <input id="dm-notebook-file" type="file" accept="application/json,.json" hidden></label>
+      </div>
+      <p class="hint">The notebook is your Story module and your Threat and Spark prep, as one file for another browser or a backup.</p>
+      <div class="turn-actions">
+        <label class="inline-field">Since
+          <select id="dm-log-since">
+            <option value="6">The last 6 hours</option>
+            <option value="24">The last day</option>
+            <option value="168">The last week</option>
+          </select>
+        </label>
+        <button type="button" class="btn primary" id="dm-export-log">Download the session log</button>
+      </div>
+      <p class="hint">Markdown: who was there, loot and experience, quests, the talk, and the rolls. Secret rolls and whispers stay out.</p>
+    </details>
+    <details>
+      <summary>Screen layouts</summary>
+      <p class="hint">The buttons under the module bar open a module and set the feed in one tap.</p>
+      <form id="dm-layout-form" class="form" autocomplete="off">
+        <label>Name <input name="name" maxlength="24" required placeholder="Chase"></label>
+        <label>Opens
+          <select name="module">
+            <option value="">No module</option>
+            <option value="order">Order</option><option value="shop">Shop</option><option value="spark">Spark</option>
+            <option value="threat">Threat</option><option value="notes">Notes</option><option value="library">Library</option>
+            <option value="packs">Packs</option><option value="rewards">Rewards</option><option value="story">Story</option><option value="map">Map</option><option value="table">Table</option>
+          </select>
+        </label>
+        <label>Feed
+          <select name="feed"><option value="all">All</option><option value="rolls">Rolls</option><option value="table">The rest</option><option value="secret">Secret</option></select>
+        </label>
+        <button class="btn primary" type="submit">Save the layout</button>
+      </form>
+      <button type="button" class="text-btn" id="dm-layout-reset">Back to Combat, Roleplay, and Shopping</button>
+    </details>
   </dialog>
   <dialog id="module-shop" class="gear-dialog module-dialog module-shop" aria-labelledby="shop-title">
     <div class="module-head">
@@ -185,6 +685,9 @@
       </div>
       <p class="hint">Uncheck a line to take it off this counter. A bare number in the price is gold. Write pp, gp, ep, sp, or cp when you mean those coins: 1 pp is 10 gp, and 1 ep is 5 sp. Players sell these goods back at half that price, and can buy that sale back for the same coin until you close the shop. A service is not bought back.</p>
       <div id="shop-goods" class="shop-goods"></div>
+      <h3>Haggling</h3>
+      <p class="hint">A discount or markup for one player at this counter, in percent: −20 is a fifth off, 25 is a quarter more. Only that player sees it. Open the shop again to apply a change.</p>
+      <div id="shop-deals" class="shop-deals"></div>
       <label class="base-find">Base list
         <input id="base-find" type="search" placeholder="Plate, rations, lute" spellcheck="false" aria-label="Find a base item">
       </label>
@@ -231,8 +734,36 @@
     <textarea id="dm-notes" rows="8" maxlength="4000" aria-label="Your notes" placeholder="A ruling, a name, the thing you do not want to forget."></textarea>
     <p class="hint">Players never see this. It stays in this browser, with this table code. Closing this module leaves the note where it is.</p>
   </dialog>
+  <dialog id="module-library" class="gear-dialog module-dialog" aria-labelledby="library-title">
+    <div class="module-head">
+      <h2 id="library-title">Library</h2>
+      <button type="button" class="btn" data-close-module>Close</button>
+    </div>
+    <p class="lede">Monsters, spells, and magic items in Lantern's own format. Read them from a PDF or a Lantern file. The PDF is read in this browser and never uploaded. The library stays in this browser, so export it to keep a copy.</p>
+    <div class="modes" role="group" aria-label="What to read">
+      <button type="button" data-library-tab="monsters" aria-pressed="true">Monsters</button>
+      <button type="button" data-library-tab="spells" aria-pressed="false">Spells</button>
+      <button type="button" data-library-tab="items" aria-pressed="false">Items</button>
+      <button type="button" data-library-tab="characters" aria-pressed="false">Characters</button>
+    </div>
+    <div class="turn-actions">
+      <button type="button" class="btn primary" data-library="read">Read a PDF or Lantern file</button>
+      <button type="button" class="btn" data-library="export">Export the library</button>
+      <input id="library-file" type="file" accept="application/pdf,.pdf,application/json,.json" hidden aria-label="PDF or Lantern file">
+    </div>
+    <p id="library-status" class="hint" role="status"></p>
+    <div id="library-pending"></div>
+    <label id="library-search-field">Search
+      <input id="library-search" type="search" maxlength="60" spellcheck="false" placeholder="Goblin">
+    </label>
+    <p id="library-count" class="hint"></p>
+    <div id="library-list" class="stack"></div>
+  </dialog>
   <dialog id="keys-dialog" class="gear-dialog keys-dialog" aria-labelledby="keys-title">
-    <h2 id="keys-title">Keys</h2>
+    <div class="module-head">
+      <h2 id="keys-title">Keys</h2>
+      <button type="button" class="btn" id="close-keys">Close</button>
+    </div>
     <p class="lede">These work while you are not typing in a box.</p>
     <dl class="keys-list">
       <dt><kbd>C</kbd></dt><dd>Copy the table code</dd>
@@ -241,7 +772,6 @@
       <dt>Shop, Spark, Threat, Notes</dt><dd>Open that module. Esc closes it. The table stays underneath.</dd>
       <dt><kbd>Esc</kbd></dt><dd>Close it</dd>
     </dl>
-    <button type="button" class="btn" id="close-keys">Close</button>
   </dialog>
   <script type="module" src="src/dm.js"></script>
 </body>

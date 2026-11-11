@@ -1,5 +1,5 @@
 import { armorClass } from "./armor.js";
-import { ABILITIES, SKILLS, abilityMod, abilityTotals, effectiveHp, formatMod, maxHitPoints, presentCharacter } from "./character.js";
+import { ABILITIES, abilityMod, abilityTotals, effectiveHp, formatMod, maxHitPoints, presentCharacter } from "./character.js";
 import { roll } from "./dice.js";
 import { MARKS } from "./marks.js";
 import { blankDeath, blankOrder, cleanDeath, cleanOrder } from "./order.js";
@@ -19,7 +19,17 @@ import {
 } from "./screen.js";
 import { BASE_LIST, COUNTER_CAP, counterFor, findOffer, formatCoin, parseCoin, stallById, STALLS } from "./gear.js";
 import { normalize } from "./store.js";
-import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postOrder, postTalk, setShop } from "./table.js";
+import { DM_NAME, createRoom, describeSetup, fetchRoom, normalizeCode, postBoard, postOrder, postTalk, setShop } from "./table.js";
+import { bootLibrary } from "./dmlibrary.js";
+import { bootCombat, combatRowBits, combatTableChanged, stepTurn } from "./dmcombat.js";
+import { asksTableChanged, bootAsks, paintAsks } from "./dmasks.js";
+import { glanceNodes, paintPacks } from "./dmparty.js";
+import { bootRewards, paintRewards, rewardsTableChanged } from "./dmrewards.js";
+import { bootStory, paintStoryRoom } from "./dmstory.js";
+import { bootTable, paintTableModule } from "./dmtable.js";
+import { bootMap, paintMapModule } from "./dmmap.js";
+import { knownMonsters } from "./dmcombat.js";
+import { monsterRows } from "./monsters.js";
 import { paintTalk, paintTargets } from "./talk.js";
 import { bootTextSize } from "./textsize.js";
 import { registerOffline } from "./pwa.js";
@@ -32,7 +42,7 @@ const WORDS = {
   deadly: "Deadly",
 };
 
-const FEED_LABEL = { all: "All", rolls: "Rolls", table: "The rest" };
+const FEED_LABEL = { all: "All", rolls: "Rolls", table: "The rest", secret: "Secret" };
 const AWAY_MS = 20000;
 const NOTE_CAP = 4000;
 const NOTE_ROOMS = 20;
@@ -80,7 +90,7 @@ function soonestLight(lights) {
 function feedRow(event) {
   const natural = naturalTag(event.summary);
   return h("article", { class: natural ? `feed-row ${natural}` : "feed-row" }, [
-    h("p", { class: "feed-name" }, event.name),
+    h("p", { class: "feed-name" }, event.secret ? `${event.name} · secret` : event.name),
     h("p", { class: "feed-summary" }, event.summary),
     h("p", { class: "feed-time" }, clock(event.at)),
   ]);
@@ -233,6 +243,7 @@ function seatCard(player) {
     ]),
     h("span", { class: "hint" }, view ? view.title : "No character yet."),
     vitals ? h("span", { class: "vitals" }, vitals) : null,
+    ...glanceNodes(player, hero),
     active ? h("span", { class: "their-turn" }, "Their turn") : null,
     down ? h("span", { class: "down-flag" }, "Down") : null,
     passiveSummary(snapshot.character) ? h("span", {}, passiveSummary(snapshot.character)) : null,
@@ -630,18 +641,57 @@ function bootTools() {
   document.getElementById("dm-notes")?.addEventListener("input", (event) => {
     rememberNotes(event.target.value);
   });
+  bootLibrary({
+    addGroup(monster) {
+      const groups = prep().groups;
+      const found = groups.find((group) => group.name === monster.name && group.cr === monster.cr);
+      if (found) found.count = Math.min(40, found.count + 1);
+      else groups.push(cleanGroup({ name: monster.name, count: 1, cr: monster.cr }));
+      saveTools();
+      renderDmThreat();
+    },
+    async addToOrder(monster) {
+      if (!code || !dmToken) throw new Error("Open a table first.");
+      const bonus = Math.floor((monster.scores.dex - 10) / 2);
+      const rolled = roll({ count: 1, sides: 20, modifier: bonus });
+      const same = tableOrder.combatants.filter((person) => person.name.startsWith(monster.name)).length;
+      const sequence = tableOrder.combatants.reduce((max, person) => Math.max(max, person.order), 0) + 1;
+      tableOrder.combatants.push({
+        id: crypto.randomUUID(),
+        name: same ? `${monster.name} ${same + 1}` : monster.name,
+        seat: "",
+        init: rolled.total,
+        bonus,
+        die: rolled.kept[0],
+        hp: monster.hp,
+        maxHp: monster.hp,
+        ac: monster.ac,
+        marks: [],
+        exhaustion: 0,
+        death: blankDeath(),
+        order: sequence,
+      });
+      await saveOrder();
+    },
+    async stashPut(item) {
+      if (!code || !dmToken) throw new Error("Open a table first.");
+      await postBoard(code, { op: "stash-put", name: item.name, qty: 1 }, dmToken);
+    },
+  });
   paintTools();
 }
 
 function filteredEvents(events) {
   if (tools.feed === "rolls") return events.filter((event) => feedKind(event.summary) === "roll");
   if (tools.feed === "table") return events.filter((event) => feedKind(event.summary) !== "roll");
+  if (tools.feed === "secret") return events.filter((event) => event.secret);
   return events;
 }
 
 function emptyFeed() {
   if (tools.feed === "rolls") return "No rolls yet.";
   if (tools.feed === "table") return "No other news yet.";
+  if (tools.feed === "secret") return "No secret rolls yet.";
   return "Nothing has happened since this table opened.";
 }
 
@@ -683,6 +733,7 @@ function renderRoom(room) {
     all: room.events.length,
     rolls: room.events.filter((event) => feedKind(event.summary) === "roll").length,
     table: room.events.filter((event) => feedKind(event.summary) !== "roll").length,
+    secret: room.events.filter((event) => event.secret).length,
   };
   const shown = filteredEvents(room.events);
   document.getElementById("feed-list").replaceChildren(
@@ -917,7 +968,32 @@ function readCounter(open) {
     stall,
     name: document.getElementById("shop-name").value.trim() || known?.name || "Shop",
     goods,
+    deals: readDeals(),
   };
+}
+
+function readDeals() {
+  const deals = {};
+  for (const input of document.querySelectorAll("[data-deal]")) {
+    const value = Number(input.value);
+    if (Number.isInteger(value) && value !== 0 && value >= -50 && value <= 100) deals[input.dataset.deal] = value;
+  }
+  return deals;
+}
+
+function paintDeals(room) {
+  const mount = document.getElementById("shop-deals");
+  if (!mount || mount.contains(document.activeElement)) return;
+  const deals = room.shop && typeof room.shop === "object" ? room.shop.deals || {} : {};
+  const typed = readDeals();
+  mount.replaceChildren(...(room.players.length ? room.players.map((player) => h("label", {}, [
+    player.name,
+    h("input", {
+      type: "number", min: "-50", max: "100", step: "5", inputmode: "numeric",
+      value: String(typed[player.name] ?? deals[player.name] ?? 0),
+      "data-deal": player.name,
+    }),
+  ])) : [h("p", { class: "empty" }, "No one is seated.")]));
 }
 
 async function publishCounter(open) {
@@ -958,18 +1034,46 @@ async function poll() {
     renderDmOrder();
   }
   setStatus("");
+  const xcard = document.getElementById("dm-xcard");
+  if (xcard) xcard.hidden = !room.board?.xcard;
   paintShopLive(room);
   ensureShopForm(room);
   const next = JSON.stringify(room);
   if (next === signature) return;
   signature = next;
   renderRoom(room);
-  paintTalk(document.getElementById("dm-talk-log"), room.messages || []);
+  paintMapModule(room);
+  paintAsks(room);
+  paintPacks(room);
+  paintRewards(room);
+  paintStoryRoom(room);
+  paintTableModule(room);
+  paintDeals(room);
+  paintTalk(document.getElementById("dm-talk-log"), room.messages || [], { colors: playerColors(room.players) });
   paintTargets(
     document.getElementById("dm-talk-to"),
     (room.players || []).map((player) => player.name),
     DM_NAME,
   );
+}
+
+function playerColors(players) {
+  const colors = {};
+  for (const player of players || []) {
+    const color = player.snapshot?.character?.extras?.color;
+    if (typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) colors[player.name] = color;
+  }
+  return colors;
+}
+
+async function clearXcard() {
+  if (!code || !dmToken) return;
+  try {
+    await postBoard(code, { op: "xcard-clear" }, dmToken);
+    document.getElementById("dm-xcard").hidden = true;
+  } catch (error) {
+    setStatus(error.message);
+  }
 }
 
 function chooseSeat(name) {
@@ -1034,6 +1138,7 @@ function dmOrderRow(person, active) {
       ...[0, 1, 2].map((index) => pip("success", index)),
       ...[0, 1, 2].map((index) => pip("failure", index)),
     ]) : null,
+    ...combatRowBits(person),
   ]);
 }
 
@@ -1092,20 +1197,7 @@ async function seatParty() {
 }
 
 function dmStep(direction) {
-  const list = sortedOrder();
-  if (!list.length) return;
-  if (!tableOrder.started) {
-    if (direction < 0) return;
-    tableOrder.started = true;
-    tableOrder.activeId = list[0].id;
-  } else {
-    const index = Math.max(0, list.findIndex((person) => person.id === tableOrder.activeId));
-    const nextIndex = (index + direction + list.length) % list.length;
-    if (direction > 0 && nextIndex === 0) tableOrder.round += 1;
-    if (direction < 0 && nextIndex === list.length - 1) tableOrder.round = Math.max(1, tableOrder.round - 1);
-    tableOrder.activeId = list[nextIndex].id;
-  }
-  void saveOrder();
+  stepTurn(direction);
 }
 
 function showTable(next, token = "") {
@@ -1137,6 +1229,9 @@ function showTable(next, token = "") {
     try { qr.append(qrSvg(playerUrl)); } catch { /* the link under the code still joins the table */ }
   }
   paintNotes();
+  combatTableChanged();
+  asksTableChanged();
+  rewardsTableChanged();
   void poll();
 }
 
@@ -1171,35 +1266,65 @@ function boot() {
     }
     showTable(next, /^[a-f0-9]{32}$/.test(secret) ? secret : "");
   });
-  const askList = document.getElementById("ask-options");
-  if (askList) {
-    const names = [
-      ...SKILLS.map((skill) => skill.label),
-      "Initiative",
-      ...ABILITIES.map((ability) => `${ability.label} save`),
-      ...ABILITIES.map((ability) => `${ability.label} check`),
-    ];
-    askList.replaceChildren(...names.map((name) => h("option", { value: name })));
-  }
-  document.getElementById("dm-ask-form")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!code) return;
-    const field = document.getElementById("dm-ask");
-    const ask = field.value.trim();
-    if (!ask) {
-      setStatus("Name the roll first, like Perception.");
-      return;
-    }
-    const to = document.getElementById("dm-talk-to").value;
-    try {
-      await postTalk(code, { text: `Roll ${ask}.`, to, ask }, dmToken);
-      field.value = "";
-      setStatus(to ? `Asked ${to} for ${ask}.` : `Asked the table for ${ask}.`);
+  const refresh = async () => {
+    signature = "";
+    await poll();
+  };
+  document.getElementById("module-packs")?.addEventListener("toggle", () => paintPacks(lastRoom));
+  document.getElementById("dm-pack-search")?.addEventListener("input", () => paintPacks(lastRoom));
+  bootTable({
+    code: () => code,
+    token: () => dmToken,
+    room: () => lastRoom,
+    status: setStatus,
+    refresh,
+    prep: () => prep(),
+    setPrep(next) {
+      if (!code) throw new Error("Open a table first, then open the notebook.");
+      Object.assign(prep(), cleanPrep(next));
+      saveTools();
+      paintTools();
+    },
+    openModule: (name) => {
+      if (!document.getElementById(`module-${name}`)?.open) openDmModule(name);
+    },
+    setFeed(name) {
+      tools.feed = ["rolls", "table", "secret"].includes(name) ? name : "all";
+      saveTools();
+      if (lastRoom) renderRoom(lastRoom);
+    },
+  });
+  bootRewards({ code: () => code, token: () => dmToken, room: () => lastRoom, status: setStatus, refresh });
+  bootMap({ code: () => code, token: () => dmToken, room: () => lastRoom, order: () => tableOrder });
+  bootStory({
+    code: () => code,
+    token: () => dmToken,
+    room: () => lastRoom,
+    status: setStatus,
+    refresh,
+    async addToOrder(name, count) {
+      if (!code || !dmToken) throw new Error("Open a table first.");
+      const monster = knownMonsters().find((item) => item.name.toLowerCase() === name.toLowerCase());
+      if (!monster) throw new Error(`${name} is not in the Library or the quick list.`);
+      tableOrder.combatants.push(...monsterRows(monster, { count, existing: tableOrder.combatants, rollD20: () => roll({ count: 1, sides: 20 }).kept[0] }));
+      await saveOrder();
+    },
+    addGroup(name, count) {
+      const monster = knownMonsters().find((item) => item.name.toLowerCase() === name.toLowerCase());
+      prep().groups.push(cleanGroup({ name, count, cr: monster?.cr || "1" }));
+      saveTools();
+      renderDmThreat();
+    },
+  });
+  bootAsks({
+    code: () => code,
+    token: () => dmToken,
+    order: () => tableOrder,
+    status: setStatus,
+    async refresh() {
       signature = "";
       await poll();
-    } catch (error) {
-      setStatus(error.message);
-    }
+    },
   });
   document.getElementById("dm-talk-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1251,11 +1376,20 @@ function boot() {
       setStatus(error.message);
     }
   });
+  document.querySelector("[data-action='dm-xcard-clear']")?.addEventListener("click", () => { void clearXcard(); });
   document.getElementById("copy-code").addEventListener("click", () => {
     if (code) void copyText(code, document.getElementById("copy-code"));
   });
   document.getElementById("copy-secret")?.addEventListener("click", () => {
     if (dmToken) void copyText(dmToken, document.getElementById("copy-secret"));
+  });
+  bootCombat({
+    getOrder: () => tableOrder,
+    setOrder: (order) => { tableOrder = order; },
+    save: saveOrder,
+    room: () => lastRoom,
+    status: setStatus,
+    code: () => code,
   });
   document.getElementById("dm-turn-next")?.addEventListener("click", () => dmStep(1));
   document.getElementById("dm-turn-back")?.addEventListener("click", () => dmStep(-1));
@@ -1284,6 +1418,7 @@ function boot() {
       exhaustion: 0,
       death: blankDeath(),
       order: sequence,
+      ...(form.elements.hidden?.checked ? { hidden: true } : {}),
     });
     form.elements.name.value = "";
     void saveOrder();
@@ -1343,7 +1478,7 @@ function boot() {
   document.getElementById("dm-feed").addEventListener("click", (event) => {
     const button = event.target.closest("[data-feed]");
     if (!button) return;
-    tools.feed = button.dataset.feed === "rolls" || button.dataset.feed === "table" ? button.dataset.feed : "all";
+    tools.feed = ["rolls", "table", "secret"].includes(button.dataset.feed) ? button.dataset.feed : "all";
     saveTools();
     if (lastRoom) renderRoom(lastRoom);
   });
