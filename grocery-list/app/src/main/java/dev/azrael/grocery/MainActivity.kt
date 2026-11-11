@@ -10,10 +10,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.azrael.grocery.ui.AddRecipeScreen
+import dev.azrael.grocery.ui.CabinetScreen
 import dev.azrael.grocery.ui.GroceryListScreen
 import dev.azrael.grocery.ui.GroceryTheme
 import dev.azrael.grocery.ui.GroceryViewModel
@@ -44,7 +46,7 @@ class MainActivity : ComponentActivity() {
         if (this?.action == Intent.ACTION_SEND) getStringExtra(Intent.EXTRA_TEXT) else null
 }
 
-private enum class Screen { LIST, ADD_RECIPE }
+private enum class Screen { LIST, ADD_RECIPE, CABINET }
 
 @Composable
 private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
@@ -53,6 +55,8 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
     val updateState by updates.state.collectAsState()
     var screen by rememberSaveable { mutableStateOf(Screen.LIST) }
     var draft by rememberSaveable { mutableStateOf("") }
+    val cabinet by vm.cabinet.collectAsState()
+    val cabinetKeys = remember(cabinet) { cabinet.orEmpty().map { it.key }.toSet() }
 
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
@@ -66,11 +70,13 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
         Screen.LIST -> GroceryListScreen(
             vm = vm,
             onAddRecipe = { screen = Screen.ADD_RECIPE },
+            onOpenCabinet = { screen = Screen.CABINET },
             onCheckForUpdates = { updates.check(manual = true) },
             versionLabel = "Version ${updates.versionName} (build ${updates.currentBuild})",
         )
         Screen.ADD_RECIPE -> AddRecipeScreen(
             text = draft,
+            cabinetKeys = cabinetKeys,
             onTextChange = { draft = it },
             onBack = { screen = Screen.LIST },
             onAdd = { ingredients, source ->
@@ -79,6 +85,7 @@ private fun AppRoot(sharedText: String?, onSharedConsumed: () -> Unit) {
                 screen = Screen.LIST
             },
         )
+        Screen.CABINET -> CabinetScreen(vm = vm, onBack = { screen = Screen.LIST })
     }
 
     UpdateDialog(state = updateState, currentBuild = updates.currentBuild, vm = updates)

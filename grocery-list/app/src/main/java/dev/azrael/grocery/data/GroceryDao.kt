@@ -15,6 +15,9 @@ interface GroceryDao {
     @Query("SELECT * FROM grocery_items WHERE `key` = :key AND checked = 0")
     suspend fun findUncheckedByKey(key: String): List<GroceryItem>
 
+    @Query("SELECT * FROM grocery_items WHERE checked = 1")
+    suspend fun getChecked(): List<GroceryItem>
+
     @Insert
     suspend fun insert(item: GroceryItem): Long
 
