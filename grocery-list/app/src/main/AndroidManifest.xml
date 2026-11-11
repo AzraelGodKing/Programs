@@ -5,6 +5,8 @@
          Claude settings) to call the Claude API. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- The daily reminder about Cabinet items that expire soon. Asked for the first time you set a date. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".GroceryApp"

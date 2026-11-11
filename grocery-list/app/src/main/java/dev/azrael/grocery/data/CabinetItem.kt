@@ -15,6 +15,8 @@ data class CabinetItem(
     /** Category enum name. */
     val category: String = Category.OTHER.name,
     val addedAt: Long = System.currentTimeMillis(),
+    /** Best-before date as an epoch day (LocalDate.toEpochDay), or null when not set. See Expiry. */
+    val expiresOn: Long? = null,
 ) {
     val categoryEnum: Category get() = Category.fromName(category)
 }

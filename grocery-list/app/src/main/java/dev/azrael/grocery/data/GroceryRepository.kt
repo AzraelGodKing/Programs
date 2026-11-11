@@ -78,6 +78,11 @@ class GroceryRepository(private val db: GroceryDatabase) {
         cabinetDao.insert(cabinetItemFor(clean, category))
     }
 
+    suspend fun setExpiry(item: CabinetItem, expiresOn: Long?) = cabinetDao.setExpiry(item.id, expiresOn)
+
+    /** Cabinet items that have an expiry date, for the daily reminder. */
+    suspend fun cabinetWithExpiry(): List<CabinetItem> = cabinetDao.getWithExpiry()
+
     suspend fun removeFromCabinet(item: CabinetItem) = cabinetDao.delete(item)
     suspend fun restoreToCabinet(item: CabinetItem) { cabinetDao.insert(item) }
     suspend fun clearCabinet() = cabinetDao.deleteAll()

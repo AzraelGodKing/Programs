@@ -4,6 +4,7 @@
 
 ### Added
 
+- Grocery List reminds you before Cabinet food goes bad. Tap a Cabinet item to give it an expiry date with a quick pick (3 days to 1 month) or the calendar. Anything expired or expiring within two days moves to a Use soon section, and a morning notification lists those items and opens the Cabinet when tapped. Updating keeps your Cabinet; existing items start without a date.
 - Grocery List can use Gemini Nano, the free AI built into newer Android phones such as the Galaxy S26 Ultra. AI settings → Connect with → Gemini Nano on this phone runs recipe requests, pasted recipes and Cabinet photo scans on the phone itself, offline and at no cost, after a one-time model download. It's less capable than Claude and can't open links, so the Claude options stay available. Claude settings is now called AI settings.
 - Grocery List can scan your Cabinet. In the Cabinet, the camera button takes or picks a photo of a shelf or the fridge, Claude lists the groceries it sees, and you untick anything wrong before the rest goes in. Items already in the Cabinet start unticked.
 - Grocery List can use the Claude plan you already pay for. Claude settings → Connect with → Claude app opens requests and photos in the official Claude app with a ready-made prompt, and sharing Claude's reply back lands it in Add recipe or the Cabinet review. Anthropic doesn't allow other apps to sign in with a Claude subscription, so this hands off instead. The API key option still works for everything in one tap.
