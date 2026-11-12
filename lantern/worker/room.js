@@ -180,7 +180,7 @@ export const GIFT_KINDS = ["item", "coin", "inspiration", "xp", "identify"];
 const GIFT_CAP = 40;
 const HANDOUT_CAP = 12;
 export const HANDOUT_IMAGE_CHARS = 120_000;
-export const MAP_IMAGE_CHARS = 280_000;
+const MAP_IMAGE_CHARS = 280_000;
 
 /** What one viewer may see of the board. Hidden quests and glossary entries, and other people's gifts and handouts, stay with the DM. */
 export function boardFor(board, who) {
