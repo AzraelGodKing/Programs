@@ -4,7 +4,6 @@
 export const MAP_SIDE = 40;
 export const TOKEN_CAP = 60;
 export const TOKEN_KINDS = ["pc", "foe", "ally", "thing"];
-export const TOKEN_COLORS = ["#e0a458", "#7fb069", "#6ca0dc", "#d1603d", "#b48ead", "#e5c07b", "#56b6c2", "#e06c9f"];
 const KIND_COLOR = { pc: "#6ca0dc", foe: "#d1603d", ally: "#7fb069", thing: "#e5c07b" };
 
 function int(value, fallback, min, max) {

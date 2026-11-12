@@ -2,6 +2,7 @@
 // glossary and quests with hidden entries, a session plan with content
 // warnings, a random encounter table, and the weather and the hour.
 
+import { shrinkImage } from "./battlemap.js";
 import { hourText } from "./combat.js";
 import { postBoard, postTalk } from "./table.js";
 
@@ -241,23 +242,6 @@ async function board(body, done = "") {
   }
 }
 
-/** Shrinks a picture to a JPEG small enough for a handout. */
-export async function shrinkImage(file) {
-  const bitmap = await createImageBitmap(file);
-  let side = IMAGE_SIDE;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const url = canvas.toDataURL("image/jpeg", 0.72);
-    if (url.length <= IMAGE_CHARS) return url;
-    side = Math.round(side * 0.75);
-  }
-  throw new Error("That picture will not shrink small enough.");
-}
-
 async function sendHandout(form) {
   const title = form.elements.title.value.trim();
   const text = form.elements.text.value.trim();
@@ -268,7 +252,7 @@ async function sendHandout(form) {
   }
   let image = "";
   try {
-    if (file) image = await shrinkImage(file);
+    if (file) image = (await shrinkImage(file, IMAGE_CHARS, IMAGE_SIDE)).url;
   } catch (error) {
     hooks.status(error.message);
     return;
