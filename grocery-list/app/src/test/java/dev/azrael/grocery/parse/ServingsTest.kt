@@ -9,9 +9,13 @@ class ServingsTest {
         assertEquals(4, Servings.detect("Lemon chicken\nServes 4\n\nIngredients"))
         assertEquals(6, Servings.detect("Servings: 6"))
         assertEquals(8, Servings.detect("Makes 8 servings"))
+        assertEquals(4, Servings.detect("Makes 4 servings"))
+        assertEquals(8, Servings.detect("Yield: 8 servings"))
         assertEquals(4, Servings.detect("Yield: 4-6"))
         assertEquals(2, Servings.detect("Enough for 2 people"))
+        assertEquals(2, Servings.detect("Dinner for 2 people"))
         assertNull(Servings.detect("1 cup rice\n2 cups water"))
+        assertNull(Servings.detect("2 cups rice"))
     }
 
     private fun ing(q: Double?, unit: String?, name: String) = ParsedIngredient(name, q, unit, null, name)

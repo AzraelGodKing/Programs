@@ -40,9 +40,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.azrael.grocery.nutrition.Dash
 import dev.azrael.grocery.nutrition.RecipeNutritionEstimator
-import dev.azrael.grocery.nutrition.RecipeServings
 import dev.azrael.grocery.parse.IngredientParser
 import dev.azrael.grocery.parse.Quantities
+import dev.azrael.grocery.parse.Servings
 import dev.azrael.grocery.parse.formatAmount
 import kotlin.math.roundToInt
 
@@ -62,7 +62,7 @@ fun LogRecipeScreen(
 ) {
     var title by rememberSaveable { mutableStateOf(initialTitle) }
     var text by rememberSaveable { mutableStateOf(initialText) }
-    var makes by rememberSaveable { mutableStateOf(RecipeServings.detect(initialText)?.toString() ?: "") }
+    var makes by rememberSaveable { mutableStateOf(Servings.detect(initialText)?.toString() ?: "") }
     var ate by rememberSaveable { mutableStateOf("1") }
     val clipboard = LocalClipboardManager.current
     val limit by vm.settings.sodiumLimit.collectAsState()
@@ -120,7 +120,7 @@ fun LogRecipeScreen(
                     value = text,
                     onValueChange = {
                         text = it
-                        if (makes.isBlank()) RecipeServings.detect(it)?.let { n -> makes = n.toString() }
+                        if (makes.isBlank()) Servings.detect(it)?.let { n -> makes = n.toString() }
                     },
                     label = { Text("Recipe or ingredient list") },
                     minLines = 4,
@@ -131,7 +131,7 @@ fun LogRecipeScreen(
                     TextButton(onClick = {
                         clipboard.getText()?.text?.let {
                             text = it
-                            RecipeServings.detect(it)?.let { n -> makes = n.toString() }
+                            Servings.detect(it)?.let { n -> makes = n.toString() }
                         }
                     }) { Text("Paste from clipboard") }
                 }

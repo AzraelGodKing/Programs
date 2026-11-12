@@ -1,6 +1,7 @@
 package dev.azrael.grocery.nutrition
 
 import dev.azrael.grocery.parse.IngredientParser
+import dev.azrael.grocery.parse.Servings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -81,7 +82,7 @@ class RecipeNutritionTest {
             Instructions
             Cook it.
         """.trimIndent()
-        val servings = RecipeServings.detect(text)!!
+        val servings = Servings.detect(text)!!
         assertEquals(4, servings)
         val r = RecipeNutritionEstimator.estimate(IngredientParser.parseRecipe(text), servings.toDouble())
         assertTrue(r.skipped.isEmpty())
@@ -90,14 +91,6 @@ class RecipeNutritionTest {
         // Potassium is high: chicken, beans and spinach are all good sources.
         assertTrue("got ${r.sodiumPerServing}", r.sodiumPerServing in 250..350)
         assertTrue("got ${r.potassiumPerServing}", r.potassiumPerServing in 800..1100)
-    }
-
-    @Test fun detectsServings() {
-        assertEquals(6, RecipeServings.detect("Servings: 6"))
-        assertEquals(8, RecipeServings.detect("Yield: 8 servings"))
-        assertEquals(4, RecipeServings.detect("Makes 4 servings"))
-        assertEquals(2, RecipeServings.detect("Dinner for 2 people"))
-        assertNull(RecipeServings.detect("2 cups rice"))
     }
 
     @Test fun sizeFromNote() {

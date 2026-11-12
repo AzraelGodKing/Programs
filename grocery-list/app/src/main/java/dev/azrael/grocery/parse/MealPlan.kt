@@ -13,7 +13,6 @@ data class CombinedLine(
     val sources: List<String>,
 ) {
     val key: String get() = NameKey.of(name)
-    val category: Category get() = Categorizer.categorize(name, unit)
 }
 
 /** Plain-Kotlin helpers for the weekly meal plan. */
