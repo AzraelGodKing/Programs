@@ -1,6 +1,8 @@
 package dev.azrael.grocery
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,6 +28,9 @@ import dev.azrael.grocery.expiry.ExpiryReminders
 import dev.azrael.grocery.photo.RecipePhoto
 import dev.azrael.grocery.photo.RecipePhotoScreen
 import dev.azrael.grocery.photo.RecipePhotoViewModel
+import dev.azrael.grocery.reel.ReelScreen
+import dev.azrael.grocery.reel.ReelViewModel
+import dev.azrael.grocery.reel.SharedReel
 import dev.azrael.grocery.tracker.LogRecipeScreen
 import dev.azrael.grocery.tracker.SodiumScreen
 import dev.azrael.grocery.tracker.TrackerViewModel
@@ -43,6 +48,8 @@ import dev.azrael.grocery.update.UpdateViewModel
 class MainActivity : ComponentActivity() {
     /** Recipe text shared into the app from another app (browser, notes, etc.). */
     private var sharedText by mutableStateOf<String?>(null)
+    /** An image shared into the app (a screenshot of a recipe), read on the recipe photo screen. */
+    private var sharedImage by mutableStateOf<Uri?>(null)
     /** Set when the expiry reminder was tapped. */
     private var openCabinet by mutableStateOf(false)
 
@@ -51,6 +58,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) {
             sharedText = intent.sharedText()
+            sharedImage = intent.sharedImage()
             openCabinet = intent.opensCabinet()
         }
         setContent {
@@ -58,6 +66,8 @@ class MainActivity : ComponentActivity() {
                 AppRoot(
                     sharedText = sharedText,
                     onSharedConsumed = { sharedText = null },
+                    sharedImage = sharedImage,
+                    onSharedImageConsumed = { sharedImage = null },
                     openCabinet = openCabinet,
                     onOpenCabinetConsumed = { openCabinet = false },
                 )
@@ -68,6 +78,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.sharedText()?.let { sharedText = it }
+        intent.sharedImage()?.let { sharedImage = it }
         if (intent.opensCabinet()) openCabinet = true
     }
 
@@ -75,17 +86,29 @@ class MainActivity : ComponentActivity() {
         this?.getBooleanExtra(ExpiryReminders.EXTRA_OPEN_CABINET, false) == true
 
     private fun Intent?.sharedText(): String? =
-        if (this?.action == Intent.ACTION_SEND) getStringExtra(Intent.EXTRA_TEXT) else null
+        if (this?.action == Intent.ACTION_SEND && type?.startsWith("image/") != true) getStringExtra(Intent.EXTRA_TEXT) else null
+
+    private fun Intent?.sharedImage(): Uri? {
+        if (this?.action != Intent.ACTION_SEND || type?.startsWith("image/") != true) return null
+        return if (Build.VERSION.SDK_INT >= 33) {
+            getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+        }
+    }
 }
 
 private enum class Screen {
-    LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX, SODIUM, LOG_RECIPE, BARCODE, MEAL_PLAN, STORE_LAYOUT, RECIPE_PHOTO,
+    LIST, ADD_RECIPE, CABINET, ASK_CLAUDE, CLAUDE_SETTINGS, CABINET_SCAN, RECIPE_BOX, SODIUM, LOG_RECIPE, BARCODE, MEAL_PLAN, STORE_LAYOUT, RECIPE_PHOTO, REEL,
 }
 
 @Composable
 private fun AppRoot(
     sharedText: String?,
     onSharedConsumed: () -> Unit,
+    sharedImage: Uri?,
+    onSharedImageConsumed: () -> Unit,
     openCabinet: Boolean,
     onOpenCabinetConsumed: () -> Unit,
 ) {
@@ -115,6 +138,9 @@ private fun AppRoot(
     val recipePhoto: RecipePhotoViewModel = viewModel(factory = RecipePhotoViewModel.Factory)
     // A Claude app reply copying out a recipe photo, shared into the app; the photo screen reads it.
     var photoReply by rememberSaveable { mutableStateOf<String?>(null) }
+    // A screenshot shared into the app; the photo screen reads it.
+    var photoShared by remember { mutableStateOf<Uri?>(null) }
+    val reel: ReelViewModel = viewModel(factory = ReelViewModel.Factory)
 
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
@@ -124,11 +150,23 @@ private fun AppRoot(
             } else if (claudeConfig.enabled && RecipePhoto.isReply(sharedText)) {
                 photoReply = sharedText
                 screen = Screen.RECIPE_PHOTO
+            } else if (SharedReel.isShare(sharedText)) {
+                // A Facebook reel: get its caption, then let the AI find the recipe in it.
+                reel.onShared(sharedText)
+                screen = Screen.REEL
             } else {
                 draft = sharedText
                 screen = Screen.ADD_RECIPE
             }
             onSharedConsumed()
+        }
+    }
+
+    LaunchedEffect(sharedImage) {
+        if (sharedImage != null) {
+            photoShared = sharedImage
+            screen = Screen.RECIPE_PHOTO
+            onSharedImageConsumed()
         }
     }
 
@@ -240,12 +278,29 @@ private fun AppRoot(
             vm = recipePhoto,
             incomingReply = photoReply,
             onReplyConsumed = { photoReply = null },
+            incomingPhoto = photoShared,
+            onPhotoConsumed = { photoShared = null },
             onBack = { screen = Screen.ADD_RECIPE },
             onOpenSettings = { openClaudeSettings(Screen.RECIPE_PHOTO) },
             onUse = { text ->
                 draft = text
                 screen = Screen.ADD_RECIPE
             },
+        )
+        Screen.REEL -> ReelScreen(
+            vm = reel,
+            onBack = { screen = Screen.LIST },
+            onOpenSettings = { openClaudeSettings(Screen.REEL) },
+            onAskInApp = { request ->
+                claudeDraft = request
+                claude.ask(request)
+                screen = Screen.ASK_CLAUDE
+            },
+            onUseText = { text ->
+                draft = text
+                screen = Screen.ADD_RECIPE
+            },
+            onScreenshot = { screen = Screen.RECIPE_PHOTO },
         )
         Screen.BARCODE -> BarcodeScreen(
             vm = barcode,

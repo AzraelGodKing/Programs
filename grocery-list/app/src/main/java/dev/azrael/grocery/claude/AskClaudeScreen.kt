@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.azrael.grocery.parse.ParsedIngredient
 import dev.azrael.grocery.parse.formatAmount
+import dev.azrael.grocery.reel.SharedReel
 
 private val suggestions = listOf(
     "Quick chicken dinner for 2",
@@ -87,6 +88,12 @@ fun AskClaudeScreen(
     val parsed = remember(recipe) { recipe?.toParsedIngredients().orEmpty() }
     var excluded by remember(recipe) { mutableStateOf(emptySet<Int>()) }
     val selected = parsed.filterIndexed { i, _ -> i !in excluded }
+    val saveToBox = { r: ClaudeRecipe ->
+        // Recipes found in a Facebook reel keep a link back to it.
+        val source = SharedReel.linkInRequest(input)?.let { "\n\nFrom: $it" }.orEmpty()
+        onSaveRecipe(r.title.ifBlank { "AI recipe" }, r.servings ?: 4, r.asText() + source)
+        Toast.makeText(context, "Saved to your recipe box", Toast.LENGTH_SHORT).show()
+    }
 
     // Back from a result returns to the question; back from the question leaves.
     val back = { if (state is AskState.Idle) onBack() else vm.reset() }
@@ -101,10 +108,7 @@ fun AskClaudeScreen(
                 },
                 actions = {
                     if (recipe != null) {
-                        IconButton(onClick = {
-                            onSaveRecipe(recipe.title.ifBlank { "AI recipe" }, recipe.servings ?: 4, recipe.asText())
-                            Toast.makeText(context, "Saved to your recipe box", Toast.LENGTH_SHORT).show()
-                        }) { Icon(Icons.Default.BookmarkAdd, "Save to recipe box") }
+                        IconButton(onClick = { saveToBox(recipe) }) { Icon(Icons.Default.BookmarkAdd, "Save to recipe box") }
                         IconButton(onClick = {
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
@@ -269,8 +273,9 @@ fun AskClaudeScreen(
                         }
                     }
                     item {
-                        TextButton(onClick = { vm.reset() }, modifier = Modifier.padding(8.dp)) {
-                            Text("Ask something else")
+                        Row(Modifier.padding(8.dp)) {
+                            TextButton(onClick = { saveToBox(r) }) { Text("Save to recipe box") }
+                            TextButton(onClick = { vm.reset() }) { Text("Ask something else") }
                         }
                     }
                 }

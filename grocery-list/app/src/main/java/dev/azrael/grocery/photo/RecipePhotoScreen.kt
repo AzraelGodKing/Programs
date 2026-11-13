@@ -65,6 +65,9 @@ fun RecipePhotoScreen(
     vm: RecipePhotoViewModel,
     incomingReply: String?,
     onReplyConsumed: () -> Unit,
+    /** A screenshot or photo shared into Grocery List from another app. */
+    incomingPhoto: Uri? = null,
+    onPhotoConsumed: () -> Unit = {},
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     /** The checked text, in English, to parse on Add recipe. */
@@ -88,20 +91,33 @@ fun RecipePhotoScreen(
         pendingCapture = null
         if (saved && uri != null) onPhoto(uri)
     }
-    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) {
-            // Picked photos belong to another app; copy into our cache so the Claude app can read it too.
-            val copy = Photos.newCaptureUri(context)
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                context.contentResolver.openOutputStream(copy)?.use { input.copyTo(it) }
+    // Picked and shared photos belong to another app; copy into our cache so the Claude app can read it too.
+    val onOutsidePhoto: (Uri) -> Unit = { uri ->
+        val copy = try {
+            Photos.newCaptureUri(context).also { copy ->
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    context.contentResolver.openOutputStream(copy)?.use { input.copyTo(it) }
+                }
             }
-            onPhoto(copy)
+        } catch (e: Exception) {
+            null
         }
+        if (copy != null) onPhoto(copy) else onPhoto(uri)
+    }
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) onOutsidePhoto(uri)
     }
     fun capture() {
         val uri = Photos.newCaptureUri(context)
         pendingCapture = uri.toString()
         takePicture.launch(uri)
+    }
+
+    LaunchedEffect(incomingPhoto) {
+        if (incomingPhoto != null) {
+            onOutsidePhoto(incomingPhoto)
+            onPhotoConsumed()
+        }
     }
 
     LaunchedEffect(incomingReply) {

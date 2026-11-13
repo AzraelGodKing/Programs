@@ -32,11 +32,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Lets you "Share" recipe text from a browser or notes app straight into the app -->
+            <!-- Lets you "Share" recipe text from a browser or notes app straight into the app, and Facebook
+                 reels (shared as a link) to find their recipe -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- Lets you share a screenshot of a recipe (from a reel, a post, a web page) to read it -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
 
