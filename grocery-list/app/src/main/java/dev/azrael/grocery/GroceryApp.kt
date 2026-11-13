@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.glance.appwidget.updateAll
 import dev.azrael.grocery.claude.ClaudeSettings
 import dev.azrael.grocery.claude.GeminiNano
+import dev.azrael.grocery.dash.DashStore
 import dev.azrael.grocery.data.FoodLogDao
 import dev.azrael.grocery.data.GroceryDatabase
 import dev.azrael.grocery.data.GroceryRepository
@@ -24,6 +25,7 @@ class GroceryApp : Application() {
     val repository: GroceryRepository by lazy { GroceryRepository(database, storeLayout) }
     val foodLog: FoodLogDao by lazy { database.foodLogDao() }
     val trackerSettings: TrackerSettings by lazy { TrackerSettings(this) }
+    val dashStore: DashStore by lazy { DashStore(this) }
     val claudeSettings: ClaudeSettings by lazy { ClaudeSettings(this) }
     /** Only created when Gemini Nano is picked in AI settings; lives as long as the app. */
     val nano: GeminiNano by lazy { GeminiNano() }

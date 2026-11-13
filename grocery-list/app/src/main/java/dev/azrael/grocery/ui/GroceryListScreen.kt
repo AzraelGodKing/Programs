@@ -10,22 +10,23 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -113,30 +114,15 @@ fun GroceryListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("Grocery List")
-                        val list = items.orEmpty()
-                        if (list.isNotEmpty()) {
-                            Text(
-                                "${list.count { !it.checked }} left of ${list.size}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                },
+                title = { Text("Grocery List") },
                 actions = {
-                    IconButton(onClick = onOpenRecipeBox) { Icon(Icons.AutoMirrored.Filled.MenuBook, "Recipe box") }
-                    IconButton(onClick = onOpenSodium) { Icon(Icons.Default.Insights, "Sodium tracker") }
-                    IconButton(onClick = onOpenCabinet) { Icon(Icons.Default.Kitchen, "Cabinet") }
                     IconButton(onClick = { adding = true }) { Icon(Icons.Default.Add, "Add item") }
                     Box {
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "More") }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
-                                text = { Text("Meal plan") },
-                                onClick = { menuOpen = false; onOpenMealPlan() },
+                                text = { Text("Sodium tracker") },
+                                onClick = { menuOpen = false; onOpenSodium() },
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
@@ -219,6 +205,7 @@ fun GroceryListScreen(
                         bottom = padding.calculateBottomPadding() + 96.dp,
                     ),
                 ) {
+                    item(key = "progress") { TripProgress(left = list.count { !it.checked }, total = list.size) }
                     open.forEach { (category, rows) ->
                         stickyHeader(key = "h_${category.name}") { SectionHeader(storeOrder.header(category)) }
                         items(rows, key = { it.id }) { item ->
@@ -290,17 +277,52 @@ fun GroceryListScreen(
     }
 }
 
+/** How far through the shop you are. */
+@Composable
+private fun TripProgress(left: Int, total: Int) {
+    val done = total - left
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    if (left == 0) "All in the cart" else "$left to grab",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "$done of $total",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                )
+            }
+            LinearProgressIndicator(
+                progress = { if (total == 0) 0f else done.toFloat() / total },
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(8.dp),
+                trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+            )
+        }
+    }
+}
+
 @Composable
 private fun SectionHeader(label: String) {
-    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
-        Column {
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                label,
-                style = MaterialTheme.typography.titleSmall,
+                label.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 6.dp),
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
             )
-            HorizontalDivider()
+            HorizontalDivider(Modifier.padding(start = 10.dp).weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -341,7 +363,11 @@ private fun SwipeableRow(
 @Composable
 private fun ItemRow(item: GroceryItem, onToggle: () -> Unit, onEdit: () -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(color = MaterialTheme.colorScheme.surface) {
+    Surface(
+        color = if (item.checked) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
