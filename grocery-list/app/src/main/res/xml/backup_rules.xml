@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 11 and older. Keeps the Claude API key out of cloud backups. -->
+<!-- Android 11 and older. Keeps the Claude API key and Facebook sign-in out of cloud backups. -->
 <full-backup-content>
     <exclude domain="sharedpref" path="claude_settings.xml" />
+    <!-- The Facebook sign-in from the in-app reel viewer. -->
+    <exclude domain="root" path="app_webview/" />
 </full-backup-content>
