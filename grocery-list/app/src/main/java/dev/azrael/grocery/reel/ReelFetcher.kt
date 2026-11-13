@@ -7,7 +7,8 @@ import java.net.URL
 /**
  * Loads a reel's public page the way a signed-out phone browser would and reads its preview tags. Facebook
  * often puts the caption there; when it shows its sign-in page instead, [SharedReel.PageInfo.caption] is
- * empty. Blocking: call from a background thread. Only the link is sent, with no cookies or account.
+ * empty. Blocking: call from a background thread. Only the link is sent, plus the Facebook sign-in from
+ * the app's own reel viewer when the user has signed in there (sent to Facebook hosts only).
  */
 object ReelFetcher {
     private const val USER_AGENT =
@@ -18,7 +19,7 @@ object ReelFetcher {
     private const val MAX_BYTES = 1_500_000
     private const val MAX_REDIRECTS = 6
 
-    fun fetch(link: String): SharedReel.PageInfo {
+    fun fetch(link: String, facebookCookie: String? = null): SharedReel.PageInfo {
         var url = URL(link)
         repeat(MAX_REDIRECTS) {
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -29,6 +30,7 @@ object ReelFetcher {
                 setRequestProperty("User-Agent", USER_AGENT)
                 setRequestProperty("Accept", "text/html,application/xhtml+xml")
                 setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+                if (!facebookCookie.isNullOrBlank() && isFacebookHost(url.host)) setRequestProperty("Cookie", facebookCookie)
             }
             try {
                 val code = conn.responseCode
@@ -44,6 +46,11 @@ object ReelFetcher {
             }
         }
         throw IOException("Too many redirects")
+    }
+
+    fun isFacebookHost(host: String?): Boolean {
+        val h = host?.lowercase() ?: return false
+        return h == "facebook.com" || h.endsWith(".facebook.com") || h == "fb.watch" || h.endsWith(".fb.watch")
     }
 
     private fun readHead(conn: HttpURLConnection): String {

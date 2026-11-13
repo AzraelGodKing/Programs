@@ -81,4 +81,43 @@ class SharedReelTest {
     fun unescapesJson() {
         assertEquals("a\nb \"c\" é \\", SharedReel.unescapeJson("""a\nb \"c\" é \\"""))
     }
+
+    @Test
+    fun pageTextKeepsCaptionAndComments() {
+        val page = """
+            Healthy Eats
+            Follow
+            Lemon garlic salmon 🍋
+            Ingredients in the comments!
+            12K
+            300
+            Like
+            Comment
+            Share
+            Most relevant
+            Healthy Eats
+            Author
+            2 salmon fillets, 1 lemon, 3 cloves garlic, 1 tbsp olive oil
+            2h
+            Like
+            Reply
+            View all 4 replies
+            Sam
+            Looks great
+            1d
+            Like
+            Reply
+            Write a comment…
+        """.trimIndent()
+        assertEquals(
+            "Healthy Eats\nLemon garlic salmon 🍋\nIngredients in the comments!\nHealthy Eats\n" +
+                "2 salmon fillets, 1 lemon, 3 cloves garlic, 1 tbsp olive oil\nSam\nLooks great",
+            SharedReel.cleanPageText(page),
+        )
+    }
+
+    @Test
+    fun requestMentionsComments() {
+        assertTrue(SharedReel.aiRequest(null, "x").contains("in a comment"))
+    }
 }

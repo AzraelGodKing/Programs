@@ -139,6 +139,44 @@ object SharedReel {
         return out.toString()
     }
 
+    // --- Reading the page in the app (signed in, with comments) ---
+
+    /** Facebook's buttons and labels, which show up as lines of their own in the page text. */
+    private val uiLines = setOf(
+        "like", "liked", "reply", "share", "send", "comment", "comments", "follow", "following", "see more",
+        "see less", "most relevant", "all comments", "newest", "top comments", "write a comment…", "write a comment...",
+        "comment as", "author", "top fan", "edited", "see translation", "hide translation", "rate this translation",
+        "reels", "home", "search", "menu", "notifications", "watch", "marketplace", "log in", "create new account",
+        "sign up", "forgot password?", "more", "save", "save video", "copy link", "report", "hide", "original audio",
+        "mute", "unmute", "play", "pause", "close", "back", "next", "previous", "view more comments", "·", "…", "...",
+    )
+    private val countLine = Regex(
+        "^[\\d.,]+[KkMm]?( (likes?|reactions?|comments?|shares?|views?|plays?|replies|reply))?$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val timeLine = Regex(
+        "^(just now|yesterday|\\d+ ?(s|m|h|d|w|y|min|mins|hr|hrs|sec|secs|minutes?|hours?|days?|weeks?|years?)( ago)?)$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val repliesLine = Regex("^(view|see|hide) (all |more |previous )?\\d* ?(more )?(repl(y|ies)|comments?)$", RegexOption.IGNORE_CASE)
+
+    /**
+     * Tidies the text of a reel's page as shown in the app (caption, then comments): drops Facebook's
+     * buttons, counts, timestamps and repeated lines, so what's left for the AI is the words people wrote.
+     */
+    fun cleanPageText(text: String): String {
+        val out = mutableListOf<String>()
+        for (raw in text.replace("\r\n", "\n").lines()) {
+            val line = raw.replace('\u00A0', ' ').trim()
+            if (line.isEmpty()) continue
+            val lower = line.lowercase()
+            if (lower in uiLines || countLine.matches(line) || timeLine.matches(line) || repliesLine.matches(line)) continue
+            if (out.lastOrNull() == line) continue
+            out += line
+        }
+        return out.joinToString("\n")
+    }
+
     // --- Asking the AI ---
 
     private val REQUEST_LINK = Regex("^Reel: (\\S+)$", RegexOption.MULTILINE)
@@ -150,7 +188,7 @@ object SharedReel {
     private const val REQUEST_START = "Here's a Facebook cooking video (reel)"
 
     /** Longest caption sent to the AI; Gemini Nano's window is small and captions rarely need more. */
-    const val MAX_CAPTION_CHARS = 5_000
+    const val MAX_CAPTION_CHARS = 5_500
 
     /**
      * The request for any AI mode (Claude API, Claude app, Gemini Nano): find the recipe in the caption. The
@@ -158,14 +196,15 @@ object SharedReel {
      */
     fun aiRequest(link: String?, caption: String): String = buildString {
         append(REQUEST_START).append(" I want to make. Nobody can watch the video here, ")
-        append("so this is the text that came with it: the caption, or what I copied from the video.\n")
+        append("so this is the text that came with it: the caption, maybe some comments, or what I copied from the video.\n")
         if (link != null) append("Reel: ").append(displayLink(link)).append('\n')
         append("\n<reel_text>\n")
         append(caption.trim().take(MAX_CAPTION_CHARS))
         append("\n</reel_text>\n\n")
         append(
             "Find the recipe in that text and treat it as a recipe I pasted. Ignore hashtags, emoji, " +
-                "\"follow for more\" and similar. If it names the ingredients but not the amounts, use typical " +
+                "\"follow for more\" and similar. The recipe is often in a comment, usually from the reel's creator, " +
+                "so check the comments too, and if several comments give different recipes, use the creator's. If it names the ingredients but not the amounts, use typical " +
                 "amounts for the dish and say that the amounts are estimated. Reels often lean on salt, butter, " +
                 "cheese, sauces and processed meat, so be clear about how well it fits DASH and what to swap. " +
                 "If there's no recipe in it (for example \"recipe in the comments\" or \"link in bio\"), " +

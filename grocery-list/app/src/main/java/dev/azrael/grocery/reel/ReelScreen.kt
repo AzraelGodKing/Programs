@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -71,6 +72,19 @@ fun ReelScreen(
     val ready = state as? ReelState.Ready
     var caption by rememberSaveable(ready) { mutableStateOf(ready?.caption.orEmpty()) }
     val link = ready?.link ?: (state as? ReelState.Loading)?.link
+    var showPage by rememberSaveable { mutableStateOf(false) }
+
+    if (showPage && link != null) {
+        ReelPage(
+            link = link,
+            onText = { text ->
+                if (text.isNotBlank()) caption = text
+                showPage = false
+            },
+            onClose = { showPage = false },
+        )
+        return
+    }
 
     val back = { vm.reset(); onBack() }
     BackHandler(onBack = back)
@@ -130,9 +144,9 @@ fun ReelScreen(
                     if (s.problem != null) {
                         item {
                             Note(
-                                s.problem + " Copy the caption in Facebook (tap the caption to open it, then " +
-                                    "long-press to copy) and paste it below, or take a screenshot of the recipe " +
-                                    "in the video and use Read a screenshot.",
+                                s.problem + " Open the reel here and sign in to Facebook once to read its caption " +
+                                    "and comments, paste the caption below, or take a screenshot of the recipe in " +
+                                    "the video and use Read a screenshot.",
                                 error = true,
                             )
                         }
@@ -142,7 +156,8 @@ fun ReelScreen(
                                 if (config.enabled) {
                                     "This is the reel's caption. AI can't watch the video, so it finds the recipe in " +
                                         "this text and fills in typical amounts if the caption leaves them out. If the " +
-                                        "recipe is only shown in the video, use Read a screenshot."
+                                        "recipe is in the comments, use Read the comments; if it's only shown in the " +
+                                        "video, use Read a screenshot."
                                 } else {
                                     "This is the reel's caption. Turn on AI in AI settings to have it find the recipe " +
                                         "and suggest DASH swaps, or use the text as it is."
@@ -167,6 +182,12 @@ fun ReelScreen(
                     }
                     item {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (s.link != null) {
+                                OutlinedButton(onClick = { showPage = true }, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Default.Forum, null)
+                                    Text(if (s.problem != null) "  Open the reel here" else "  Read the comments")
+                                }
+                            }
                             OutlinedButton(onClick = onScreenshot, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Default.PhotoLibrary, null)
                                 Text("  Read a screenshot instead")
@@ -178,7 +199,7 @@ fun ReelScreen(
                                     } catch (e: ActivityNotFoundException) {
                                         // No app can open the link; nothing to do.
                                     }
-                                }) { Text("Open the reel in Facebook") }
+                                }) { Text("Open in the Facebook app") }
                             }
                         }
                     }

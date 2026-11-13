@@ -1,5 +1,6 @@
 package dev.azrael.grocery.reel
 
+import android.webkit.CookieManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -44,13 +45,18 @@ class ReelViewModel(val settings: ClaudeSettings) : ViewModel() {
         _state.value = ReelState.Loading(link)
         job = viewModelScope.launch {
             val result = try {
-                val page = withContext(Dispatchers.IO) { ReelFetcher.fetch(link) }
+                val cookie = facebookCookie()
+                val page = withContext(Dispatchers.IO) { ReelFetcher.fetch(link, cookie) }
                 val caption = listOf(page.caption, sharedCaption).maxByOrNull { it.length }.orEmpty()
                 if (caption.isBlank()) {
                     ReelState.Ready(
                         link,
                         "",
-                        "Facebook didn't show this reel's caption without signing in, or the reel has no caption.",
+                        if (cookie == null) {
+                            "Facebook didn't show this reel's caption without signing in, or the reel has no caption."
+                        } else {
+                            "Couldn't find this reel's caption, or the reel has no caption."
+                        },
                     )
                 } else {
                     ReelState.Ready(link, caption)
@@ -66,6 +72,13 @@ class ReelViewModel(val settings: ClaudeSettings) : ViewModel() {
             }
             _state.value = result
         }
+    }
+
+    /** The Facebook sign-in saved by the reel viewer ([ReelPage]), if the user signed in there. */
+    private fun facebookCookie(): String? = try {
+        CookieManager.getInstance().getCookie("https://www.facebook.com")?.takeIf { it.contains("c_user=") }
+    } catch (e: Exception) {
+        null // WebView missing or being updated
     }
 
     fun reset() {
