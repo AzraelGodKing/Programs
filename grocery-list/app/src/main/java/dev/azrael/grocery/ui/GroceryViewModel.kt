@@ -13,6 +13,7 @@ import dev.azrael.grocery.data.MealPlanEntry
 import dev.azrael.grocery.data.Recipe
 import dev.azrael.grocery.data.StoreLayout
 import dev.azrael.grocery.parse.CombinedLine
+import dev.azrael.grocery.parse.MarkdownRecipe
 import dev.azrael.grocery.parse.MealPlan
 import dev.azrael.grocery.parse.ParsedIngredient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -88,6 +89,13 @@ class GroceryViewModel(private val repo: GroceryRepository, val layout: StoreLay
     fun updateRecipe(recipe: Recipe) = launch { repo.updateRecipe(recipe) }
     fun deleteRecipe(recipe: Recipe) = launch { repo.deleteRecipe(recipe) }
     fun restoreRecipe(recipe: Recipe) = launch { repo.restoreRecipe(recipe) }
+
+    /** Adds Markdown recipe notes (file name to text); [onDone] gets how many were new. */
+    fun importMarkdown(files: List<Pair<String, String>>, onDone: (added: Int, skipped: Int) -> Unit) = launch {
+        val recipes = files.map { (name, text) -> MarkdownRecipe.parse(name, text) }
+        val added = repo.importRecipes(recipes)
+        onDone(added, recipes.size - added)
+    }
     fun addRecipeToList(recipe: Recipe, ingredients: List<ParsedIngredient>) =
         launch { repo.addRecipeToList(recipe, ingredients) }
 

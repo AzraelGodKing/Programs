@@ -5,6 +5,7 @@ import androidx.glance.appwidget.updateAll
 import dev.azrael.grocery.claude.ClaudeSettings
 import dev.azrael.grocery.claude.GeminiNano
 import dev.azrael.grocery.dash.DashStore
+import dev.azrael.grocery.data.BundledRecipes
 import dev.azrael.grocery.data.FoodLogDao
 import dev.azrael.grocery.data.GroceryDatabase
 import dev.azrael.grocery.data.GroceryRepository
@@ -33,6 +34,9 @@ class GroceryApp : Application() {
     override fun onCreate() {
         super.onCreate()
         ExpiryReminders.schedule(this)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { BundledRecipes.importNew(this@GroceryApp, repository) }
+        }
         // Redraw the home-screen widget whenever the list changes in the app.
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             repository.items.distinctUntilChanged().drop(1).collect { GroceryWidget().updateAll(this@GroceryApp) }

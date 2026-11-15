@@ -1,6 +1,11 @@
 package dev.azrael.grocery.ui
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
@@ -55,6 +61,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -69,7 +76,9 @@ import dev.azrael.grocery.parse.NameKey
 import dev.azrael.grocery.parse.ParsedIngredient
 import dev.azrael.grocery.parse.Servings
 import dev.azrael.grocery.parse.formatAmount
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
@@ -77,6 +86,14 @@ import java.util.Date
 private fun toBuy(recipe: Recipe, servings: Int, cabinetKeys: Set<String>): List<ParsedIngredient> =
     Servings.scale(recipe.ingredients(), recipe.servings, servings)
         .filter { CabinetMatch.find(NameKey.of(it.name), cabinetKeys) == null }
+
+private fun displayName(context: Context, uri: Uri): String =
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+        if (c.moveToFirst()) c.getString(0) else null
+    } ?: uri.lastPathSegment.orEmpty()
+
+private fun readText(context: Context, uri: Uri): String =
+    context.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
 
 /**
  * The recipe box: saved recipes, each re-added to the list in one tap or opened to change the
@@ -112,12 +129,41 @@ fun RecipeBoxScreen(
     val scope = rememberCoroutineScope()
     BackHandler(onBack = onBack)
 
+    val context = LocalContext.current
+    // Markdown notes (from Obsidian, for example). Android rarely knows a .md type, so allow any file.
+    val pickNotes = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val files = withContext(Dispatchers.IO) {
+                uris.mapNotNull { uri -> runCatching { displayName(context, uri) to readText(context, uri) }.getOrNull() }
+            }
+            vm.importMarkdown(files) { added, skipped ->
+                scope.launch {
+                    snackbar.currentSnackbarData?.dismiss()
+                    snackbar.showSnackbar(
+                        buildString {
+                            append(if (added == 1) "Added 1 recipe" else "Added $added recipes")
+                            if (skipped > 0) append(", skipped $skipped already in the box")
+                            if (files.size < uris.size) append(", ${uris.size - files.size} couldn't be read")
+                        },
+                        withDismissAction = true,
+                    )
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Recipe box") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                },
+                actions = {
+                    IconButton(onClick = { pickNotes.launch(arrayOf("text/*", "application/octet-stream")) }) {
+                        Icon(Icons.Default.FileOpen, "Import recipe notes (.md)")
+                    }
                 },
             )
         },
