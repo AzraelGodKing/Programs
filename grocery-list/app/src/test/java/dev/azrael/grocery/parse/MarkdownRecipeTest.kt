@@ -86,4 +86,12 @@ class MarkdownRecipeTest {
         val first = DashCheck.annotate(MarkdownRecipe.parse("x.md", md)).text.lineSequence().first()
         assertTrue(first, first.startsWith("DASH check: looks DASH friendly"))
     }
+
+    @Test fun dashCheckAllowsASmallPortionOfLeanRedMeat() {
+        fun first(steak: String) = DashCheck.annotate(
+            MarkdownRecipe.parse("x.md", "# Steak\nServes 4\n\n## Ingredients\n- $steak sirloin steak\n- 4 cups spinach\n\n## Steps\n1. Sear."),
+        ).text.lineSequence().first()
+        assertTrue(first("12 oz"), first("12 oz").startsWith("DASH check: looks DASH friendly"))
+        assertTrue(first("2 lb"), first("2 lb").contains("red meat"))
+    }
 }

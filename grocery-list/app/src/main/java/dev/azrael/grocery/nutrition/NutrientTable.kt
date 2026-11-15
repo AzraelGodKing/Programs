@@ -99,6 +99,7 @@ object NutrientTable {
         e("goat cheese", 460, 25, cup = 150),
         e("cottage cheese|low fat cottage cheese", 365, 105, cup = 226),
         e("cream cheese", 320, 130, cup = 232, pkg = 227),
+        e("evaporated milk|fat free evaporated milk|evaporated skim milk|evaporated low fat milk", 106, 303, cup = 252, pkg = 340),
         e("ricotta|ricotta cheese|part skim ricotta", 95, 125, cup = 246),
         e("egg|eggs|egg white|egg whites", 142, 138, cup = 243, each = 50),
 
@@ -133,7 +134,10 @@ object NutrientTable {
         e("brown rice|wild rice", 7, 270, cup = 190),
         e("quinoa", 5, 565, cup = 170),
         e("oat|oats|rolled oat|old fashioned oat|quick oat|steel cut oat|oatmeal", 2, 360, cup = 81),
-        e("pasta|spaghetti|penne|macaroni|noodle|egg noodle|whole wheat pasta|linguine|fettuccine|rotini", 6, 220, cup = 100, pkg = 454),
+        e("pasta|spaghetti|penne|macaroni|noodle|egg noodle|whole wheat pasta|linguine|fettuccine|rotini|rigatoni|shell pasta|orzo|cavatappi|bowtie|bowtie pasta|farfalle|fusilli|ziti|cellentani|mafaldine|elbow macaroni", 6, 220, cup = 100, pkg = 454),
+        // Refrigerated or shelf-stable; brands vary a lot.
+        e("tortellini|cheese tortellini|ravioli|cheese ravioli", 400, 120, cup = 100, pkg = 255),
+        e("gnocchi|potato gnocchi", 300, 200, cup = 150, pkg = 454),
         e("flour|all purpose flour|whole wheat flour|bread flour", 2, 110, cup = 125),
         e("cornmeal|polenta", 7, 290, cup = 150),
         e("bread|whole wheat bread|whole grain bread|sandwich bread|slice bread", 470, 230, cup = 45, each = 28),
@@ -163,6 +167,8 @@ object NutrientTable {
         e("bell pepper|red bell pepper|green bell pepper|yellow bell pepper|orange bell pepper|sweet pepper|red pepper|green pepper|yellow pepper|orange pepper", 4, 175, cup = 149, each = 120),
         e("jalapeno|jalapeno pepper|serrano|serrano pepper|chile|chili pepper|poblano", 3, 250, cup = 90, each = 14),
         e("tomato|roma tomato|cherry tomato|grape tomato|plum tomato", 5, 237, cup = 180, each = 123),
+        // Oil-packed, drained; dry-packed are salted and run about 2,000 mg.
+        e("sun dried tomato|oil packed sun dried tomato", 266, 1565, cup = 110),
         e("mushroom|cremini mushroom|button mushroom|baby bella mushroom|portobello", 5, 318, cup = 70, each = 18, pkg = 227),
         e("zucchini|summer squash|yellow squash", 8, 261, cup = 124, each = 196),
         e("butternut squash|acorn squash|squash|pumpkin", 4, 350, cup = 140, each = 1000),

@@ -35,6 +35,10 @@ object DashCheck {
     /** About a third of the 1,500 to 2,300 mg day, for one meal. */
     const val SODIUM_PER_SERVING_MG = 600
 
+    private const val RED_MEAT = "red meat"
+    /** About 4 oz cooked; DASH allows up to 6 oz of lean meat a day. */
+    private const val RED_MEAT_PER_SERVING_G = 115.0
+
     private val heavy = listOf(
         "heavy cream" to "heavy cream",
         "whipping cream" to "heavy cream",
@@ -49,8 +53,10 @@ object DashCheck {
         "salami" to "salami",
         "ham" to "ham",
         "meatball" to "meatballs",
-        "steak" to "red meat",
-        "beef" to "red meat",
+        "steak" to RED_MEAT,
+        "beef" to RED_MEAT,
+        "sirloin" to RED_MEAT,
+        "ribeye" to RED_MEAT,
         "butter" to "butter",
         "cream cheese" to "cream cheese",
     )
@@ -62,13 +68,20 @@ object DashCheck {
     fun check(ingredients: List<ParsedIngredient>, servings: Int): DashVerdict {
         val n = RecipeNutritionEstimator.estimate(ingredients, servings.toDouble())
         val found = linkedSetOf<String>()
-        for (ing in ingredients) {
+        var redMeatGrams = 0.0
+        for ((i, ing) in ingredients.withIndex()) {
             val key = " ${NameKey.of(ing.name)} "
             if (notReally.any { key.contains(" ${NameKey.of(it)} ") }) continue
             val hit = heavy.firstOrNull { (word, _) -> key.contains(" ${NameKey.of(word)} ") } ?: continue
             if (lighter.any { key.contains(" ${NameKey.of(it)} ") }) continue
+            if (hit.second == RED_MEAT) {
+                // Lean red meat is fine on DASH in small portions; an unknown amount counts as a lot.
+                redMeatGrams += n.items[i].grams ?: Double.MAX_VALUE
+                continue
+            }
             found += hit.second
         }
+        if (redMeatGrams / servings.coerceAtLeast(1) > RED_MEAT_PER_SERVING_G) found += RED_MEAT
         return DashVerdict(n.sodiumPerServing, found.toList(), n.skipped.size)
     }
 
