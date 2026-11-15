@@ -58,7 +58,7 @@ export const ALIGNMENTS = [
 
 const HIT_DICE = new Set([4, 6, 8, 10, 12]);
 const SIZES = new Set(["Small", "Medium"]);
-const METHODS = new Set(["standard", "pointbuy", "rolled", "manual"]);
+const METHODS = new Set(["standard", "pointbuy", "rolled", "manual", "d20", "d100", "coin"]);
 
 export const RACES = [
   {
@@ -801,7 +801,7 @@ export function effectiveHp(character) {
   return suggestedHp(character);
 }
 
-function raceLabel(character) {
+export function raceLabel(character) {
   if (character.raceId === "custom") return character.customRace || "Custom people";
   const race = findRace(character.raceId);
   if (!race) return "";
@@ -814,7 +814,7 @@ function raceLabel(character) {
   return `${lineage.name} ${race.name}`;
 }
 
-function classLabel(character) {
+export function classLabel(character) {
   if (character.classId === "custom") return character.customClass || "Custom class";
   return findClass(character.classId)?.name || "";
 }

@@ -554,6 +554,18 @@
       <p class="hint">Paused talk still lets players whisper you.</p>
     </details>
     <details>
+      <summary>Ability score modes</summary>
+      <p class="hint">Unlock extra ways to make ability scores in the character creator. The table rolls them and keeps one roll per seat, so a refresh never rerolls.</p>
+      <div class="chip-row" role="group" aria-label="Ability score modes">
+        <button type="button" class="chip" data-roll-mode="d20" aria-pressed="false" title="Six d20s in order, STR to CHA. Race and class first.">d20 in order</button>
+        <button type="button" class="chip" data-roll-mode="d100" aria-pressed="false" title="A d100 of points on top of a 1 in each score. No score above 20.">d100 pool</button>
+        <button type="button" class="chip" data-roll-mode="coin" aria-pressed="false" title="All 10s. Call the coin for +2 or -2 until they stop, hit 2 or 20, or miss three in a row.">Coin flip</button>
+        <button type="button" class="chip" data-roll-only aria-pressed="false" title="Hide standard array, point buy, 4d6, and manual">Only these</button>
+      </div>
+      <h3>On record</h3>
+      <div id="dm-rolls" class="stack"></div>
+    </details>
+    <details>
       <summary>Seats</summary>
       <div id="dm-seats" class="stack"></div>
       <div id="dm-seat-link" class="ask-banner" hidden></div>

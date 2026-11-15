@@ -7,6 +7,7 @@ import { spotlight, sessionLog, downloadText } from "./session.js";
 import { postBoard, postRecap, postTalk } from "./table.js";
 import { recapDraft } from "./recap.js";
 import { replaceStory, storyNotebook } from "./dmstory.js";
+import { ROLL_ORDER, cleanRollSettings } from "./abilityroll.js";
 
 const LAYOUT_KEY = "lantern.dm.layouts";
 const SINCE_MS = 6 * 60 * 60 * 1000;
@@ -106,6 +107,28 @@ function paintSeats(room) {
   ])) : [h("p", { class: "empty" }, "No one is seated.")]));
 }
 
+function sheetMatches(player, record) {
+  const scores = player?.snapshot?.character?.scores;
+  if (!record?.done || !record.scores || !scores) return null;
+  return ROLL_ORDER.every((id) => scores[id] === record.scores[id]);
+}
+
+function paintRolls(room) {
+  const settings = cleanRollSettings(room?.board?.abilityRolls);
+  setPressed("[data-roll-mode]", (node) => settings.modes.includes(node.dataset.rollMode));
+  setPressed("[data-roll-only]", () => settings.only);
+  const mount = document.getElementById("dm-rolls");
+  if (!mount) return;
+  const rolls = room?.abilityRolls || [];
+  mount.replaceChildren(...(rolls.length ? rolls.map(({ name, record, line }) => {
+    const match = sheetMatches((room.players || []).find((player) => player.name === name), record);
+    return h("div", { class: "gear-row seat-row" }, [
+      h("span", {}, [h("strong", {}, name), ` ${line}`, match === false ? h("span", { class: "roll-warn" }, " The sheet's scores differ.") : null]),
+      h("button", { type: "button", class: "text-btn danger", "data-roll-reset": name }, "Clear so they can roll again"),
+    ]);
+  }) : [h("p", { class: "empty" }, "No one has rolled with these modes.")]));
+}
+
 function paintState(room) {
   const b = room?.board;
   if (!b) return;
@@ -150,6 +173,7 @@ export function paintTableModule(room) {
   paintSpotlight(room);
   paintSeats(room);
   paintState(room);
+  paintRolls(room);
 }
 
 // --- Actions ------------------------------------------------------------------
@@ -270,6 +294,24 @@ function onClick(event) {
   if (seat) return void seatAction(seat.dataset.seat, seat.dataset.name);
   const mood = t.closest("[data-mood]");
   if (mood) return void board({ op: "mood", label: mood.dataset.mood }, mood.dataset.mood ? `Mood: ${mood.dataset.mood}.` : "Mood cleared.");
+  const rollMode = t.closest("[data-roll-mode]");
+  const rollOnly = t.closest("[data-roll-only]");
+  if (rollMode || rollOnly) {
+    const now = cleanRollSettings(hooks.room()?.board?.abilityRolls);
+    let modes = now.modes;
+    if (rollMode) {
+      const id = rollMode.dataset.rollMode;
+      modes = modes.includes(id) ? modes.filter((item) => item !== id) : [...modes, id];
+    }
+    const only = rollOnly ? !now.only : now.only;
+    return void board({ op: "ability-modes", modes, only }, modes.length ? `Ability modes open: ${modes.length}${only && modes.length ? ", and only those" : ""}.` : "Only the usual ability methods.");
+  }
+  const reset = t.closest("[data-roll-reset]");
+  if (reset) {
+    const name = reset.dataset.rollReset;
+    if (!confirm(`Clear ${name}'s ability roll? They can roll again.`)) return;
+    return void board({ op: "ability-reset", name }, `${name} can roll again.`);
+  }
   const chat = t.closest("[data-chat]");
   if (chat) return void board({ op: "chat-mode", mode: chat.dataset.chat, slow: Number(document.getElementById("dm-slow")?.value) || 30 }, chat.dataset.chat === "open" ? "Table talk is open." : chat.dataset.chat === "slow" ? "Slow chat is on." : "Table talk is paused.");
   const id = t.closest("button")?.id;

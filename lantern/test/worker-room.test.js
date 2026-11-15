@@ -515,3 +515,58 @@ test("pause, mood, chat control, safety, the X-card log, the next session, and s
   assert.equal((await room.view(mara.token)).locked, true);
   assert.deepEqual((await room.view(dm)).players.map((player) => player.name), ["Bram"]);
 });
+
+test("ability modes: the DM unlocks, the room rolls once per seat, and only the DM clears it", async () => {
+  const { table, dmToken, mara } = await openedRoom();
+  await assert.rejects(table.board(mara.token, { op: "ability-roll", mode: "d20", race: "Elf", klass: "Wizard" }), /not unlocked/);
+  await assert.rejects(table.board(mara.token, { op: "ability-modes", modes: ["d20"] }), TableError);
+  await table.board(dmToken, { op: "ability-modes", modes: ["d20", "coin", "bogus"], only: true });
+  assert.deepEqual((await table.view(mara.token)).board.abilityRolls, { modes: ["d20", "coin"], only: true });
+  await assert.rejects(table.board(mara.token, { op: "ability-roll", mode: "d100" }), /not unlocked/);
+  await assert.rejects(table.board(mara.token, { op: "ability-roll", mode: "d20", race: "", klass: "Wizard" }), /race and a class/);
+  const first = await table.board(mara.token, { op: "ability-roll", mode: "d20", race: "Elf", klass: "Wizard" });
+  assert.equal(first.record.done, true);
+  assert.equal(first.record.dice.length, 6);
+  const again = await table.board(mara.token, { op: "ability-roll", mode: "d20", race: "Elf", klass: "Wizard" });
+  assert.equal(again.again, true);
+  assert.deepEqual(again.record.dice, first.record.dice);
+  // Switching modes does not reroll either.
+  const other = await table.board(mara.token, { op: "ability-roll", mode: "coin" });
+  assert.equal(other.record.mode, "d20");
+  assert.deepEqual((await table.view(mara.token)).abilityRoll.dice, first.record.dice);
+  const dmView = await table.view(dmToken);
+  assert.equal(dmView.abilityRolls.length, 1);
+  assert.equal(dmView.abilityRolls[0].name, "Mara");
+  assert.match(dmView.abilityRolls[0].line, /d20 in order/);
+  assert.equal((await table.view(mara.token)).abilityRolls, undefined);
+  assert.ok(dmView.events.some((event) => /Rolled ability scores \(Elf Wizard\)/.test(event.summary)));
+  await assert.rejects(table.board(mara.token, { op: "ability-reset", name: "Mara" }), TableError);
+  await table.board(dmToken, { op: "ability-reset", name: "Mara" });
+  assert.equal((await table.view(mara.token)).abilityRoll, null);
+
+  const coin = await table.board(mara.token, { op: "ability-roll", mode: "coin" });
+  assert.equal(coin.record.scores.str, 10);
+  const flip = await table.board(mara.token, { op: "ability-flip", ability: "str", call: "heads" });
+  assert.equal(flip.record.count, 1);
+  assert.equal(Math.abs(flip.record.scores.str - 10), 2);
+  const stop = await table.board(mara.token, { op: "ability-stop" });
+  assert.equal(stop.record.end, "stopped");
+  await assert.rejects(table.board(mara.token, { op: "ability-flip", ability: "str", call: "heads" }), /over/);
+
+  await table.board(dmToken, { op: "ability-reset", name: "Mara" });
+  await table.board(dmToken, { op: "ability-modes", modes: ["d100"] });
+  const pool = (await table.board(mara.token, { op: "ability-roll", mode: "d100" })).record.pool;
+  await assert.rejects(table.board(mara.token, { op: "ability-place", scores: { str: 1, dex: 1, con: 1, int: 1, wis: 1, cha: 1 } }), /left to place|You have/);
+  const spread = { str: 1, dex: 1, con: 1, int: 1, wis: 1, cha: 1 };
+  let left = pool;
+  for (const id of Object.keys(spread)) {
+    const add = Math.min(19, left);
+    spread[id] += add;
+    left -= add;
+  }
+  const placed = await table.board(mara.token, { op: "ability-place", scores: spread });
+  assert.equal(placed.record.done, true);
+
+  await table.board(dmToken, { op: "seat-kick", name: "Mara" });
+  assert.deepEqual((await table.view(dmToken)).abilityRolls, []);
+});

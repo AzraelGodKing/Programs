@@ -4,6 +4,7 @@ import { advanceTurn, blankDeath, blankOrder, cleanOrder, playerOrder } from "..
 import { MARKS } from "../src/marks.js";
 import { TOKEN_CAP, cleanMap, cleanToken, fogged, freeCell, mapFor, paintFog, resizeMap } from "../src/mapgrid.js";
 import { discordRecap, validWebhook } from "../src/recap.js";
+import { cleanRollSettings, finishD100, flipCoin, rollLine, startRoll, stopCoin } from "../src/abilityroll.js";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const EVENT_CAP = 500;
@@ -164,6 +165,7 @@ export function blankBoard() {
     safety: { lines: [], veils: [] },
     xlog: [],
     next: null,
+    abilityRolls: { modes: [], only: false },
   };
 }
 
@@ -235,6 +237,7 @@ function cleanBoard(raw) {
   const board = { ...blankBoard(), ...(raw && typeof raw === "object" ? raw : {}) };
   board.helps = (board.helps || []).filter((help) => Date.now() - help.at < HELP_MS);
   if (board.xcard && Date.now() - board.xcard.at > XCARD_MS) board.xcard = null;
+  board.abilityRolls = cleanRollSettings(board.abilityRolls);
   return board;
 }
 
@@ -453,7 +456,20 @@ export class TableRoom {
     const messages = ((await this.storage.get("messages")) || []).filter((message) => messageVisible(message, who.name));
     const buybacks = shopIsOpen(shop) ? ((await this.storage.get("buybacks")) || []) : [];
     const board = boardFor(cleanBoard(await this.storage.get("board")), who);
+    let abilityRoll;
+    let abilityRolls;
+    if (who.role === "player") abilityRoll = (await this.storage.get(`abilityroll:${who.token}`)) || null;
+    else {
+      const records = await this.storage.list({ prefix: "abilityroll:" });
+      abilityRolls = [];
+      for (const [key, record] of records.entries()) {
+        const seat = stored.get(`seat:${key.slice("abilityroll:".length)}`);
+        if (seat) abilityRolls.push({ name: seat.name, record, line: rollLine(record) });
+      }
+    }
     return {
+      abilityRoll,
+      abilityRolls,
       events: [...events].reverse(),
       board,
       players,
@@ -848,6 +864,7 @@ export class TableRoom {
       await this.storage.put("meta", { ...meta, watchToken });
       return { ok: true, token: watchToken };
     }
+    if (typeof op === "string" && op.startsWith("ability-") && op !== "ability-modes") return this.abilityRoll(who, op, payload, now);
     const board = cleanBoard(await this.storage.get("board"));
     const by = who.name;
     const dmOnly = (what) => {
@@ -1003,6 +1020,7 @@ export class TableRoom {
         if (op === "seat-link") return { ok: true, token: key.slice("seat:".length), name };
         if (op === "seat-kick") {
           await this.storage.delete(key);
+          await this.storage.delete(`abilityroll:${key.slice("seat:".length)}`);
           await this.storage.setAlarm(now + IDLE_MS);
           return { ok: true, board };
         }
@@ -1129,6 +1147,10 @@ export class TableRoom {
         board.helps.push({ id: hexId(), from: by, to, at: now });
         break;
       }
+      case "ability-modes":
+        dmOnly("unlocks ability score modes");
+        board.abilityRolls = cleanRollSettings({ modes: payload.modes, only: payload.only });
+        break;
       case "help-used":
         board.helps = board.helps.filter((help) => help.to !== by);
         break;
@@ -1138,6 +1160,77 @@ export class TableRoom {
     await this.storage.put("board", board);
     await this.storage.setAlarm(now + IDLE_MS);
     return { ok: true, board: boardFor(board, who) };
+  }
+
+  /**
+   * Ability score modes the DM unlocked. The room rolls and keeps one record
+   * per seat, so a refresh or a switch to another method never rerolls. Only
+   * the DM clears a record.
+   */
+  async abilityRoll(who, op, payload, now) {
+    const log = async (name, text) => {
+      let events = (await this.storage.get("events")) || [];
+      events.push({ id: hexId(), at: now, name, summary: text });
+      if (events.length > EVENT_CAP) events = events.slice(-EVENT_CAP);
+      await this.storage.put("events", events);
+    };
+    if (op === "ability-reset") {
+      if (who.role !== "dm") throw new TableError("Only the DM clears a roll.");
+      const name = cleanName(payload.name);
+      const stored = await this.storage.list({ prefix: "seat:" });
+      const entry = [...stored.entries()].find(([, seat]) => seat.name === name);
+      if (!entry) throw new TableError("Nobody by that name is seated.");
+      await this.storage.delete(`abilityroll:${entry[0].slice("seat:".length)}`);
+      await log(DM_NAME, `Cleared ${name}'s ability score roll. They can roll again.`);
+      await this.storage.setAlarm(now + IDLE_MS);
+      return { ok: true };
+    }
+    if (who.role !== "player") throw new TableError("Only a seated player rolls ability scores.");
+    const key = `abilityroll:${who.token}`;
+    const current = (await this.storage.get(key)) || null;
+    const save = async (record, text) => {
+      await this.storage.put(key, record);
+      if (text) await log(who.name, text);
+      await this.storage.setAlarm(now + IDLE_MS);
+      return { ok: true, record };
+    };
+    switch (op) {
+      case "ability-roll": {
+        const settings = cleanRollSettings(cleanBoard(await this.storage.get("board")).abilityRolls);
+        const mode = typeof payload.mode === "string" ? payload.mode : "";
+        if (!settings.modes.includes(mode)) throw new TableError("The DM has not unlocked that mode.");
+        // A second press hands back the first roll instead of rolling again.
+        if (current) return { ok: true, record: current, again: true };
+        if (mode === "d20") {
+          const race = typeof payload.race === "string" ? collapse(payload.race).slice(0, 60) : "";
+          const klass = typeof payload.klass === "string" ? collapse(payload.klass).slice(0, 60) : "";
+          if (!race || !klass) throw new TableError("Pick a race and a class before you roll a d20 in order.");
+          const record = { ...startRoll(mode, Math.random, now), race, klass };
+          return save(record, `Rolled ability scores (${race} ${klass}), ${rollLine(record)}`);
+        }
+        const record = startRoll(mode, Math.random, now);
+        return save(record, mode === "d100" ? `Rolled a d100 for ability points: ${record.pool}.` : "Started the ability score coin flip. Every score is 10.");
+      }
+      case "ability-place": {
+        const result = finishD100(current, payload.scores, now);
+        if (!result.ok) throw new TableError(result.reason);
+        return save(result.record, `Locked in ability scores, ${rollLine(result.record)}`);
+      }
+      case "ability-flip": {
+        const result = flipCoin(current, payload.ability, payload.call, Math.random, now);
+        if (!result.ok) throw new TableError(result.reason);
+        const { flip, record } = result;
+        const said = `Called ${flip.call} for ${flip.ability.toUpperCase()}, it came up ${flip.side}: ${flip.ability.toUpperCase()} ${flip.score}.`;
+        return save(record, record.done ? `${said} ${rollLine(record)}` : "").then((out) => ({ ...out, flip }));
+      }
+      case "ability-stop": {
+        const result = stopCoin(current, now);
+        if (!result.ok) throw new TableError(result.reason);
+        return save(result.record, `Tapped out. ${rollLine(result.record)}`);
+      }
+      default:
+        throw new TableError("The board does not know that.");
+    }
   }
 }
 

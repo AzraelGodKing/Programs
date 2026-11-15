@@ -31,6 +31,8 @@ import {
   peopleGrant,
   pointBuySpent,
   presentCharacter,
+  raceLabel,
+  classLabel,
   racialBonuses,
   rollScores,
   skillBonus,
@@ -39,6 +41,7 @@ import {
   suggestedHp,
 } from "./character.js";
 import { facesLabel, formula, roll, STANDARD_SIDES } from "./dice.js";
+import { D100_BASE, D100_MAX, ROLL_MODES, ROLL_MODE_IDS, checkD100, cleanRollSettings, findRollMode, rollLine } from "./abilityroll.js";
 import {
   coinCounts,
   counterFor,
@@ -1618,6 +1621,8 @@ function abilityControl(ability, method) {
         "aria-label": `Raise ${ability.label}`,
       }, "+"),
     ]);
+  } else if (ROLL_MODE_IDS.includes(method)) {
+    control = rollControl(ability, method, score);
   } else {
     control = h("input", {
       type: "number",
@@ -1637,11 +1642,190 @@ function abilityControl(ability, method) {
   ]);
 }
 
+// --- Ability score modes the DM unlocks. The table rolls and keeps the record.
+
+function rollSettings() {
+  return atSharedTable() ? cleanRollSettings(lastRoom?.board?.abilityRolls) : { modes: [], only: false };
+}
+
+function myRoll() {
+  return atSharedTable() ? lastRoom?.abilityRoll || null : null;
+}
+
+function rollStage(method) {
+  const record = myRoll();
+  if (!ROLL_MODE_IDS.includes(method)) return method;
+  if (!record || record.mode !== method) return `${method}:none`;
+  return `${method}:${record.done ? "done" : "open"}`;
+}
+
+function rollControl(ability, method, score) {
+  const record = myRoll();
+  const mine = record && record.mode === method ? record : null;
+  const value = h("span", { class: "point-value", "data-base": ability.id }, mine ? String(score) : "?");
+  if (mine && method === "d100" && !mine.done) {
+    return h("div", { class: "point-step" }, [
+      h("button", { type: "button", class: "step", "data-action": "d100-step", "data-ability": ability.id, "data-delta": "-1", "aria-label": `Lower ${ability.label}` }, "−"),
+      value,
+      h("button", { type: "button", class: "step", "data-action": "d100-step", "data-ability": ability.id, "data-delta": "1", "aria-label": `Raise ${ability.label}` }, "+"),
+    ]);
+  }
+  if (mine && method === "coin" && !mine.done) {
+    return h("div", { class: "coin-call" }, [
+      value,
+      h("div", { class: "coin-buttons" }, [
+        h("button", { type: "button", class: "chip", "data-action": "coin-flip", "data-ability": ability.id, "data-call": "heads", "aria-label": `Call heads for ${ability.label}` }, "Heads"),
+        h("button", { type: "button", class: "chip", "data-action": "coin-flip", "data-ability": ability.id, "data-call": "tails", "aria-label": `Call tails for ${ability.label}` }, "Tails"),
+      ]),
+    ]);
+  }
+  return value;
+}
+
+function paintScoreMethods() {
+  const group = document.getElementById("score-methods");
+  if (!group) return;
+  const settings = rollSettings();
+  const record = myRoll();
+  for (const mode of ROLL_MODES) {
+    let button = group.querySelector(`[data-method="${mode.id}"]`);
+    if (settings.modes.includes(mode.id) || record?.mode === mode.id) {
+      if (!button) {
+        button = h("button", { type: "button", class: "roll-mode", "data-action": "score-method", "data-method": mode.id, "aria-pressed": "false" }, mode.label);
+        group.append(button);
+      }
+    } else if (button) button.remove();
+  }
+  for (const button of group.querySelectorAll("button")) {
+    const rollMode = ROLL_MODE_IDS.includes(button.dataset.method);
+    // Only the DM's modes when they say so, and only the recorded mode once a roll is on record.
+    button.hidden = !rollMode && settings.only;
+    button.disabled = Boolean(record) && button.dataset.method !== record.mode;
+  }
+}
+
+function paintRollPanel(method) {
+  const panel = document.getElementById("roll-panel");
+  if (!panel) return;
+  const record = myRoll();
+  const mode = findRollMode(method);
+  if (!mode) {
+    panel.hidden = !record;
+    if (record) {
+      panel.replaceChildren(
+        h("p", { class: "hint" }, `This table has your roll on record: ${rollLine(record)}`),
+        h("button", { type: "button", class: "btn", "data-action": "score-method", "data-method": record.mode }, "Use it"),
+      );
+    }
+    return;
+  }
+  panel.hidden = false;
+  const parts = [h("p", { class: "hint" }, mode.blurb)];
+  const mine = record && record.mode === method ? record : null;
+  if (!mine) {
+    const missing = method === "d20" && (!raceLabel(state.character) || !classLabel(state.character));
+    parts.push(h("p", { class: "hint" }, missing
+      ? "Pick a race and a class first. The roll happens once and the table keeps it."
+      : "The roll happens once and the table keeps it. Only the DM can clear it."));
+    parts.push(h("button", {
+      type: "button",
+      class: "btn primary",
+      "data-action": "roll-mode-roll",
+      "data-mode": method,
+      disabled: missing || null,
+    }, method === "coin" ? "Start flipping" : method === "d100" ? "Roll the d100" : "Roll six d20s"));
+  } else if (method === "d100" && !mine.done) {
+    const check = checkD100(mine.pool, state.character.scores);
+    const spent = ABILITIES.reduce((sum, ability) => sum + (state.character.scores[ability.id] - D100_BASE), 0);
+    parts.push(h("p", { class: "roll-line" }, `You rolled ${mine.pool}. ${Math.max(0, mine.pool - spent)} of ${mine.pool} points left to place.`));
+    parts.push(h("button", { type: "button", class: "btn primary", "data-action": "d100-lock", disabled: check.ok ? null : true }, "Lock in these scores"));
+  } else if (method === "coin" && !mine.done) {
+    const last = mine.flips[mine.flips.length - 1];
+    if (last) {
+      parts.push(h("p", { class: "roll-line" }, `You called ${last.call} for ${last.ability.toUpperCase()}. It came up ${last.side}. ${last.right ? "+2" : "−2"}.`));
+    }
+    parts.push(h("p", { class: "hint" }, `${mine.count} flip${mine.count === 1 ? "" : "s"}. Wrong calls in a row: ${mine.misses} of 3.`));
+    parts.push(h("button", { type: "button", class: "btn", "data-action": "coin-stop" }, "Tap out and keep these"));
+  } else {
+    parts.push(h("p", { class: "roll-line" }, `Locked in. ${rollLine(mine)}`));
+    parts.push(h("p", { class: "hint" }, "Ask the DM to clear it if you need to roll again."));
+  }
+  panel.replaceChildren(...parts);
+}
+
+function applyRoll(record, summary) {
+  if (!record) return;
+  if (lastRoom) lastRoom.abilityRoll = record;
+  state.character.method = record.mode;
+  state.character.scores = record.scores
+    ? { ...record.scores }
+    : Object.fromEntries(ABILITIES.map((ability) => [ability.id, D100_BASE]));
+  state.character.touched = true;
+  // The table already logged the roll, so this only saves the sheet.
+  persist(summary);
+  renderCharacter();
+}
+
+async function rollOp(body) {
+  const status = document.getElementById("roll-status");
+  if (!atSharedTable()) {
+    setText(status, "Sit at a table to use the DM's ability modes.");
+    return null;
+  }
+  try {
+    const result = await postBoard(loadSeat().room, body);
+    setText(status, "");
+    return result;
+  } catch (error) {
+    setText(status, error.message);
+    return null;
+  }
+}
+
+async function startRollMode(mode) {
+  const result = await rollOp({ op: "ability-roll", mode, race: raceLabel(state.character), klass: classLabel(state.character) });
+  if (result?.record) {
+    applyRoll(result.record);
+    if (result.again) setText(document.getElementById("roll-status"), "You already rolled. This is the roll on record.");
+  }
+}
+
+function stepD100(ability, delta) {
+  const record = myRoll();
+  if (!record || record.mode !== "d100" || record.done) return;
+  const goal = state.character.scores[ability] + delta;
+  if (goal < D100_BASE || goal > D100_MAX) return;
+  const next = { ...state.character.scores, [ability]: goal };
+  const spent = ABILITIES.reduce((sum, item) => sum + (next[item.id] - D100_BASE), 0);
+  if (spent > record.pool) return;
+  state.character.scores = next;
+  persist();
+  renderCharacter();
+}
+
+async function lockD100() {
+  const result = await rollOp({ op: "ability-place", scores: state.character.scores });
+  if (result?.record) applyRoll(result.record);
+}
+
+async function callCoin(ability, call) {
+  const result = await rollOp({ op: "ability-flip", ability, call });
+  if (result?.record) applyRoll(result.record);
+}
+
+async function stopCoinFlip() {
+  const result = await rollOp({ op: "ability-stop" });
+  if (result?.record) applyRoll(result.record);
+}
+
 function renderAbilities() {
   const mount = document.getElementById("ability-grid");
   const method = state.character.method;
-  if (mount.dataset.method !== method) {
-    mount.dataset.method = method;
+  paintScoreMethods();
+  paintRollPanel(method);
+  const stage = rollStage(method);
+  if (mount.dataset.method !== stage) {
+    mount.dataset.method = stage;
     mount.replaceChildren(...ABILITIES.map((ability) => abilityControl(ability, method)));
   }
   const totals = abilityTotals(state.character);
@@ -1651,10 +1835,11 @@ function renderAbilities() {
     const total = totals[ability.id];
     const bonus = racial[ability.id];
     const base = state.character.scores[ability.id];
-    setText(card.querySelector(".ability-total"), `Total ${total}, modifier ${formatMod(abilityMod(total))}`);
+    const unrolled = ROLL_MODE_IDS.includes(method) && myRoll()?.mode !== method;
+    setText(card.querySelector(".ability-total"), unrolled ? "Not rolled yet" : `Total ${total}, modifier ${formatMod(abilityMod(total))}`);
     setText(card.querySelector(".ability-note"), bonus ? `${base} base, ${formatMod(bonus)} from the people` : `${base} base`);
     const point = card.querySelector("[data-base]");
-    if (point) setText(point, String(base));
+    if (point) setText(point, unrolled ? "?" : String(base));
     const select = card.querySelector("select");
     if (select && document.activeElement !== select) select.value = String(base);
     const input = card.querySelector("input");
@@ -2697,6 +2882,20 @@ function updateSheet(target, { log }) {
 }
 
 function applyScoreMethod(method) {
+  const record = myRoll();
+  if (record && method !== record.mode) {
+    setText(document.getElementById("roll-status"), "Your roll is on record. Ask the DM to clear it first.");
+    return;
+  }
+  if (ROLL_MODE_IDS.includes(method)) {
+    if (record) applyRoll(record, `Using the ${findRollMode(method).label} roll on record.`);
+    else {
+      state.character.method = method;
+      persist();
+      renderCharacter();
+    }
+    return;
+  }
   state.character.method = method;
   if (method === "standard") state.character.scores = defaultScores();
   if (method === "pointbuy") {
@@ -2912,6 +3111,11 @@ function onClick(event) {
   else if (action === "hood") toggleHood(button.dataset.id);
   else if (action === "snuff") snuff(button.dataset.id);
   else if (action === "score-method") applyScoreMethod(button.dataset.method);
+  else if (action === "roll-mode-roll") void startRollMode(button.dataset.mode);
+  else if (action === "d100-step") stepD100(button.dataset.ability, Number(button.dataset.delta));
+  else if (action === "d100-lock") void lockD100();
+  else if (action === "coin-flip") void callCoin(button.dataset.ability, button.dataset.call);
+  else if (action === "coin-stop") void stopCoinFlip();
   else if (action === "roll-scores") applyScoreMethod("rolled");
   else if (action === "point") {
     const ability = button.dataset.ability;
@@ -4028,6 +4232,7 @@ function extraChange(target) {
 // The shared table: your turn, the party board, chat extras, help, X-card.
 
 let lastRoom = null;
+let lastRollKey = "";
 let lastActiveKey = "";
 const seenMessages = new Set();
 let messagesPrimed = false;
@@ -4647,6 +4852,11 @@ function paintRoomExtras(room, seat) {
   noticeMentions(room.messages || [], seat);
   paintTableRolls(room.events, room.players);
   if (room.board) paintBoard(room.board);
+  const rollKey = JSON.stringify([room.board?.abilityRolls, room.abilityRoll]);
+  if (rollKey !== lastRollKey) {
+    lastRollKey = rollKey;
+    renderAbilities();
+  }
   paintPlayerMap(room, seat);
   const xcard = document.getElementById("xcard");
   if (xcard) xcard.hidden = false;
