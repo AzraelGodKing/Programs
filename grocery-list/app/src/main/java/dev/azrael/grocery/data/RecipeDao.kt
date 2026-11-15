@@ -15,6 +15,9 @@ interface RecipeDao {
     @Insert
     suspend fun insert(recipe: Recipe): Long
 
+    @Query("SELECT title FROM recipes")
+    suspend fun titles(): List<String>
+
     @Update
     suspend fun update(recipe: Recipe)
 

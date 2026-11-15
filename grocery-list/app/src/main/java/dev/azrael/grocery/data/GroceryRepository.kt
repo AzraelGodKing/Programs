@@ -2,9 +2,11 @@ package dev.azrael.grocery.data
 
 import androidx.room.withTransaction
 import dev.azrael.grocery.barcode.ScannedProduct
+import dev.azrael.grocery.nutrition.DashCheck
 import dev.azrael.grocery.parse.Amount
 import dev.azrael.grocery.parse.Categorizer
 import dev.azrael.grocery.parse.CombinedLine
+import dev.azrael.grocery.parse.ImportedRecipe
 import dev.azrael.grocery.parse.Merge
 import dev.azrael.grocery.parse.NameKey
 import dev.azrael.grocery.parse.ParsedIngredient
@@ -148,6 +150,22 @@ class GroceryRepository(private val db: GroceryDatabase, private val layout: Sto
         recipeDao.delete(recipe)
     }
     suspend fun restoreRecipe(recipe: Recipe) { recipeDao.insert(recipe) }
+
+    /**
+     * Saves imported recipes, each with a DASH check line at the top. One whose title is already
+     * in the box is skipped. Returns how many were added.
+     */
+    suspend fun importRecipes(recipes: List<ImportedRecipe>): Int = db.withTransaction {
+        val have = recipeDao.titles().map { it.trim().lowercase() }.toMutableSet()
+        var added = 0
+        for (r in recipes) {
+            if (!have.add(r.title.trim().lowercase())) continue
+            val checked = DashCheck.annotate(r)
+            saveRecipe(checked.title, checked.servings, checked.text)
+            added++
+        }
+        added
+    }
 
     /** Puts a saved recipe's chosen (already scaled) ingredients on the list. */
     suspend fun addRecipeToList(recipe: Recipe, ingredients: List<ParsedIngredient>) = db.withTransaction {
