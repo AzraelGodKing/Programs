@@ -2097,3 +2097,16 @@ html[data-motion="reduced"] .bmap-token { transition: none; }
 .watch-list .hint { margin: 0; }
 .watch-init { min-width: 1.6rem; color: var(--gold); font-variant-numeric: tabular-nums; }
 .watch-scroll { max-height: 22rem; overflow: auto; overflow-wrap: anywhere; }
+
+/* Ability score modes the DM unlocks */
+#score-methods .roll-mode { border-style: dashed; }
+#score-methods button:disabled { opacity: 0.45; cursor: not-allowed; }
+.roll-panel { display: grid; gap: 0.45rem; margin-top: 0.6rem; padding: 0.6rem 0.7rem; border: 1px dashed var(--line); border-radius: 0.7rem; }
+.roll-panel .hint, .roll-panel .roll-line { margin: 0; }
+.roll-panel .btn { justify-self: start; }
+.roll-line { font-family: var(--serif); font-size: 1.05rem; }
+.coin-call { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.coin-call .point-value { font-family: var(--serif); font-size: 1.2rem; }
+.coin-buttons { display: flex; gap: 0.25rem; }
+.coin-buttons .chip { padding: 0.15rem 0.5rem; font-size: 0.8rem; }
+.roll-warn { color: var(--blood); }
