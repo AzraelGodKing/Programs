@@ -131,10 +131,6 @@ fun MealPlanScreen(
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "More") }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
-                                text = { Text("Recipe box") },
-                                onClick = { menuOpen = false; onOpenRecipeBox() },
-                            )
-                            DropdownMenuItem(
                                 text = { Text("Clear this week") },
                                 onClick = { menuOpen = false; confirmClear = true },
                                 enabled = planned.isNotEmpty(),

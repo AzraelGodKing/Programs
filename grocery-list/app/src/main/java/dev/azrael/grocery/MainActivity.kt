@@ -216,8 +216,6 @@ private fun AppRoot(
                 vm = vm,
                 onAddRecipe = { screen = Screen.ADD_RECIPE },
                 onOpenCabinet = { screen = Screen.CABINET },
-                onOpenRecipeBox = { screen = Screen.RECIPE_BOX },
-                onOpenMealPlan = { screen = Screen.MEAL_PLAN },
                 onCheckForUpdates = { updates.check(manual = true) },
                 onOpenStoreLayout = { screen = Screen.STORE_LAYOUT },
                 claudeEnabled = claudeConfig.enabled,

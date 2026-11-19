@@ -72,8 +72,6 @@ fun GroceryListScreen(
     vm: GroceryViewModel,
     onAddRecipe: () -> Unit,
     onOpenCabinet: () -> Unit,
-    onOpenRecipeBox: () -> Unit,
-    onOpenMealPlan: () -> Unit,
     onCheckForUpdates: () -> Unit,
     onOpenStoreLayout: () -> Unit,
     versionLabel: String,
