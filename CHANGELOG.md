@@ -25,6 +25,8 @@
 
 ### Changed
 
+- Ability-panel roll lines keep the serif type from #66, now scoped to `.roll-panel .roll-line` so table-feed rolls no longer pick it up.
+
 - Grocery List has a new look. A bottom bar switches between List, Recipes, Plan, Cabinet and DASH, replacing the row of icons on the list. The app uses its own herb-green, sage and tomato palette on warm paper (with a matching dark theme) instead of the wallpaper colors, with bolder headings and rounder cards. The list opens with a card showing how many items are left to grab, items sit on rounded tiles, and store sections are labelled with tags.
 - Grocery List builds with Kotlin 2.4, KSP 2.3, Room 2.7, Android Gradle plugin 8.13 and Gradle 8.14, which the on-device Gemini Nano library needs. Your list and Cabinet are unchanged.
 - Grocery List release builds are numbered without gaps from now on. Pull requests are checked by a separate workflow, so they no longer use up build numbers.
@@ -37,6 +39,7 @@
 
 ### Removed
 
+- Export keywords on the coin-flip constants and `scoreLine` in `abilityroll.js`. They were only used inside that file.
 - Unused `TOKEN_COLORS`. `MAP_IMAGE_CHARS` stays in the worker but is no longer exported.
 - Unused `armorLabel` and `cleanViewer`.
 

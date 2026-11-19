@@ -20,11 +20,11 @@ export const ROLL_MODES = [
 export const ROLL_MODE_IDS = ROLL_MODES.map((mode) => mode.id);
 export const D100_BASE = 1;
 export const D100_MAX = 20;
-export const COIN_START = 10;
-export const COIN_LOW = 2;
-export const COIN_HIGH = 20;
-export const COIN_STEP = 2;
-export const COIN_MISSES = 3;
+const COIN_START = 10;
+const COIN_LOW = 2;
+const COIN_HIGH = 20;
+const COIN_STEP = 2;
+const COIN_MISSES = 3;
 const FLIP_CAP = 60;
 
 export function findRollMode(id) {
@@ -130,7 +130,7 @@ export function stopCoin(record, now = Date.now()) {
   return { ok: true, record: { ...record, done: true, end: "stopped", doneAt: now } };
 }
 
-export function scoreLine(scores) {
+function scoreLine(scores) {
   if (!scores) return "";
   return ROLL_ORDER.map((id) => `${id.toUpperCase()} ${scores[id]}`).join(", ");
 }
